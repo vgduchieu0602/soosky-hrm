@@ -1,10 +1,13 @@
-# Backend: hoidanit-ecommerce
+# Backend: Soosky HRM
 
 ## Tech Stack
 
 - Language: TypeScript
-- Framework: NestJS v11
-- ORM: TypeORM
+- Framework: Express.js
+- ODM: Mongoose
+- Database: MongoDB
+- Validation: Zod
+- Logging: Pino
 
 ## Documentation
 

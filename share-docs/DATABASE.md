@@ -64,7 +64,7 @@
 
 **Role** — Authorization role
 
-- `name`: String — `admin` | `hr_manager` | `manager` | `employee`, unique
+- `name`: String — `admin` | `hr_manager` | `employee`, unique
 - `description`: String
 - `isSystem`: Boolean — built-in roles cannot be deleted
 
@@ -109,9 +109,7 @@
 - `changes`: Object (Mixed) — JSON diff `{ before, after }`
 - `timestamp`: Date — default `Date.now`
 
----
-
-### 2.2 Organization Management
+### 2.2 Employee Management
 
 **Department**
 
@@ -131,10 +129,6 @@
 - `level`: Number — seniority level (1 = entry)
 - `description`: String
 
----
-
-### 2.3 Employee Management
-
 **Employee** — Core HR record (lightweight; PII lives in `employeeProfiles`)
 
 - `employeeCode`: String — unique HR code, e.g., `EMP-0001`
@@ -146,6 +140,7 @@
 - `terminationDate`: Date
 - `employeeType`: String — `full_time` | `part_time` | `contract` | `intern`
 - `status`: String — `onboarding` | `active` | `on_leave` | `terminated`
+- `salaryZone`: String - `zone1` | `zone2` | `zone3` | `zone4`
 
 **Indexes:** `employeeCode` unique, `userId` sparse unique, `departmentId`, `managerId`
 
@@ -246,6 +241,8 @@
 - `checkIn`: Date — actual check-in timestamp
 - `checkOut`: Date — actual check-out timestamp
 - `workHours`: Number — computed regular hours
+- `overtimeHours`: Number — computed overtime hours
+- `overtimeType`: String - `weekday` | `weekend` | `hodiday`
 - `status`: String — `present` | `late` | `absent` | `half_day` | `holiday`
 - `note`: String
 
@@ -287,12 +284,42 @@
 
 ### 2.5 Payroll Management
 
+**SalaryPolicyConfig**
+
+- `country`: String - ISO code, e.g.,`VN`
+- `year`: Number - e.g.,`2026`
+- `effectiveForm`: Date - StartDate (VD: `2026-07-01`)
+- `baseSalary`: Decimal128
+- `regionalMinWage`: Object
+- `insuranceCeilingMultiplier`: Number - default: 20
+- `personalDeduction`: Decimal128 - default 11,000,000
+- `dependentDeduction`: Decimal128 - default 4,400,000
+- `nonResidentTaxRate`: Number - default 20
+- `taxBrackets`: Array of Object
+- `insurancePates`: Object
+- `createdBy`: ObbjectId ref `users`
+- `updatedBy`: ObbjectId ref `users`
+
+**Indexes**: compound unique { country: 1, year: 1, effectiveFrom: 1 }
+
+**EmployeeTaxProfile**
+
+- `employeeId`: ObjectId ref `employees`, indexed
+- `taxCode`: String, unique sparse
+- `isResident`: Boolean
+- `dependentsCount`: Number - default: 0
+- `effectiveDate`: Date
+- `endDate`: Date - null
+
+**Indexes:** { employeeId: 1, effectiveDate: -1 }, taxCode sparse unique
+
 **PayrollPeriod**
 
 - `name`: String — period label, e.g., `2026-05`, unique
 - `startDate`: Date
 - `endDate`: Date
 - `payDate`: Date — scheduled pay date
+- `standardWorkDays`: Number - default: 22
 - `status`: String — `open` | `processing` | `closed` | `paid`
 
 **SalaryStructure** — Versioned base salary
@@ -309,9 +336,11 @@
 
 - `employeeId`: ObjectId ref `employees`
 - `name`: String — e.g., `Transport`, `Meal`, `Housing`
-- `amount`: Number (Decimal128) — absolute value or percentage
+- `amount`: Decimal128 — absolute value or percentage
 - `type`: String — `fixed` | `percentage`
 - `isTaxable`: Boolean
+- `isInsuranceBase`: Boolean
+- `category`: String - `position` | `responsibility` | `transport` | `meal` | `housing` | `phone` | `other`
 - `effectiveDate`: Date
 - `endDate`: Date — null = ongoing
 
@@ -330,6 +359,7 @@
 - `payrollPeriodId`: ObjectId ref `payrollPeriods`
 - `name`: String — e.g., `Q2 Bonus`, `13th Month`
 - `amount`: Number (Decimal128)
+- `isTaxable`: Boolean
 - `reason`: String
 - `approvedBy`: ObjectId ref `users`
 
@@ -354,19 +384,48 @@
 
 - `payrollPeriodId`: ObjectId ref `payrollPeriods`
 - `employeeId`: ObjectId ref `employees`
-- `baseSalary`: Number (Decimal128) — snapshot at computation
-- `totalAllowances`: Number (Decimal128)
-- `totalBonuses`: Number (Decimal128)
-- `grossSalary`: Number (Decimal128) — base + allowances + bonuses
-- `totalDeductions`: Number (Decimal128)
-- `tax`: Number (Decimal128)
-- `insurance`: Number (Decimal128) — employee contribution
-- `netSalary`: Number (Decimal128) — gross − tax − insurance − deductions
+- `policyConfigId`: ObjectId ref salaryPolicyConfigs
+
+- `standardWorkDays`: Number
+- `actualWorkDays`: Number
+- `unpaidLeaveDays`: Number
 - `workDays`: Number
+
+- `baseSalary`: NUmber (Decimal128) - snapshot lương cơ bản tại thời điểm tính
+- `proRatedBaseSalary`: Number (Decimal128) - lương cơ bản theo ngày công thực tế
+- `totalTaxableAllowances`: Number (Decimal128) - Tổng phụ cấp thuế
+- `totalNonTaxableAllowances`: Number (Decimal128) - Tổng phụ cấp không chịu thuế
+- `totalAllowances`: Number (Decimal128) - (Taxable + Non-Taxable)
+- `overtimePay`: Number (Decimal128)
+- `totalBonuses`: Number (Decimal128)
+- `grossSalary`: Number (Decimal128) — Thu nhập gộp = proRatedBaseSalary + totalAllowances + overtimePay + totalBonues
+
+- `insuranceBase`: Number (Decimal128) - Mức lương tính BHXH/BHYT = min(grossSalary, baseSalary_coSo x 20)
+- `unemploymentInsuranceBase`: Number (Decimal128) - Mức lương tính BHTN = min(grossSalary minWage_zone x 20)
+- `socialInsurance`: Number (Decimal128) - BHXH người lao động đóng = insuranceBase x 8%
+- `healthInsurance`: Number (Decimal128) - BHYT người lao động đống = insuranceBase x 1.5%
+- `unemploymentInsurance`: Number (Decimal128) - BHTN người lao động đóng = umemploymentInsuranceBase x 1%
+- `insurance`: Number (Decimal128) — employee contribution
+
+- `employerSocialInsurance`: Number (Decimal128) - BHXH NSDLĐ đóng = insuranceBase x 17.5%
+- `employerHealthInsurance`: Number (Decimal128) - BHYT NSDLĐ đóng = insuranceBase x 3%
+- `employerUnemploymentInsurance`: Number (Decimal128) - BHTN NSDLĐ đóng = umemploymentInsuranceBase x 1%
+
+- `taxableIncome`: Number (Decimal128) - Thu nhập chịu thuế = grossSalary - totalInsuranceEmployee - totalNonTaxableAllowances
+- `personalDeduction`: Number (Decimal) - giảm trừ bản thân (snapshot tại thời điểm tính)
+- `dependentDeduction`: Number (Decimal) - Tổng giản trừ người phụ thuộc = dependentCount x ratePerDependent
+- `dependentsCount`: Number - Số NPT tại thời điểm tính lương
+- `taxableIncomeAfterDeduction`: Number (Decimal128) - Thu nhập tính thuế = max(0, taxableIncome - personalDeduction - dependentDeduction)
+- `tax`: Number (Decimal128) - Thuế TNCN phải nộp
+
+- `totalDeductions`: Number (Decimal128)
+- `netSalary`: Number (Decimal128) — Lương thực nhận = grossSalary − totalInsuranceEmployee - tax - totalDeductions
+
 - `leaveDays`: Number — paid leave days
 - `status`: String — `draft` | `approved` | `paid`
 - `approvedBy`: ObjectId ref `users`
 - `paidAt`: Date
+- `computedAt`: Date - when caculated
 
 **Indexes:** compound unique `{ payrollPeriodId: 1, employeeId: 1 }`
 
@@ -463,6 +522,7 @@
 - `Employee` **1 : N** `EmployeeContract`
 - `Employee` **1 : N** `EmployeeHistory`
 - `Employee` **1 : N** `EmployeeAsset`
+- `Employee` **1 : N** `EmployeeTaxProfile`
 
 ### 3.4 Attendance & Leave
 
@@ -483,8 +543,9 @@
 - `Employee` **1 : N** `Bonus`
 - `Employee` **1 : N** `Payslip`
 - `Payroll` **1 : 1** `Payslip`
-- `TaxConfig` — **global lookup** (resolved by `country + year` at compute time)
-- `InsuranceConfig` — **global lookup**
+- `SalaryPolicyConfig` - **global lookup** (resolved by country + year at compute time)
+- `TaxConfig` — **global lookup** (deprecated, use SalaryPolicyConfig)
+- `InsuranceConfig` — **global lookup** (deprecated, use SalaryPolicyConfig)
 
 ### 3.6 Performance
 
@@ -504,6 +565,7 @@
   - Expired sessions auto-removed via TTL index on `expiresAt`.
 - **Account provisioning:** HR creates an `Employee` first (`userId = null`), then issues login via `POST /employees/:id/grant-login`, which creates the `User`, assigns `role = employee`, sets `mustChangePassword = true`, and emails a temp password to `EmployeeProfile.email`.
 - **Versioned records:** `SalaryStructure`, `EmployeeContract`, `Allowance` use `effectiveDate` / `endDate` instead of overwriting — `endDate = null` means "current".
+- **Policy snapshot in Payroll:** khi tính lương, `Payroll.policyConfigId` lưu lại bản policy đã dùng để tính — đảm bảo kết quả không thay đổi kể cả khi admin cập nhật policy sau đó.
 - **Self-references:**
   - `Department.parentDepartmentId` — org tree
   - `Employee.managerId` — reporting line
@@ -516,6 +578,9 @@
 
 ```ts
 import { Schema, model } from "mongoose";
+
+const DB_NAME = "user";
+const COLLECTION_NAME = "users";
 
 const userSchema = new Schema(
   {
@@ -544,12 +609,13 @@ const userSchema = new Schema(
     failedLoginAttempts: { type: Number, default: 0 },
   },
   {
-    collection: "users",
+    collection: COLLECTION_NAME,
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   },
 );
 
-export const User = model("users", userSchema);
+const User = mongoose.model(DB_NAME, userSchema);
+export default User;
 ```
 
 ### 4.2 Compound Index
@@ -627,12 +693,13 @@ src/
 ├── shared/
 │   ├── db/                   # mongoose connection
 │   ├── middlewares/          # auth, audit, validation
+│   ├── models/               # shared models
 │   ├── utils/
 │   └── types/
 └── app.ts
 ```
 
-Each feature folder owns: `*.model.ts`, `*.service.ts`, `*.controller.ts`, `*.routes.ts`, `*.dto.ts`, `*.test.ts`.
+Each feature folder owns: `*.service.ts`, `*.controller.ts`, `*.routes.ts`, `*.dto.ts`, `*.test.ts`.
 
 ---
 

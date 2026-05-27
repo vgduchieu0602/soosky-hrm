@@ -23,5 +23,22 @@ Package Manager: pnpm
 ```
 
 ## Shared Docs
+
 - share-docs/API-SPEC.md
 - share-docs/DATABASE.md
+
+## Available Skills
+
+### Project Setup
+
+- `/init-base backend` - Setup project architecture & enviroment backend
+- `/init-base frontend` - Setup project architecture & enviroment frontend
+
+### Feature Development
+
+### Skill routing
+
+### Important
+
+- Alway read the skill's required docs BEFORE generating code
+- Follow existing patterns in codebase

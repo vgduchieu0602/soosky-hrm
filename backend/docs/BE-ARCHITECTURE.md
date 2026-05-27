@@ -71,10 +71,22 @@ src/
 │   │   ├── pagination.util.ts
 │   │   ├── hash.util.ts          # bcrypt wrappers
 │   │   └── money.util.ts         # Decimal128 helpers
-│   └── types/
-│       ├── auth-payload.type.ts  # { userId, roles, permissions }
-│       ├── response.type.ts
-│       └── pagination.type.ts
+│   ├── types/
+│   │   ├── auth-payload.type.ts  # { userId, roles, permissions }
+│   │   ├── response.type.ts
+│   │   └── pagination.type.ts
+│   └── models/                   # ALL Mongoose Schemas & Models live here
+│       ├── user.model.ts
+│       ├── role.model.ts
+│       ├── permission.model.ts
+│       ├── user-role.model.ts
+│       ├── role-permission.model.ts
+│       ├── session.model.ts
+│       ├── audit-log.model.ts
+│       ├── department.model.ts
+│       ├── position.model.ts
+│       ├── employee.model.ts
+│       └── ...                   # one file per collection in DATABASE.md
 └── features/
     ├── iam/                      # users · roles · permissions · sessions · auth · audit logs
     ├── organization/             # departments · positions
@@ -87,6 +99,10 @@ src/
 ---
 
 ## 3. Feature Anatomy
+
+> **Note:** Mongoose models are NOT inside features. They all live in `src/shared/models/` and are
+> imported via `@shared/models/[entity].model`. Each feature owns only its
+> controllers/services/repositories/dto/routes.
 
 ### 3.1 Simple feature — `iam`
 
@@ -102,19 +118,11 @@ features/iam/
 │   ├── auth.service.ts           # login, refresh, logout (session revoke)
 │   ├── user.service.ts
 │   └── role.service.ts
-├── repositories/
+├── repositories/                 # use @shared/models/* — never declare schemas here
 │   ├── user.repository.ts
 │   ├── role.repository.ts
 │   ├── user-role.repository.ts
 │   └── session.repository.ts
-├── models/
-│   ├── user.model.ts
-│   ├── role.model.ts
-│   ├── permission.model.ts
-│   ├── user-role.model.ts
-│   ├── role-permission.model.ts
-│   ├── session.model.ts
-│   └── audit-log.model.ts
 ├── strategies/
 │   └── jwt.strategy.ts           # access + refresh token issue/verify
 ├── dto/
@@ -146,7 +154,7 @@ features/employee/
 │   ├── account-provisioning.service.ts  # grant-login flow (atomic, uses session)
 │   ├── employee-profile.service.ts
 │   └── employee-history.service.ts      # writes timeline on changes
-├── repositories/
+├── repositories/                     # use @shared/models/* (see DATABASE.md §2.3)
 │   ├── employee.repository.ts
 │   ├── employee-profile.repository.ts
 │   ├── employee-document.repository.ts
@@ -155,8 +163,6 @@ features/employee/
 │   ├── employee-contract.repository.ts
 │   ├── employee-history.repository.ts
 │   └── employee-asset.repository.ts
-├── models/
-│   └── (one .model.ts per entity in DATABASE.md §2.3)
 ├── dto/, types/, tests/, CONTEXT.md
 ```
 
@@ -177,9 +183,8 @@ features/payroll/
 │   ├── payslip-generator.service.ts # PDF generation + upload + email
 │   ├── salary-structure.service.ts
 │   └── allowance.service.ts
-├── repositories/
+├── repositories/                    # use @shared/models/* (see DATABASE.md §2.5)
 │   └── (one per entity in DATABASE.md §2.5)
-├── models/
 ├── dto/, types/, tests/, CONTEXT.md
 ```
 
@@ -273,8 +278,9 @@ graph TB
 
 **Forbidden:**
 
-- ❌ `import { EmployeeModel } from '../employee/models/employee.model'` from `payroll`
+- ❌ `import { EmployeeService } from '../employee/services/employee.service'` (private path) from `payroll`
 - ✅ `import { EmployeeService } from '@features/employee'` (only via public `index.ts`)
+- ✅ `import { Employee } from '@shared/models/employee.model'` is allowed anywhere — models are shared
 - ❌ Circular feature dependency → refactor to event or shared service.
 
 **Feature dependencies:**

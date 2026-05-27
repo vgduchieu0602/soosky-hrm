@@ -24,19 +24,21 @@
 ```
 src/
 ├── features/
-│   ├── iam/              # users, roles, permissions, sessions, auth, audit logs
-│   ├── organization/     # departments, positions
-│   ├── employee/         # employees + profile/documents/contacts/contracts/...
-│   ├── attendance/       # shifts, attendances, leave requests, balances, holidays
-│   ├── payroll/          # periods, salary structures, allowances, payrolls, payslips
-│   └── performance/      # appraisal cycles, goals, KPIs, reviews, feedbacks
+│   ├── iam/                        # users, roles, permissions, sessions, auth, audit logs
+│   ├── organization/               # departments, positions
+│   ├── employee/                   # employees + profile/documents/contacts/contracts/...
+│   ├── attendance/                 # shifts, attendances, leave requests, balances, holidays
+│   ├── payroll/                    # periods, salary structures, allowances, payrolls, payslips
+│   └── performance/                # appraisal cycles, goals, KPIs, reviews, feedbacks
 ├── shared/
-│   ├── middlewares/      # auth, role-guard, error-handler, audit, validation
-│   ├── errors/           # HttpError, NotFoundError, ForbiddenError, ...
-│   ├── utils/            # date, money, pagination helpers
-│   ├── types/            # cross-feature types (e.g., AuthPayload)
-│   └── db/               # mongoose connection, plugins
-└── config/               # env loader, constants
+│   ├── middlewares/                # auth, role-guard, error-handler, audit, validation
+│   ├── errors/                     # HttpError, NotFoundError, ForbiddenError, ...
+│   ├── utils/                      # date, money, pagination helpers
+│   ├── types/                      # cross-feature types (e.g., AuthPayload)
+│   ├── models/
+│   │   └── [entity].model.ts       # Mongoose Schema + Model
+│   └── db/                         # mongoose connection, plugins
+└── config/                         # env loader, constants
 ```
 
 Each feature folder:
@@ -48,8 +50,6 @@ features/[feature-name]/
 ├── [feature].service.ts       # business logic
 ├── repositories/
 │   └── [entity].repository.ts # data access (Mongoose queries)
-├── models/
-│   └── [entity].model.ts      # Mongoose Schema + Model
 ├── dto/
 │   ├── create-[entity].dto.ts # Zod schema + inferred type
 │   └── update-[entity].dto.ts
@@ -106,10 +106,24 @@ features/[feature-name]/
 ```ts
 // shared/errors/http-error.ts
 export class HttpError extends Error {
-  constructor(public statusCode: number, message: string, public code?: string) { super(message); }
+  constructor(
+    public statusCode: number,
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
 }
-export class NotFoundError extends HttpError { constructor(r: string) { super(404, `${r} not found`); } }
-export class ForbiddenError extends HttpError { constructor() { super(403, 'Forbidden'); } }
+export class NotFoundError extends HttpError {
+  constructor(r: string) {
+    super(404, `${r} not found`);
+  }
+}
+export class ForbiddenError extends HttpError {
+  constructor() {
+    super(403, 'Forbidden');
+  }
+}
 ```
 
 - Throw typed errors from services; let global error middleware format the response.
@@ -122,8 +136,8 @@ export class ForbiddenError extends HttpError { constructor() { super(403, 'Forb
 import { z } from 'zod';
 export const createEmployeeDto = z.object({
   departmentId: z.string().length(24),
-  positionId:   z.string().length(24),
-  hireDate:     z.coerce.date(),
+  positionId: z.string().length(24),
+  hireDate: z.coerce.date(),
   employeeType: z.enum(['full_time', 'part_time', 'contract', 'intern']),
 });
 export type CreateEmployeeDto = z.infer<typeof createEmployeeDto>;
@@ -156,7 +170,11 @@ export class EmployeeRepository {
     return Employee.find({ departmentId: deptId, status: 'active' }).lean();
   }
   paginate({ page, limit, filter }: PaginateOpts) {
-    return Employee.aggregate([ { $match: filter }, { $skip: (page-1)*limit }, { $limit: limit } ]);
+    return Employee.aggregate([
+      { $match: filter },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+    ]);
   }
 }
 ```
@@ -168,19 +186,19 @@ export class EmployeeRepository {
 
 ## 5. Anti-patterns (MUST NOT do)
 
-| ❌ DON'T | ✅ DO |
-|---|---|
+| ❌ DON'T                                                                | ✅ DO                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `import { EmployeeModel } from '../employee/models/...'` from `payroll` | `import { EmployeeService } from '@features/employee'` (via feature `index.ts`) |
-| Business logic in controller | Controller calls service; service holds rules |
-| `Employee.find(...)` in service | Service calls `employeeRepo.find(...)` |
-| Storing plain passwords | `bcrypt.hash(password, 10)` before save |
-| Referencing current `baseSalary` in `Payroll` | Snapshot `baseSalary`, `allowances`, etc. at compute time |
-| Referencing current `Department` in `EmployeeHistory` | Snapshot into `fromValue` / `toValue` |
-| Hardcoded values | Read from `config` (loaded from env via Zod) |
-| Circular feature dependency | Refactor into shared service or domain event |
-| Hard-deleting employees | Set `status = 'terminated'`, fill `terminationDate` |
-| `Number` for money | `Decimal128` (use `mongoose-decimal128` plugin) |
-| `Number` for phone / account number | `String` (preserve leading zeros) |
+| Business logic in controller                                            | Controller calls service; service holds rules                                   |
+| `Employee.find(...)` in service                                         | Service calls `employeeRepo.find(...)`                                          |
+| Storing plain passwords                                                 | `bcrypt.hash(password, 10)` before save                                         |
+| Referencing current `baseSalary` in `Payroll`                           | Snapshot `baseSalary`, `allowances`, etc. at compute time                       |
+| Referencing current `Department` in `EmployeeHistory`                   | Snapshot into `fromValue` / `toValue`                                           |
+| Hardcoded values                                                        | Read from `config` (loaded from env via Zod)                                    |
+| Circular feature dependency                                             | Refactor into shared service or domain event                                    |
+| Hard-deleting employees                                                 | Set `status = 'terminated'`, fill `terminationDate`                             |
+| `Number` for money                                                      | `Decimal128` (use `mongoose-decimal128` plugin)                                 |
+| `Number` for phone / account number                                     | `String` (preserve leading zeros)                                               |
 
 ---
 
@@ -221,21 +239,35 @@ export class EmployeeRepository {
 ### Schema definition
 
 ```ts
+const DB_NAME = 'employee';
+const DB_COLLECTION = 'employees';
+
 const employeeSchema = new Schema(
   {
     employeeCode: { type: String, required: true, unique: true, index: true },
-    userId:       { type: Schema.Types.ObjectId, ref: 'users', sparse: true, unique: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'users', sparse: true, unique: true },
     departmentId: { type: Schema.Types.ObjectId, ref: 'departments', required: true, index: true },
-    positionId:   { type: Schema.Types.ObjectId, ref: 'positions', required: true },
-    managerId:    { type: Schema.Types.ObjectId, ref: 'employees' },
-    hireDate:     { type: Date, required: true },
-    employeeType: { type: String, enum: ['full_time','part_time','contract','intern'], required: true },
-    status:       { type: String, enum: ['onboarding','active','on_leave','terminated'], default: 'onboarding' },
+    positionId: { type: Schema.Types.ObjectId, ref: 'positions', required: true },
+    managerId: { type: Schema.Types.ObjectId, ref: 'employees' },
+    hireDate: { type: Date, required: true },
+    employeeType: {
+      type: String,
+      enum: ['full_time', 'part_time', 'contract', 'intern'],
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['onboarding', 'active', 'on_leave', 'terminated'],
+      default: 'onboarding',
+    },
   },
-  { collection: 'employees', timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } }
+  { collection: 'employees', timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
 );
+
 employeeSchema.index({ departmentId: 1, status: 1 });
-export const Employee = model('employees', employeeSchema);
+
+const Employee = mongoose.model(DB_NAME, employeeSchema);
+export default Employee;
 ```
 
 - **Always set `collection:`** explicitly to avoid Mongoose auto-pluralization surprises.
@@ -295,7 +327,7 @@ router.post(
 );
 ```
 
----
+## s
 
 ## 10. Configuration
 
@@ -303,10 +335,10 @@ router.post(
 // config/env.ts
 import { z } from 'zod';
 const envSchema = z.object({
-  NODE_ENV:    z.enum(['development','test','production']),
-  PORT:        z.coerce.number().default(3000),
-  MONGO_URI:   z.string().url(),
-  JWT_SECRET:  z.string().min(32),
+  NODE_ENV: z.enum(['development', 'test', 'production']),
+  PORT: z.coerce.number().default(3000),
+  MONGO_URI: z.string().url(),
+  JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   BCRYPT_ROUNDS: z.coerce.number().default(10),
 });
