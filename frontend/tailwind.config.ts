@@ -6,19 +6,39 @@ export default {
   theme: {
     extend: {
       colors: {
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+          50: "#E8FAFF",
+          100: "#C8F2FF",
+          200: "#9BE8FF",
+          300: "#67DBFF",
+          400: "#2CCBFF",
+          500: "#00B8F5",
+          600: "#009AD1",
+          700: "#007CAA",
+          800: "#005F82",
+          900: "#003F57",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+          50: "#EEF5FF",
+          100: "#D9E8FF",
+          200: "#B8D4FF",
+          300: "#89B7FF",
+          400: "#5D97FF",
+          500: "#367BFF",
+          600: "#245FE0",
+          700: "#1B49B0",
+          800: "#163985",
+          900: "#11295C",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
@@ -39,6 +59,12 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        focus: "0 0 0 3px rgba(0,184,245,0.20)",
       },
       borderRadius: {
         lg: "var(--radius)",
