@@ -51,6 +51,26 @@ If missing, warn the user but proceed.
 
 ### B1. Init project (if not exists)
 
+Before initializing the project, ask the user:
+
+Use latest versions? (recommended for new projects)
+
+When user does not specify versions:
+
+Prefer latest stable versions
+Ensure compatibility between:
+Node.js
+Vite
+React
+TypeScript
+
+If compatibility issues may occur:
+
+warn the user first
+suggest a stable tested combination
+
+If using latest versions:
+
 ```bash
 pnpm create vite@latest frontend -- --template react-ts
 cd frontend

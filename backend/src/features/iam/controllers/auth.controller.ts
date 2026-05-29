@@ -27,9 +27,14 @@ function clientCtx(req: Request) {
 export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
+      //Lấy thông tin đăng nhập từ request body
       const { identifier, password } = req.body as LoginDto;
+
+      //Gọi AuthService.login để kiểm tra thông tin
       const result = await authService.login(identifier, password, clientCtx(req));
+
       res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, refreshCookieOptions());
+
       res.json({
         data: {
           accessToken: result.accessToken,

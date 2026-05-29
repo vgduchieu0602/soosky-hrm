@@ -4,11 +4,12 @@ import { env } from '@config/env';
 import { logger } from '@core/logger/logger';
 
 async function bootstrap() {
-  //conect database
+  //connect database
   await connectDB();
 
   //Start HTTP Server
   const app = createApp();
+  
   const server = app.listen(env.PORT, () =>
     logger.info(`API listening on :${env.PORT}`),
   );
@@ -20,6 +21,7 @@ async function bootstrap() {
       process.exit(0);
     });
   };
+
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }

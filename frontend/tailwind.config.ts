@@ -63,13 +63,43 @@ export default {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
       },
-      boxShadow: {
-        focus: "0 0 0 3px rgba(0,184,245,0.20)",
+      keyframes: {
+        'aurora-1': { 
+            '0%,100%': { transform: 'translate(0,0) scale(1)' },
+            '50%':     { transform: 'translate(40px,-30px) scale(1.10)' } 
+          },
+        'aurora-2': { 
+            '0%,100%': { transform: 'translate(0,0) scale(1)' },
+            '50%':     { transform: 'translate(-30px,40px) scale(1.15)' } 
+          },
+        'aurora-3': { 
+          '0%,100%': { transform: 'translate(0,0) scale(1)' },
+          '50%':     { transform: 'translate(30px,30px) scale(0.95)' } 
+        },
+        'fade-up': { 
+          from: { opacity: 0, transform: 'translateY(12px)' },
+          to:   { opacity: 1, transform: 'translateY(0)' } 
+        },
+        'fade-in': { 
+          from: { opacity: 0 }, to: { opacity: 1 } 
+        },
+        'ring-pulse': { 
+          '0%': { boxShadow: '0 0 0 0 rgba(0,184,245,0.45)' },
+          '100%': { boxShadow: '0 0 0 14px rgba(0,184,245,0)' } 
+        },
+        shine: { 
+          '0%': { transform: 'translateX(-150%) skewX(-12deg)' },
+          '100%': { transform: 'translateX(250%) skewX(-12deg)' } 
+        },
       },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+      animation: {
+        'aurora-1': 'aurora-1 18s ease-in-out infinite',
+        'aurora-2': 'aurora-2 22s ease-in-out infinite',
+        'aurora-3': 'aurora-3 16s ease-in-out infinite',
+        'fade-up': 'fade-up 0.7s ease-out both',
+        'fade-in': 'fade-in 0.9s ease-out both',
+        'ring-pulse':'ring-pulse 2s ease-out infinite',
+        'shine': 'shine 3.6s ease-in-out infinite 1.2s',
       },
     },
   },

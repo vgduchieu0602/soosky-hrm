@@ -68,4 +68,91 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+
+  /* Floating-label inputs */
+  .field {
+    position: relative;
+  }
+
+  .field input {
+    width: 100%;
+    height: 56px;
+    padding: 22px 14px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    font-size: 15px;
+    color: #0f172a;
+    transition: border-color 0.2s,  box-shadow 0.2s;
+  }
+
+  .field input:hover {
+    border-color: #cbd5e1;
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: #00B8F5;
+    box-shadow: 0 0 0 4px rgba(0, 184, 245, 0.14);
+  }
+
+  .field label {
+    position: absolute;
+    left: 14px;
+    top: 18px;
+    font-size: 15px;
+    color: #94a3b8;
+    pointer-events: none;
+    transition: transform 0.18s ease, color 0.18s ease, font-size 0.18s ease;
+    transform-origin: left top;
+  }
+
+  .field input:focus + label,
+  .field input:not(:placeholder-shown) + label {
+     transform: translateY(-12px);
+     font-size: 11px; color: #00B8F5; font-weight: 600; letter-spacing: 0.02em;
+  }
+  
+  .field input:not(:focus):not(:placeholder-shown) + label { 
+    color: #64748b; 
+  }
+
+  /* Grid background for the banner */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 80%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 80%);
+   }
+
+   /* Shine sweep on the submit button */
+  .btn-shine { 
+    position: relative; 
+    overflow: hidden; 
+  }
+
+  .btn-shine::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+    transform: translateX(-150%) skewX(-12deg);
+    animation: shine 3.6s ease-in-out infinite 1.2s;
+    pointer-events: none;
+  }
+
+  /* Custom checkbox */
+  .cb { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .cb input { display: none; }
+  .cb .box {
+    width: 18px; height: 18px;
+    border: 1.5px solid #cbd5e1; border-radius: 5px;
+    background: #fff; color: transparent;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .18s ease;
+  }
+  .cb input:checked + .box {
+    background: #00B8F5; border-color: #00B8F5; color: #fff;
+  }
 }
