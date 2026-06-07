@@ -1,9 +1,23 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
 
 const DB_NAME = 'department';
 const COLLECTION_NAME = 'departments';
 
-const departmentSchema = new Schema(
+export type DepartmentStatus = 'active' | 'archived';
+
+export interface IDepartment {
+  name: string;
+  code: string;
+  parentDepartmentId?: Types.ObjectId | null;
+  description: string;
+  status: DepartmentStatus;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export type DepartmentDoc = HydratedDocument<IDepartment>;
+
+const departmentSchema = new Schema<IDepartment>(
   {
     name: { type: String, required: true, trim: true },
     code: { type: String, required: true, unique: true, uppercase: true, trim: true, index: true },
@@ -26,4 +40,4 @@ const departmentSchema = new Schema(
   },
 );
 
-export const Department = mongoose.model(DB_NAME, departmentSchema);
+export const Department = mongoose.model<IDepartment>(DB_NAME, departmentSchema);

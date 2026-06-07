@@ -1,9 +1,21 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
 
 const DB_NAME = 'position';
 const COLLECTION_NAME = 'positions';
 
-const positionSchema = new Schema(
+export interface IPosition {
+  title: string;
+  code: string;
+  departmentId: Types.ObjectId;
+  level: number;
+  description: string;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export type PositionDoc = HydratedDocument<IPosition>;
+
+const positionSchema = new Schema<IPosition>(
   {
     title: { type: String, required: true, trim: true },
     code: { type: String, required: true, unique: true, uppercase: true, trim: true, index: true },
@@ -22,4 +34,4 @@ const positionSchema = new Schema(
   },
 );
 
-export const Position = mongoose.model(DB_NAME, positionSchema);
+export const Position = mongoose.model<IPosition>(DB_NAME, positionSchema);

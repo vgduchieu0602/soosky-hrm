@@ -10,7 +10,16 @@ export interface AppEventMap {
   'iam.user.locked': { userId: string; reason: string };
   'iam.session.revoked': { userId: string; sessionId: string };
   'iam.session.reuse-detected': { userId: string };
-  // Reserved for future features (employee, payroll, ...) — extend later.
+  'employee.granted-login': {
+    userId: string;
+    employeeId: string;
+    username: string;
+    tempPassword: string;
+    sendTo?: string;
+  };
+  'employee.created': { employeeId: string; createdBy: string };
+  'employee.terminated': { employeeId: string; terminatedBy: string };
+  // Reserved for future features (payroll, ...) — extend later.
 }
 
 class TypedEventBus {

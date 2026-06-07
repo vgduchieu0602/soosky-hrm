@@ -32,6 +32,22 @@
     --ring: 196 100% 48%;
 
     --radius: 0.5rem;
+
+    /* Pastel chip palette (matches dashboard JSX) */
+    --chip-blue-bg: #EFF6FF;
+    --chip-blue-ink: #3B82F6;
+    --chip-emerald-bg: #ECFDF5;
+    --chip-emerald-ink: #10B981;
+    --chip-violet-bg: #F5F3FF;
+    --chip-violet-ink: #8B5CF6;
+    --chip-amber-bg: #FFFBEB;
+    --chip-amber-ink: #F59E0B;
+    --chip-indigo-bg: #EEF2FF;
+    --chip-indigo-ink: #6366F1;
+    --chip-cyan-bg: #ECFEFF;
+    --chip-cyan-ink: #06B6D4;
+    --chip-rose-bg: #FFF1F2;
+    --chip-rose-ink: #F43F5E;
   }
 
   .dark {
@@ -67,6 +83,16 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+  }
+
+  /* Slide-over panel animation used by EmployeeDetail */
+  @keyframes slideOver {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
 
   /* Floating-label inputs */

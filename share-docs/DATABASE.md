@@ -132,6 +132,7 @@
 **Employee** — Core HR record (lightweight; PII lives in `employeeProfiles`)
 
 - `employeeCode`: String — unique HR code, e.g., `EMP-0001`
+- `fingerprintId`: String - unique
 - `userId`: ObjectId ref `users` — **nullable** until login granted
 - `departmentId`: ObjectId ref `departments`
 - `positionId`: ObjectId ref `positions`
@@ -142,7 +143,7 @@
 - `status`: String — `onboarding` | `active` | `on_leave` | `terminated`
 - `salaryZone`: String - `zone1` | `zone2` | `zone3` | `zone4`
 
-**Indexes:** `employeeCode` unique, `userId` sparse unique, `departmentId`, `managerId`
+**Indexes:** `employeeCode` unique, `fingerprintId` sparse unique, `userId` sparse unique, `departmentId`, `managerId`
 
 **EmployeeProfile** — PII (1:1 with `employees`)
 
@@ -227,6 +228,7 @@
 **Shift**
 
 - `name`: String — e.g., `Morning`, `Office Hours`
+- `type`: String - `morning | afternoon | full_day`
 - `startTime`: String — `HH:mm` (24h)
 - `endTime`: String — `HH:mm`
 - `breakMinutes`: Number — unpaid break duration
@@ -243,10 +245,22 @@
 - `workHours`: Number — computed regular hours
 - `overtimeHours`: Number — computed overtime hours
 - `overtimeType`: String - `weekday` | `weekend` | `hodiday`
-- `status`: String — `present` | `late` | `absent` | `half_day` | `holiday`
+- `session`: String - `morning | afternoon | full_day`
+- `symbol`: String
+- `leaveRequestId`: ObjectId ref leaveRequests
+- `status`: String — `present` | `late` | `absent` | `leave_paid` | `leave_unpaid` | `holiday`
 - `note`: String
 
-**Indexes:** compound unique `{ employeeId: 1, date: 1 }`
+**AttendanceSymbols** - Symbol of attendance
+
+- `code`: String - require true - unique: true
+- `label`: String
+- `paidStatus`: String - `paid| unpaid | neutral`
+- `affectsPayroll`: Boolean
+- `leaveType`: String
+- `color`: String
+
+**Indexes:** compound unique `{ employeeId: 1, date: 1, session: 1 }`, `leaveRequestId` indexed
 
 **LeaveRequest**
 
@@ -255,6 +269,7 @@
 - `startDate`: Date
 - `endDate`: Date
 - `days`: Number — computed (excl. weekends/holidays)
+- `halfDaySession`: String - `morning | afternoon` default null
 - `reason`: String
 - `status`: String — `pending` | `approved` | `rejected` | `cancelled`
 - `approverId`: ObjectId ref `employees` — manager who decides

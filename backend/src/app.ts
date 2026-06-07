@@ -6,6 +6,8 @@ import pinoHttp from 'pino-http';
 import { logger } from '@core/logger/logger';
 import { errorHandler } from '@shared/middlewares/error-handler';
 import { iamRouter } from '@features/iam';
+import { employeeRouter } from '@features/employee';
+import { organizationRouter } from '@features/organization';
 
 export function createApp() {
   //Khởi tạo Express app
@@ -22,6 +24,8 @@ export function createApp() {
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
   app.use('/api/v1', iamRouter);
+  app.use('/api/v1', organizationRouter);
+  app.use('/api/v1', employeeRouter);
 
   //Register Error Handler
   app.use(errorHandler);
