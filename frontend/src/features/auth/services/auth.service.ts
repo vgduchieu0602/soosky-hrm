@@ -30,4 +30,11 @@ export const authService = {
     );
     return data.data;
   },
+
+  async changePassword(payload: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<void> {
+    await api.patch("/auth/change-password", payload);
+  },
 };

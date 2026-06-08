@@ -15,6 +15,7 @@ export type CreateDepartmentDto = z.infer<typeof createDepartmentDto>;
 export const updateDepartmentDto = z
   .object({
     name: z.string().min(1).max(120).trim().optional(),
+    code: z.string().min(1).max(20).trim().optional(),
     parentDepartmentId: objectId.nullable().optional(),
     description: z.string().max(500).optional(),
     status: z.enum(['active', 'archived']).optional(),

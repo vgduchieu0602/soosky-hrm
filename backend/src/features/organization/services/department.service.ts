@@ -93,8 +93,16 @@ export const departmentService = {
     if (input.parentDepartmentId === id) {
       throw new HttpError(400, 'Department cannot be its own parent', 'ORG_003');
     }
-    const { parentDepartmentId, ...rest } = input;
+    const { parentDepartmentId, code, ...rest } = input;
     const patch: Partial<IDepartment> = { ...rest };
+    if (code !== undefined) {
+      const normalized = code.trim().toUpperCase();
+      const dup = await departmentRepository.findByCode(normalized);
+      if (dup && dup._id.toString() !== id) {
+        throw new HttpError(409, 'Department code already exists', 'ORG_002');
+      }
+      patch.code = normalized;
+    }
     if (parentDepartmentId !== undefined) {
       patch.parentDepartmentId = parentDepartmentId
         ? new Types.ObjectId(parentDepartmentId)

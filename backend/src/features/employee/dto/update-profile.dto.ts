@@ -12,6 +12,7 @@ export const updateProfileDto = z
     avatarUrl: z.string().url().optional(),
     avatarId: z.string().optional(),
     email: z.string().email().optional(),
+    workEmail: z.string().email().optional(),
     phone: z.string().min(6).max(40).optional(),
     address: z.string().max(255).optional(),
   })

@@ -6,6 +6,7 @@ const objectId = z.string().length(24);
 
 export const createEmployeeDto = z.object({
   employeeCode: z.string().min(3).max(40).trim(),
+  fingerprintId: z.string().min(1).max(40).trim().optional(),
   departmentId: objectId,
   positionId: objectId,
   managerId: objectId.optional(),
@@ -20,6 +21,7 @@ export const createEmployeeDto = z.object({
     nationality: z.string().min(2).max(3).optional(),
     maritalStatus: z.enum(MARITAL_STATUS).optional(),
     email: z.string().email().optional(),
+    workEmail: z.string().email().optional(),
     phone: z.string().min(6).max(40).optional(),
     address: z.string().max(255).optional(),
   }),

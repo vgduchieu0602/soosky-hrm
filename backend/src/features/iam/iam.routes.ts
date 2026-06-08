@@ -6,6 +6,7 @@ import { userController } from '@features/iam/controllers/user.controller';
 import { roleController } from '@features/iam/controllers/role.controller';
 import { permissionController } from '@features/iam/controllers/permission.controller';
 import { loginDto } from '@features/iam/dto/login.dto';
+import { changePasswordDto } from '@features/iam/dto/change-password.dto';
 import { createUserDto } from '@features/iam/dto/create-user.dto';
 import { createRoleDto } from '@features/iam/dto/create-role.dto';
 import { createPermissionDto } from '@features/iam/dto/create-permission.dto';
@@ -16,6 +17,7 @@ const router = Router();
 router.post('/auth/login', validate(loginDto, 'body'), authController.login);
 router.post('/auth/refresh', authController.refresh);
 router.post('/auth/logout', authenticate, authController.logout);
+router.patch('/auth/change-password', authenticate, validate(changePasswordDto, 'body'), authController.changePassword);
 router.get('/auth/me', authenticate, authController.me);
 
 // User routes

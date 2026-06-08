@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/shared/utils/cn";
 import type {
   CreateDepartmentInput,
   DepartmentNode,
@@ -80,8 +79,7 @@ export function DepartmentFormDialog({
     return allDepartments.filter((d) => !excluded.has(d.id));
   }, [allDepartments, mode, target]);
 
-  const canSubmit =
-    name.trim().length > 0 && (mode === "edit" || code.trim().length > 0);
+  const canSubmit = name.trim().length > 0 && code.trim().length > 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -99,6 +97,7 @@ export function DepartmentFormDialog({
           }
         : {
             name: name.trim(),
+            code: code.trim().toUpperCase(),
             parentDepartmentId: parentId || null,
             description: description.trim() || undefined,
             status,
@@ -154,14 +153,7 @@ export function DepartmentFormDialog({
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="VD: BE"
                 maxLength={20}
-                disabled={mode === "edit"}
-                className={cn(mode === "edit" && "opacity-60")}
               />
-              {mode === "edit" && (
-                <span className="text-[11px] text-muted-foreground">
-                  Mã không thể thay đổi sau khi tạo.
-                </span>
-              )}
             </div>
 
             <div className="flex flex-col gap-1.5">

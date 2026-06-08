@@ -215,12 +215,18 @@
 | Method | Path                                          | Description                               | Auth          |
 | ------ | --------------------------------------------- | ----------------------------------------- | ------------- |
 | GET    | `/employees`                                  | List employees (filter, search, paginate) | Yes           |
+| GET    | `/employees/stats`                            | Aggregate counts by status                | Yes           |
+| GET    | `/employees/export`                           | Export filtered list as CSV (`text/csv`)  | Yes           |
 | GET    | `/employees/:id`                              | Employee detail (core + profile summary)  | Yes           |
 | GET    | `/employees/me`                               | Own employee record                       | Yes           |
 | POST   | `/admin/employees`                            | Create employee + profile (no login yet)  | HR / Admin    |
-| PATCH  | `/admin/employees/:id`                        | Update org info (dept, position, manager) | HR / Admin    |
+| PATCH  | `/admin/employees/:id`                        | Update org info (dept, position, manager, status) | HR / Admin    |
 | POST   | `/admin/employees/:id/grant-login`            | **Provision user account** (atomic)       | HR / Admin    |
 | POST   | `/admin/employees/:id/terminate`              | Mark as terminated; revoke sessions       | HR / Admin    |
+| GET    | `/employees/:id/account`                      | Linked login account summary              | Yes (self/HR) |
+| POST   | `/admin/employees/:id/reset-password`         | Issue new temp password + email it        | HR / Admin    |
+| POST   | `/admin/employees/:id/resend-invite`          | Re-send activation invite                 | HR / Admin    |
+| PATCH  | `/admin/employees/:id/account`                | Enable/disable login; change role         | HR / Admin    |
 | GET    | `/employees/:id/profile`                      | Profile (PII)                             | Yes (self/HR) |
 | PATCH  | `/employees/:id/profile`                      | Update profile                            | Yes (self/HR) |
 | GET    | `/employees/:id/documents`                    | List documents                            | Yes (self/HR) |

@@ -1,9 +1,11 @@
 import api from "@core/http/axios";
 import type {
   CreateDepartmentInput,
+  CreatePositionInput,
   DepartmentNode,
   Position,
   UpdateDepartmentInput,
+  UpdatePositionInput,
 } from "@features/organization/types/organization.types";
 
 interface ApiEnvelope<T> {
@@ -70,5 +72,19 @@ export const organizationService = {
   async positions(): Promise<Position[]> {
     const { data } = await api.get<ApiEnvelope<Position[]>>("/positions");
     return data.data;
+  },
+
+  async createPosition(input: CreatePositionInput): Promise<Position> {
+    const { data } = await api.post<ApiEnvelope<Position>>("/admin/positions", input);
+    return data.data;
+  },
+
+  async updatePosition(id: string, input: UpdatePositionInput): Promise<Position> {
+    const { data } = await api.patch<ApiEnvelope<Position>>(`/admin/positions/${id}`, input);
+    return data.data;
+  },
+
+  async deletePosition(id: string): Promise<void> {
+    await api.delete(`/admin/positions/${id}`);
   },
 };

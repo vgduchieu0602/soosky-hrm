@@ -177,12 +177,7 @@ export default function LoginPage() {
                 password,
               });
               setAuth(accessToken, user);
-              navigate(
-                user.mustChangePassword
-                  ? "/auth/change-password"
-                  : "/dashboard",
-                { replace: true },
-              );
+              navigate("/dashboard", { replace: true });
             } catch (err) {
               setError(extractErrorMessage(err));
             } finally {

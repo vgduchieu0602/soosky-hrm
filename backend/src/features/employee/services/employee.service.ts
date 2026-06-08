@@ -50,6 +50,7 @@ export const employeeService = {
           [
             {
               employeeCode: input.employeeCode.trim(),
+              fingerprintId: input.fingerprintId?.trim() || null,
               departmentId: new Types.ObjectId(input.departmentId),
               positionId: new Types.ObjectId(input.positionId),
               managerId: input.managerId ? new Types.ObjectId(input.managerId) : null,
@@ -74,6 +75,7 @@ export const employeeService = {
               nationality: input.profile.nationality ?? 'VN',
               maritalStatus: input.profile.maritalStatus ?? 'single',
               email: input.profile.email,
+              workEmail: input.profile.workEmail,
               phone: input.profile.phone,
               address: input.profile.address,
             },
@@ -127,7 +129,7 @@ export const employeeService = {
   },
 
   async findById(id: string) {
-    const employee = await employeeRepository.findById(id);
+    const employee = await employeeRepository.findByIdPopulated(id);
     if (!employee) throw new HttpError(404, 'Employee not found', 'EMP_001');
     const profile = await employeeProfileRepository.findByEmployeeId(id);
     return { ...employee.toJSON(), profile: profile?.toJSON() ?? null };
@@ -228,6 +230,23 @@ export const employeeService = {
     return updated?.toJSON();
   },
 
+  async exportCsv(query: ListEmployeesQuery) {
+    const sort = parseSort(query.sort);
+    const { items } = await employeeRepository.paginate({
+      page: 1,
+      limit: 5000,
+      sort,
+      filter: {
+        departmentId: query.departmentId,
+        status: query.status,
+        employeeType: query.employeeType,
+        managerId: query.managerId,
+        q: query.q,
+      },
+    });
+    return buildCsv(items as ExportRow[]);
+  },
+
   async stats() {
     const [byStatus, byDept] = await Promise.all([
       employeeRepository.countByStatus(),
@@ -245,6 +264,41 @@ export const employeeService = {
     };
   },
 };
+
+interface ExportRow {
+  employeeCode?: string;
+  fingerprintId?: string | null;
+  departmentId?: { name?: string } | null;
+  positionId?: { title?: string } | null;
+  managerId?: { profile?: { firstName?: string; lastName?: string }; employeeCode?: string } | null;
+  employeeType?: string;
+  status?: string;
+  hireDate?: Date | string | null;
+  profile?: { firstName?: string; lastName?: string; email?: string; workEmail?: string; phone?: string } | null;
+}
+
+function csvCell(value: unknown): string {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildCsv(rows: ExportRow[]): string {
+  const headers = [
+    'Mã NV', 'Mã vân tay', 'Họ và tên', 'Phòng ban', 'Chức vụ',
+    'Loại HĐ', 'Trạng thái', 'Ngày vào', 'Email công ty', 'Email cá nhân', 'Điện thoại',
+  ];
+  const lines = rows.map((r) => {
+    const fullName = [r.profile?.lastName, r.profile?.firstName].filter(Boolean).join(' ');
+    const hire = r.hireDate ? new Date(r.hireDate).toISOString().slice(0, 10) : '';
+    return [
+      r.employeeCode, r.fingerprintId, fullName || r.employeeCode,
+      r.departmentId?.name, r.positionId?.title, r.employeeType, r.status, hire,
+      r.profile?.workEmail, r.profile?.email, r.profile?.phone,
+    ].map(csvCell).join(',');
+  });
+  // UTF-8 BOM so Excel renders Vietnamese correctly.
+  return '﻿' + [headers.join(','), ...lines].join('\n');
+}
 
 function toObjectIdFields(input: UpdateEmployeeDto): Record<string, unknown> {
   const out: Record<string, unknown> = { ...input };

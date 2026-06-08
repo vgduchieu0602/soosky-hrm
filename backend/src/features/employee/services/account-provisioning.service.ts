@@ -5,6 +5,7 @@ import { logger } from '@core/logger/logger';
 import { eventBus } from '@core/events/event-bus';
 import { HttpError } from '@shared/errors/http-error';
 import { hashPassword } from '@shared/utils/hash.util';
+import { generateRandomPassword } from '@shared/utils/password.util';
 
 import { User } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
@@ -18,11 +19,6 @@ import type { GrantLoginDto } from '@features/employee/dto/grant-login.dto';
 const log = logger.child({ feature: 'employee', module: 'account-provisioning' });
 
 const EMPLOYEE_ROLE_NAME = 'employee';
-
-function generateTempPassword(): string {
-  // 16 random URL-safe chars
-  return randomBytes(12).toString('base64url');
-}
 
 function deriveUsername(email?: string, employeeCode?: string): string {
   if (email) return email.split('@')[0]!.toLowerCase();
@@ -66,7 +62,7 @@ export const accountProvisioningService = {
       );
     }
 
-    const tempPassword = generateTempPassword();
+    const tempPassword = generateRandomPassword(10);
     const hashed = await hashPassword(tempPassword);
 
     const session = await mongoose.startSession();
@@ -80,7 +76,7 @@ export const accountProvisioningService = {
               password: hashed,
               employeeId: employee._id,
               status: 'active',
-              mustChangePassword: true,
+              mustChangePassword: false,
               failedLoginAttempts: 0,
             },
           ],

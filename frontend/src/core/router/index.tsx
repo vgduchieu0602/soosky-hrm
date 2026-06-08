@@ -7,6 +7,7 @@ import EmployeesPage from "@pages/EmployeesPage";
 import DepartmentsPage from "@pages/DepartmentsPage";
 import AttendancePage from "@pages/AttendancePage";
 import LeavePage from "@pages/LeavePage";
+import SettingsPage from "@pages/SettingsPage";
 import NotFoundPage from "@pages/NotFoundPage";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
           { path: "departments", element: <DepartmentsPage /> },
           { path: "attendance", element: <AttendancePage /> },
           { path: "leave", element: <LeavePage /> },
+          { path: "settings", element: <SettingsPage /> },
         ],
       },
     ],

@@ -14,6 +14,7 @@ export type SalaryZone = (typeof SALARY_ZONE)[number];
 
 export interface IEmployee {
   employeeCode: string;
+  fingerprintId?: string | null;
   userId?: Types.ObjectId | null;
   departmentId: Types.ObjectId;
   positionId: Types.ObjectId;
@@ -32,6 +33,7 @@ export type EmployeeDoc = HydratedDocument<IEmployee>;
 const employeeSchema = new Schema<IEmployee>(
   {
     employeeCode: { type: String, required: true, unique: true, index: true, trim: true },
+    fingerprintId: { type: String, default: null, trim: true },
     userId: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     departmentId: {
       type: Schema.Types.ObjectId,
@@ -54,6 +56,7 @@ const employeeSchema = new Schema<IEmployee>(
 );
 
 employeeSchema.index({ userId: 1 }, { unique: true, sparse: true });
+employeeSchema.index({ fingerprintId: 1 }, { unique: true, sparse: true });
 employeeSchema.index({ departmentId: 1, status: 1 });
 
 export const Employee = mongoose.model<IEmployee>(DB_NAME, employeeSchema);

@@ -68,6 +68,6 @@ export const tokenService = {
 
   /** Refresh token TTL in milliseconds — shared by cookie maxAge & session.expiresAt. */
   refreshTtlMs(): number {
-    return ms(env.JWT_REFRESH_EXPIRES_IN as StringValue);
+    return ms(env.JWT_REFRESH_TTL as StringValue);
   },
 };

@@ -17,6 +17,7 @@ import { createEmployeeDto } from '@features/employee/dto/create-employee.dto';
 import { updateEmployeeDto } from '@features/employee/dto/update-employee.dto';
 import { updateProfileDto } from '@features/employee/dto/update-profile.dto';
 import { grantLoginDto } from '@features/employee/dto/grant-login.dto';
+import { updateAccountDto } from '@features/employee/dto/account.dto';
 import {
   createDocumentDto,
   createContactDto,
@@ -37,8 +38,10 @@ const hrOrAdmin = requireRoles('admin', 'hr_manager');
 // ---------- Read endpoints (authenticated user) ----------
 router.get('/employees', authenticate, employeeController.list);
 router.get('/employees/stats', authenticate, employeeController.stats);
+router.get('/employees/export', authenticate, employeeController.exportCsv);
 router.get('/employees/me', authenticate, employeeController.getMe);
 router.get('/employees/:id', authenticate, employeeController.getById);
+router.get('/employees/:id/account', authenticate, employeeController.getAccount);
 router.get('/employees/:id/profile', authenticate, employeeController.getProfile);
 router.patch(
   '/employees/:id/profile',
@@ -116,6 +119,25 @@ router.post(
   hrOrAdmin,
   validate(terminateEmployeeDto, 'body'),
   employeeController.terminate,
+);
+router.post(
+  '/admin/employees/:id/reset-password',
+  authenticate,
+  hrOrAdmin,
+  employeeController.resetPassword,
+);
+router.post(
+  '/admin/employees/:id/resend-invite',
+  authenticate,
+  hrOrAdmin,
+  employeeController.resendInvite,
+);
+router.patch(
+  '/admin/employees/:id/account',
+  authenticate,
+  hrOrAdmin,
+  validate(updateAccountDto, 'body'),
+  employeeController.updateAccount,
 );
 router.delete(
   '/admin/employees/:id/documents/:docId',

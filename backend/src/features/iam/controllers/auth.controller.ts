@@ -4,6 +4,7 @@ import { HttpError } from '@shared/errors/http-error';
 import { authService } from '@features/iam/services/auth.service';
 import { tokenService } from '@features/iam/services/token.service';
 import type { LoginDto } from '@features/iam/dto/login.dto';
+import type { ChangePasswordDto } from '@features/iam/dto/change-password.dto';
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
 
@@ -73,6 +74,17 @@ export const authController = {
       if (!req.user) throw new HttpError(401, 'Unauthenticated', 'IAM_002');
       const user = await authService.me(req.user.userId);
       res.json({ data: user });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new HttpError(401, 'Unauthenticated', 'IAM_002');
+      const { currentPassword, newPassword } = req.body as ChangePasswordDto;
+      const result = await authService.changePassword(req.user.userId, currentPassword, newPassword);
+      res.json({ data: result, message: 'Đổi mật khẩu thành công' });
     } catch (err) {
       next(err);
     }

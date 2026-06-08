@@ -11,6 +11,7 @@ import {
   Archive,
   CornerDownRight,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,15 +24,22 @@ import { TopBar } from "@features/dashboard/components/TopBar";
 import { organizationService } from "@features/organization/services/organization.service";
 import type {
   CreateDepartmentInput,
+  CreatePositionInput,
   DepartmentNode,
   Position,
   UpdateDepartmentInput,
+  UpdatePositionInput,
 } from "@features/organization/types/organization.types";
 import {
   DepartmentFormDialog,
   type DepartmentFormMode,
 } from "@features/organization/components/DepartmentFormDialog";
 import { DeleteDepartmentDialog } from "@features/organization/components/DeleteDepartmentDialog";
+import {
+  PositionFormDialog,
+  type PositionFormMode,
+} from "@features/organization/components/PositionFormDialog";
+import { DeletePositionDialog } from "@features/organization/components/DeletePositionDialog";
 
 const COLOR_BY_CODE: Record<string, string> = {
   SK: "slate",
@@ -97,6 +105,14 @@ export default function DepartmentsPage() {
   const [formSession, setFormSession] = useState(0); // bump to remount the form
   const [deleteTarget, setDeleteTarget] = useState<DepartmentNode | null>(null);
 
+  // Position dialog state
+  const [posReload, setPosReload] = useState(0); // bump to refetch positions
+  const [posFormOpen, setPosFormOpen] = useState(false);
+  const [posFormMode, setPosFormMode] = useState<PositionFormMode>("create");
+  const [posTarget, setPosTarget] = useState<Position | null>(null);
+  const [posFormSession, setPosFormSession] = useState(0);
+  const [posDeleteTarget, setPosDeleteTarget] = useState<Position | null>(null);
+
   // Promise-chain form: state is only touched inside async callbacks, so this
   // is safe to call straight from an effect without a cascading render.
   const loadTree = useCallback(
@@ -151,7 +167,7 @@ export default function DepartmentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDeptId]);
+  }, [selectedDeptId, posReload]);
 
   const positions = posState.deptId === selectedDeptId ? posState.items : [];
 
@@ -204,6 +220,45 @@ export default function DepartmentsPage() {
     await organizationService.archiveDepartment(deleteTarget.id);
     if (selectedId === deleteTarget.id) setSelectedId(null);
     await loadTree();
+  }
+
+  // --- Position handlers ----------------------------------------------------
+  function openCreatePosition() {
+    setPosFormMode("create");
+    setPosTarget(null);
+    setPosFormSession((s) => s + 1);
+    setPosFormOpen(true);
+  }
+
+  function openEditPosition(p: Position) {
+    setPosFormMode("edit");
+    setPosTarget(p);
+    setPosFormSession((s) => s + 1);
+    setPosFormOpen(true);
+  }
+
+  async function handlePositionSubmit(
+    input: CreatePositionInput | UpdatePositionInput,
+  ) {
+    if (posFormMode === "create") {
+      if (!selectedDeptId) return;
+      await organizationService.createPosition({
+        ...(input as CreatePositionInput),
+        departmentId: selectedDeptId,
+      });
+    } else if (posTarget) {
+      await organizationService.updatePosition(
+        posTarget._id,
+        input as UpdatePositionInput,
+      );
+    }
+    setPosReload((n) => n + 1);
+  }
+
+  async function handlePositionDelete() {
+    if (!posDeleteTarget) return;
+    await organizationService.deletePosition(posDeleteTarget._id);
+    setPosReload((n) => n + 1);
   }
 
   return (
@@ -320,6 +375,9 @@ export default function DepartmentsPage() {
                     onEdit={() => openEdit(selected)}
                     onArchive={() => setDeleteTarget(selected)}
                     onAddSub={() => openCreate(selected.id)}
+                    onAddPosition={openCreatePosition}
+                    onEditPosition={openEditPosition}
+                    onDeletePosition={setPosDeleteTarget}
                   />
                 ) : (
                   <div className="flex flex-1 items-center justify-center py-12 text-center text-[13px] text-muted-foreground">
@@ -348,6 +406,22 @@ export default function DepartmentsPage() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         target={deleteTarget}
         onConfirm={handleDelete}
+      />
+      <PositionFormDialog
+        key={`pos-${posFormSession}`}
+        open={posFormOpen}
+        onOpenChange={setPosFormOpen}
+        mode={posFormMode}
+        departmentName={selected?.name ?? ""}
+        target={posTarget}
+        onSubmit={handlePositionSubmit}
+      />
+      <DeletePositionDialog
+        key={posDeleteTarget?._id ?? "pos-none"}
+        open={posDeleteTarget !== null}
+        onOpenChange={(open) => !open && setPosDeleteTarget(null)}
+        target={posDeleteTarget}
+        onConfirm={handlePositionDelete}
       />
     </div>
   );
@@ -448,9 +522,15 @@ interface DetailProps {
   onEdit: () => void;
   onArchive: () => void;
   onAddSub: () => void;
+  onAddPosition: () => void;
+  onEditPosition: (p: Position) => void;
+  onDeletePosition: (p: Position) => void;
 }
 
-function DepartmentDetail({ node, positions, canManage, onEdit, onArchive, onAddSub }: DetailProps) {
+function DepartmentDetail({
+  node, positions, canManage, onEdit, onArchive, onAddSub,
+  onAddPosition, onEditPosition, onDeletePosition,
+}: DetailProps) {
   const subTotal = subtreeHeadcount(node);
   return (
     <div className="flex flex-1 flex-col gap-5">
@@ -516,17 +596,32 @@ function DepartmentDetail({ node, positions, canManage, onEdit, onArchive, onAdd
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-[13px] font-semibold text-foreground">Chức vụ</h3>
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-[12px]"
+              onClick={onAddPosition}
+            >
+              <Plus className="size-3.5" /> Thêm chức vụ
+            </Button>
+          )}
         </div>
         {positions.length === 0 ? (
-          <div className="rounded-xl border border-dashed py-6 text-center text-[12.5px] text-muted-foreground">
-            Chưa có chức vụ nào trong phòng ban này.
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-6 text-center text-[12.5px] text-muted-foreground">
+            <span>Chưa có chức vụ nào trong phòng ban này.</span>
+            {canManage && (
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-[12px]" onClick={onAddPosition}>
+                <Plus className="size-3.5" /> Thêm chức vụ đầu tiên
+              </Button>
+            )}
           </div>
         ) : (
           <ul className="flex flex-col gap-2">
             {positions.map((p) => (
               <li
                 key={p._id}
-                className="flex items-center gap-3 rounded-xl border p-3 text-[12.5px]"
+                className="group flex items-center gap-3 rounded-xl border p-3 text-[12.5px]"
               >
                 <Briefcase className="size-4 text-muted-foreground" />
                 <span className="flex-1 font-semibold text-foreground">{p.title}</span>
@@ -534,6 +629,26 @@ function DepartmentDetail({ node, positions, canManage, onEdit, onArchive, onAdd
                 <span className="w-12 text-right tabular-nums text-muted-foreground">
                   Lv {p.level}
                 </span>
+                {canManage && (
+                  <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => onEditPosition(p)}
+                      className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="Sửa chức vụ"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeletePosition(p)}
+                      className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Xoá chức vụ"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

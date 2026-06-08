@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import { HttpError } from '@shared/errors/http-error';
-import { comparePassword, hashRefreshToken } from '@shared/utils/hash.util';
+import { comparePassword, hashPassword, hashRefreshToken } from '@shared/utils/hash.util';
 import { eventBus } from '@core/events/event-bus';
 import { logger } from '@core/logger/logger';
 
@@ -218,6 +218,34 @@ export const authService = {
       resourceId: sessionId,
       changes: { ip: ctx.ip },
     });
+  },
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await User.findById(userId).select('+password');
+    if (!user) throw new HttpError(401, 'User not found', 'IAM_002');
+
+    const ok = await comparePassword(currentPassword, user.password);
+    if (!ok) throw new HttpError(400, 'Mật khẩu hiện tại không đúng', 'IAM_011');
+
+    if (await comparePassword(newPassword, user.password)) {
+      throw new HttpError(400, 'Mật khẩu mới phải khác mật khẩu hiện tại', 'IAM_012');
+    }
+
+    user.password = await hashPassword(newPassword);
+    user.mustChangePassword = false;
+    await user.save();
+
+    eventBus.emit('iam.user.password-changed', { userId });
+    await auditService.record({
+      userId,
+      resource: 'user',
+      action: 'update',
+      resourceId: userId,
+      changes: { passwordChanged: true },
+    });
+
+    log.info({ userId }, 'password changed by user');
+    return { ok: true };
   },
 
   async me(userId: string): Promise<AuthenticatedUser> {

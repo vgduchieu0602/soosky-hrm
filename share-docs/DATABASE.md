@@ -140,7 +140,7 @@
 - `hireDate`: Date
 - `terminationDate`: Date
 - `employeeType`: String — `full_time` | `part_time` | `contract` | `intern`
-- `status`: String — `onboarding` | `active` | `on_leave` | `terminated`
+- `status`: String — `onboarding` | `active` | `on_leave` | `terminated` default `onboarding`
 - `salaryZone`: String - `zone1` | `zone2` | `zone3` | `zone4`
 
 **Indexes:** `employeeCode` unique, `fingerprintId` sparse unique, `userId` sparse unique, `departmentId`, `managerId`
@@ -157,6 +157,7 @@
 - `avatarUrl`: String — public/CDN URL
 - `avatarId`: String — storage object key (for delete/replace)
 - `email`: String — personal email (used to send temp password)
+- `workEmail`: String — company email shown on the profile
 - `phone`: String — mobile with country prefix
 - `address`: String — current residential address
 
@@ -578,7 +579,7 @@
   - On logout from a device → set `revokedAt` on that session.
   - On "logout all devices" → revoke (`revokedAt`) all non-expired sessions for `userId`.
   - Expired sessions auto-removed via TTL index on `expiresAt`.
-- **Account provisioning:** HR creates an `Employee` first (`userId = null`), then issues login via `POST /employees/:id/grant-login`, which creates the `User`, assigns `role = employee`, sets `mustChangePassword = true`, and emails a temp password to `EmployeeProfile.email`.
+- **Account provisioning:** HR/Admin creates an `Employee` first (`userId = null`), then issues login via `POST /admin/employees/:id/grant-login`, which creates the `User`, assigns `role = employee`, generates a **random 10-char password**, and emails the credentials to `EmployeeProfile.email`. `mustChangePassword = false` — changing the password later is optional (self-service via `PATCH /auth/change-password` in the profile page).
 - **Versioned records:** `SalaryStructure`, `EmployeeContract`, `Allowance` use `effectiveDate` / `endDate` instead of overwriting — `endDate = null` means "current".
 - **Policy snapshot in Payroll:** khi tính lương, `Payroll.policyConfigId` lưu lại bản policy đã dùng để tính — đảm bảo kết quả không thay đổi kể cả khi admin cập nhật policy sau đó.
 - **Self-references:**

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { employeeService } from '@features/employee/services/employee.service';
 import { accountProvisioningService } from '@features/employee/services/account-provisioning.service';
+import { employeeAccountService } from '@features/employee/services/employee-account.service';
 
 function requireUser(req: Request) {
   if (!req.user) throw new Error('IAM_002');
@@ -114,6 +115,64 @@ export const employeeController = {
       requireUser(req);
       const stats = await employeeService.stats();
       res.json({ data: stats });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async exportCsv(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const csv = await employeeService.exportCsv(
+        req.query as Record<string, string | undefined>,
+      );
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="employees.csv"');
+      res.send(csv);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ---------- Account (linked user) ----------
+  async getAccount(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeAccountService.getAccount(id) });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      const result = await employeeAccountService.resetPassword(id, user.userId);
+      res.json({ data: result, message: 'Temporary password sent to user email' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async resendInvite(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      const result = await employeeAccountService.resendInvite(id, user.userId);
+      res.json({ data: result, message: 'Invite re-sent to user email' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async updateAccount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      const result = await employeeAccountService.update(id, req.body, user.userId);
+      res.json({ data: result });
     } catch (err) {
       next(err);
     }

@@ -19,7 +19,8 @@ export interface IEmployeeProfile {
   maritalStatus?: MaritalStatus;
   avatarUrl?: string;
   avatarId?: string;
-  email?: string;
+  email?: string; // personal email (used to send temp password)
+  workEmail?: string; // company email shown on the profile
   phone?: string;
   address?: string;
   created_at?: Date;
@@ -46,6 +47,7 @@ const employeeProfileSchema = new Schema<IEmployeeProfile>(
     avatarUrl: { type: String },
     avatarId: { type: String },
     email: { type: String, lowercase: true, trim: true },
+    workEmail: { type: String, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     address: { type: String, trim: true },
   },

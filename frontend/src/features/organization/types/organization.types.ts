@@ -18,6 +18,20 @@ export interface Position {
   description?: string;
 }
 
+export interface CreatePositionInput {
+  title: string;
+  code: string;
+  departmentId: string;
+  level?: number;
+  description?: string;
+}
+
+export interface UpdatePositionInput {
+  title?: string;
+  level?: number;
+  description?: string;
+}
+
 export interface CreateDepartmentInput {
   name: string;
   code: string;
@@ -27,6 +41,7 @@ export interface CreateDepartmentInput {
 
 export interface UpdateDepartmentInput {
   name?: string;
+  code?: string;
   parentDepartmentId?: string | null;
   description?: string;
   status?: "active" | "archived";

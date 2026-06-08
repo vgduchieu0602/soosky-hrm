@@ -3,12 +3,28 @@ import {
   Settings, ChevronDown, LogOut,
   type LucideIcon,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { NAV_ITEMS } from "@features/dashboard/data";
+import { useAuthStore } from "@core/store/auth.store";
+import { authService } from "@features/auth/services/auth.service";
 import logoMark from "@/assets/LOGO.png";
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Quản trị viên",
+  hr_manager: "Quản lý nhân sự",
+  manager: "Quản lý",
+  employee: "Nhân viên",
+};
+
+function initialsFrom(name: string): string {
+  const parts = name.trim().split(/[\s.@]+/).filter(Boolean);
+  const a = parts[0]?.[0] ?? "";
+  const b = parts[1]?.[0] ?? "";
+  return (a + b).toUpperCase() || "U";
+}
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -26,6 +42,20 @@ interface SidebarProps {
 
 export default function Sidebar({ active }: SidebarProps) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.logout);
+
+  const displayName = user?.username ?? "Người dùng";
+  const roleLabel = user?.roles?.length ? ROLE_LABEL[user.roles[0]] ?? user.roles[0] : "—";
+
+  function handleLogout() {
+    authService.logout().catch(() => {}).finally(() => {
+      clearAuth();
+      navigate("/auth/login", { replace: true });
+    });
+  }
+
   return (
     <aside
       className="flex w-[260px] flex-shrink-0 flex-col text-white"
@@ -108,17 +138,18 @@ export default function Sidebar({ active }: SidebarProps) {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Avatar className="size-9 bg-white/10 text-[12px] font-semibold text-white">
-              <AvatarFallback className="bg-transparent text-white">VH</AvatarFallback>
+              <AvatarFallback className="bg-transparent text-white">{initialsFrom(displayName)}</AvatarFallback>
             </Avatar>
             <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-secondary-800 bg-emerald-400" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold text-white">Vương Đức Hiếu</div>
-            <div className="truncate text-[11px] text-white/45">HR Manager</div>
+            <div className="truncate text-[13px] font-semibold text-white">{displayName}</div>
+            <div className="truncate text-[11px] text-white/45">{roleLabel}</div>
           </div>
           <Button
             variant="ghost"
             size="icon"
+            onClick={handleLogout}
             className="size-8 text-white/50 hover:bg-white/10 hover:text-white"
             aria-label="Đăng xuất"
           >

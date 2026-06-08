@@ -1,6 +1,7 @@
 export { default as employeeRouter } from './employee.routes';
 export { employeeService } from './services/employee.service';
 export { accountProvisioningService } from './services/account-provisioning.service';
+export { employeeAccountService } from './services/employee-account.service';
 export { employeeContractService } from './services/employee-contract.service';
 export { employeeDocumentService } from './services/employee-document.service';
 export { employeeContactService } from './services/employee-contact.service';
