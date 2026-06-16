@@ -9,6 +9,10 @@ export interface IDepartment {
   name: string;
   code: string;
   parentDepartmentId?: Types.ObjectId | null;
+  managerId?: Types.ObjectId | null;
+  costCenter?: string;
+  location?: string;
+  email?: string;
   description: string;
   status: DepartmentStatus;
   created_at?: Date;
@@ -27,6 +31,15 @@ const departmentSchema = new Schema<IDepartment>(
       default: null,
       index: true,
     },
+    managerId: {
+      type: Schema.Types.ObjectId,
+      ref: 'employees',
+      default: null,
+      index: true,
+    },
+    costCenter: { type: String, trim: true },
+    location: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
     description: { type: String, default: '' },
     status: {
       type: String,

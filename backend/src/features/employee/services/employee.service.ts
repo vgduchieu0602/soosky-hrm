@@ -5,6 +5,14 @@ import { parsePagination, buildMeta, parseSort } from '@shared/utils/pagination.
 
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
+import { EmployeeContact } from '@shared/models/employee-contact.model';
+import { EmployeeDocumentModel } from '@shared/models/employee-document.model';
+import { EmployeeBankAccount } from '@shared/models/employee-bank-account.model';
+import { EmployeeContractModel } from '@shared/models/employee-contract.model';
+import { EmployeeAsset } from '@shared/models/employee-asset.model';
+import { EmployeeHistory } from '@shared/models/employee-history.model';
+import { User } from '@shared/models/user.model';
+import { UserRole } from '@shared/models/user-role.model';
 import { Department } from '@shared/models/department.model';
 import { Position } from '@shared/models/position.model';
 
@@ -69,6 +77,7 @@ export const employeeService = {
             {
               employeeId: employee._id,
               firstName: input.profile.firstName,
+              middleName: input.profile.middleName,
               lastName: input.profile.lastName,
               dateOfBirth: input.profile.dateOfBirth,
               gender: input.profile.gender ?? 'undisclosed',
@@ -169,6 +178,30 @@ export const employeeService = {
       });
     }
 
+    // Non-department work changes (position / manager / type / salary zone) are
+    // logged as a generic info update so the timeline reflects them too.
+    const beforePosition = before.positionId?.toString();
+    const beforeManager = before.managerId ? before.managerId.toString() : null;
+    const workChanged =
+      (input.positionId !== undefined && input.positionId !== beforePosition) ||
+      (input.managerId !== undefined && (input.managerId ?? null) !== beforeManager) ||
+      (input.employeeType !== undefined && input.employeeType !== before.employeeType) ||
+      (input.salaryZone !== undefined && input.salaryZone !== before.salaryZone);
+    if (workChanged) {
+      await employeeHistoryService.record({
+        employeeId: id,
+        eventType: 'info_update',
+        toValue: {
+          positionId: input.positionId,
+          managerId: input.managerId,
+          employeeType: input.employeeType,
+          salaryZone: input.salaryZone,
+        },
+        note: 'Cập nhật thông tin công việc',
+        createdBy: auditUserId,
+      });
+    }
+
     await auditService.record({
       userId: auditUserId,
       resource: 'employee',
@@ -186,6 +219,19 @@ export const employeeService = {
     if (!employee) throw new HttpError(404, 'Employee not found', 'EMP_001');
 
     const profile = await employeeProfileRepository.upsertByEmployeeId(employeeId, input);
+
+    // Record the personal-info change on the employee timeline.
+    const changedFields = Object.keys(input).filter((k) => k !== 'avatarUrl' && k !== 'avatarId');
+    if (changedFields.length > 0) {
+      await employeeHistoryService.record({
+        employeeId,
+        eventType: 'info_update',
+        toValue: input as Record<string, unknown>,
+        note: 'Cập nhật thông tin cá nhân',
+        createdBy: auditUserId,
+      });
+    }
+
     await auditService.record({
       userId: auditUserId,
       resource: 'employeeProfile',
@@ -230,6 +276,56 @@ export const employeeService = {
     return updated?.toJSON();
   },
 
+  /**
+   * Hard-delete an employee and all owned records (profile, contacts, documents,
+   * bank accounts, contracts, assets, history). If a login account is linked, it
+   * is removed too (along with its role assignments). Use `terminate` for the
+   * normal off-boarding flow — this is for removing erroneously-created records.
+   */
+  async remove(id: string, auditUserId: string) {
+    const employee = await employeeRepository.findById(id);
+    if (!employee) throw new HttpError(404, 'Employee not found', 'EMP_001');
+
+    const employeeObjId = new Types.ObjectId(id);
+    const linkedUserId = employee.userId ?? null;
+
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        // MongoDB does not allow concurrent operations on the same transaction
+        // session — they must run sequentially, otherwise the driver throws
+        // "Cannot run multiple operations simultaneously on the same session".
+        await EmployeeProfile.deleteOne({ employeeId: employeeObjId }, { session });
+        await EmployeeContact.deleteMany({ employeeId: employeeObjId }, { session });
+        await EmployeeDocumentModel.deleteMany({ employeeId: employeeObjId }, { session });
+        await EmployeeBankAccount.deleteMany({ employeeId: employeeObjId }, { session });
+        await EmployeeContractModel.deleteMany({ employeeId: employeeObjId }, { session });
+        await EmployeeAsset.deleteMany({ employeeId: employeeObjId }, { session });
+        await EmployeeHistory.deleteMany({ employeeId: employeeObjId }, { session });
+
+        if (linkedUserId) {
+          await UserRole.deleteMany({ userId: linkedUserId }, { session });
+          await User.deleteOne({ _id: linkedUserId }, { session });
+        }
+
+        await Employee.deleteOne({ _id: employeeObjId }, { session });
+      });
+
+      await auditService.record({
+        userId: auditUserId,
+        resource: 'employee',
+        action: 'delete',
+        resourceId: id,
+        changes: { employeeCode: employee.employeeCode, hadAccount: Boolean(linkedUserId) },
+      });
+
+      log.info({ employeeId: id }, 'employee deleted (cascade)');
+      return { id, deleted: true };
+    } finally {
+      await session.endSession();
+    }
+  },
+
   async exportCsv(query: ListEmployeesQuery) {
     const sort = parseSort(query.sort);
     const { items } = await employeeRepository.paginate({
@@ -270,11 +366,11 @@ interface ExportRow {
   fingerprintId?: string | null;
   departmentId?: { name?: string } | null;
   positionId?: { title?: string } | null;
-  managerId?: { profile?: { firstName?: string; lastName?: string }; employeeCode?: string } | null;
+  managerId?: { profile?: { firstName?: string; middleName?: string; lastName?: string }; employeeCode?: string } | null;
   employeeType?: string;
   status?: string;
   hireDate?: Date | string | null;
-  profile?: { firstName?: string; lastName?: string; email?: string; workEmail?: string; phone?: string } | null;
+  profile?: { firstName?: string; middleName?: string; lastName?: string; email?: string; workEmail?: string; phone?: string } | null;
 }
 
 function csvCell(value: unknown): string {
@@ -288,7 +384,9 @@ function buildCsv(rows: ExportRow[]): string {
     'Loại HĐ', 'Trạng thái', 'Ngày vào', 'Email công ty', 'Email cá nhân', 'Điện thoại',
   ];
   const lines = rows.map((r) => {
-    const fullName = [r.profile?.lastName, r.profile?.firstName].filter(Boolean).join(' ');
+    const fullName = [r.profile?.lastName, r.profile?.middleName, r.profile?.firstName]
+      .filter(Boolean)
+      .join(' ');
     const hire = r.hireDate ? new Date(r.hireDate).toISOString().slice(0, 10) : '';
     return [
       r.employeeCode, r.fingerprintId, fullName || r.employeeCode,

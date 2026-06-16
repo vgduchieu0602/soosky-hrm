@@ -9,6 +9,10 @@ import { positionController } from '@features/organization/controllers/position.
 import {
   createDepartmentDto,
   updateDepartmentDto,
+  assignHeadDto,
+  moveDepartmentDto,
+  transferEmployeesDto,
+  mergeDepartmentDto,
 } from '@features/organization/dto/department.dto';
 import {
   createPositionDto,
@@ -22,6 +26,7 @@ const hrOrAdmin = requireRoles('admin', 'hr_manager');
 // Departments — public read for authenticated users
 router.get('/departments', authenticate, departmentController.list);
 router.get('/departments/:id', authenticate, departmentController.getById);
+router.get('/departments/:id/history', authenticate, departmentController.history);
 
 router.post(
   '/admin/departments',
@@ -36,6 +41,34 @@ router.patch(
   hrOrAdmin,
   validate(updateDepartmentDto, 'body'),
   departmentController.update,
+);
+router.patch(
+  '/admin/departments/:id/head',
+  authenticate,
+  hrOrAdmin,
+  validate(assignHeadDto, 'body'),
+  departmentController.assignHead,
+);
+router.patch(
+  '/admin/departments/:id/move',
+  authenticate,
+  hrOrAdmin,
+  validate(moveDepartmentDto, 'body'),
+  departmentController.move,
+);
+router.post(
+  '/admin/departments/:id/transfer-employees',
+  authenticate,
+  hrOrAdmin,
+  validate(transferEmployeesDto, 'body'),
+  departmentController.transferEmployees,
+);
+router.post(
+  '/admin/departments/:id/merge',
+  authenticate,
+  hrOrAdmin,
+  validate(mergeDepartmentDto, 'body'),
+  departmentController.merge,
 );
 router.delete('/admin/departments/:id', authenticate, hrOrAdmin, departmentController.archive);
 

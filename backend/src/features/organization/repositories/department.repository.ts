@@ -8,11 +8,16 @@ export const departmentRepository = {
 
   findById(id: string) {
     if (!Types.ObjectId.isValid(id)) return null;
-    return Department.findById(id);
+    return Department.findById(id).populate({ path: 'managerId', select: 'employeeCode status' });
   },
 
   findByCode(code: string) {
     return Department.findOne({ code: code.trim().toUpperCase() });
+  },
+
+  findChildren(parentId: string) {
+    if (!Types.ObjectId.isValid(parentId)) return Promise.resolve([]);
+    return Department.find({ parentDepartmentId: new Types.ObjectId(parentId) }).lean();
   },
 
   create(input: Partial<IDepartment>) {

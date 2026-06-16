@@ -37,4 +37,19 @@ export const authService = {
   }): Promise<void> {
     await api.patch("/auth/change-password", payload);
   },
+
+  /** Validate a set-password / reset link token before showing the form. */
+  async checkSetupToken(
+    token: string,
+  ): Promise<{ purpose: "setup" | "reset"; username: string; email: string }> {
+    const { data } = await api.get<
+      ApiEnvelope<{ purpose: "setup" | "reset"; username: string; email: string }>
+    >("/auth/set-password", { params: { token } });
+    return data.data;
+  },
+
+  /** Set a new password using a single-use token from the email link. */
+  async setPassword(payload: { token: string; password: string }): Promise<void> {
+    await api.post("/auth/set-password", payload);
+  },
 };

@@ -36,7 +36,7 @@ function CompactKpi({ label, value, suffix, delta, icon, chip = "blue" }: TopKpi
   const Icon = KPI_ICONS[icon];
   const positive = delta == null ? null : delta >= 0;
   return (
-    <Card className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <Card className="rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover">
       <div className="flex items-center justify-between">
         <span
           className={cn(

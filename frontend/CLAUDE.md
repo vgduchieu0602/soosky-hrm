@@ -20,3 +20,8 @@
 ### Reference
 
 - @../01-share-docs/API_SPEC.md - API contract to consume
+
+## Design System (UI/UX Pro Max)
+
+Before building or refactoring any UI, read **@design-system/soosky-hrm/MASTER.md** (global source of truth: style, colors, typography, effects, anti-patterns).
+When working on a specific page, first check `design-system/soosky-hrm/pages/<page>.md` — if it exists, its rules override MASTER.md; otherwise use MASTER.md.

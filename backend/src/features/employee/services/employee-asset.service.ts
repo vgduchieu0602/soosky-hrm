@@ -6,6 +6,7 @@ import { auditService } from '@features/iam/services/audit.service';
 import type {
   CreateAssetDto,
   ReturnAssetDto,
+  UpdateAssetDto,
 } from '@features/employee/dto/sub-resource.dto';
 
 export const employeeAssetService = {
@@ -44,5 +45,31 @@ export const employeeAssetService = {
       changes: input as Record<string, unknown>,
     });
     return updated.toJSON();
+  },
+
+  // Edit asset fields. Passing `returnedDate: null` re-assigns a returned asset.
+  async update(assetId: string, input: UpdateAssetDto, auditUserId: string) {
+    const updated = await employeeAssetRepository.updateById(assetId, input);
+    if (!updated) throw new HttpError(404, 'Asset not found', 'EMP_007');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'employeeAsset',
+      action: 'update',
+      resourceId: assetId,
+      changes: input as Record<string, unknown>,
+    });
+    return updated.toJSON();
+  },
+
+  async remove(assetId: string, auditUserId: string) {
+    const removed = await employeeAssetRepository.deleteById(assetId);
+    if (!removed) throw new HttpError(404, 'Asset not found', 'EMP_007');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'employeeAsset',
+      action: 'delete',
+      resourceId: assetId,
+    });
+    return { id: assetId };
   },
 };

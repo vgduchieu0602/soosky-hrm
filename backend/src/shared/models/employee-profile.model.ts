@@ -12,6 +12,7 @@ export type MaritalStatus = (typeof MARITAL_STATUS)[number];
 export interface IEmployeeProfile {
   employeeId: Types.ObjectId;
   firstName: string;
+  middleName?: string;
   lastName: string;
   dateOfBirth?: Date;
   gender?: Gender;
@@ -39,6 +40,7 @@ const employeeProfileSchema = new Schema<IEmployeeProfile>(
       index: true,
     },
     firstName: { type: String, required: true, trim: true },
+    middleName: { type: String, trim: true },
     lastName: { type: String, required: true, trim: true },
     dateOfBirth: { type: Date },
     gender: { type: String, enum: GENDER, default: 'undisclosed' },

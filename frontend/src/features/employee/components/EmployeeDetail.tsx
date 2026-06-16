@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, FileText, Briefcase, Laptop, History, IdCard, Plus,
-  MoreHorizontal, Key, RefreshCw, Send, Power, Pencil, ChevronDown, Check,
+  Key, RefreshCw, Send, Power, Pencil, ChevronDown, Check, Trash2, RotateCcw,
+  Paperclip, Download, Loader2, Camera,
   type LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
+import { uploadFile, signDownload, type UploadScope } from "@/shared/utils/upload";
 import { employeeService } from "@features/employee/services/employee.service";
+import { EmployeeEditModal } from "@features/employee/components/EmployeeEditModal";
 import {
   CONTRACT_TYPE, COND, DOC_TYPE, EMP_STATUS, EMP_TYPE, GENDER, HIST_EVENT,
   MARITAL, REL, ROLE, SALARY_ZONE_LABEL, STATUS_ACTIVE, STATUS_INACTIVE,
-  formatDate, formatMoney, fullNameOf,
+  formatDate, formatMoney, fullNameOf, parseDecimal,
 } from "@features/employee/constants";
 import type {
   AccountView, EmployeeAssetRecord, EmployeeContactRecord, EmployeeContractRecord,
@@ -31,6 +35,8 @@ interface Props {
   onClose: () => void;
   onStatusChanged: (next: EmployeeStatus) => void;
   onAccountGranted: () => void;
+  onUpdated?: () => void;
+  onDeleted?: () => void;
 }
 
 const TABS: { id: string; label: string; Icon: LucideIcon }[] = [
@@ -43,9 +49,24 @@ const TABS: { id: string; label: string; Icon: LucideIcon }[] = [
   { id: "history", label: "Lịch sử", Icon: History },
 ];
 
-export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAccountGranted }: Props) {
+export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAccountGranted, onUpdated, onDeleted }: Props) {
   const [tab, setTab] = useState("profile");
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [profileKey, setProfileKey] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    employeeService
+      .remove(view.id)
+      .then(() => { setConfirmDelete(false); onDeleted?.(); })
+      .catch((e) => setDeleteError(e?.response?.data?.error?.message ?? "Không thể xoá nhân viên."))
+      .finally(() => setDeleting(false));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +75,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
       .then((rec) => { if (!cancelled) setProfile((rec.profile as EmployeeProfile) ?? null); })
       .catch(() => { if (!cancelled) setProfile(null); });
     return () => { cancelled = true; };
-  }, [view.id]);
+  }, [view.id, profileKey]);
 
   const st = EMP_STATUS[view.status];
 
@@ -68,9 +89,13 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
             <X className="size-4" />
           </button>
           <div className="flex items-center gap-4">
-            <Avatar className="size-16 bg-white/10 text-[20px] text-white ring-2 ring-white/20">
-              <AvatarFallback className="bg-transparent text-white">{view.initials}</AvatarFallback>
-            </Avatar>
+            <AvatarUploader
+              employeeId={view.id}
+              avatarKey={profile?.avatarUrl}
+              initials={view.initials}
+              canManage={canManage}
+              onChanged={() => setProfileKey((k) => k + 1)}
+            />
             <div className="min-w-0">
               <h2 className="truncate text-[20px] font-bold tracking-tight">{view.fullName}</h2>
               <div className="mt-0.5 text-[13px] text-white/70">{view.positionName || "—"} · {view.departmentName || "—"}</div>
@@ -87,11 +112,15 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
               <Badge variant={st.variant as any}>{st.label}</Badge>
             )}
           </div>
-          <div className="mt-5 flex gap-2">
-            <Button size="sm" className="h-8 gap-1.5 rounded-lg bg-white/15 text-[12.5px] text-white hover:bg-white/25"><Pencil className="size-3.5" /> Chỉnh sửa</Button>
-            <Button size="sm" className="h-8 gap-1.5 rounded-lg bg-white/15 text-[12.5px] text-white hover:bg-white/25"><Mail className="size-3.5" /> Gửi email</Button>
-            <Button size="sm" className="h-8 gap-1.5 rounded-lg bg-white/15 text-[12.5px] text-white hover:bg-white/25"><MoreHorizontal className="size-3.5" /></Button>
-          </div>
+          {canManage && (
+            <div className="mt-5 flex gap-2">
+              <Button size="sm" onClick={() => setEditing(true)} className="h-8 gap-1.5 rounded-lg bg-white/15 text-[12.5px] text-white hover:bg-white/25"><Pencil className="size-3.5" /> Chỉnh sửa</Button>
+              {view.personalEmail && (
+                <a href={`mailto:${view.personalEmail}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-[12.5px] text-white transition hover:bg-white/25"><Mail className="size-3.5" /> Gửi email</a>
+              )}
+              <Button size="sm" onClick={() => setConfirmDelete(true)} className="h-8 gap-1.5 rounded-lg bg-rose-500/90 text-[12.5px] text-white hover:bg-rose-500"><Trash2 className="size-3.5" /> Xoá</Button>
+            </div>
+          )}
         </div>
 
         {/* tabs */}
@@ -116,6 +145,45 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
           {tab === "history" && <HistoryTab employeeId={view.id} />}
         </div>
       </div>
+
+      {editing && (
+        <EmployeeEditModal
+          view={view}
+          profile={profile}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            setProfileKey((k) => k + 1);
+            onUpdated?.();
+          }}
+        />
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={() => !deleting && setConfirmDelete(false)} />
+          <div className="relative w-full max-w-[440px] rounded-2xl bg-background p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600"><Trash2 className="size-5" /></span>
+              <div>
+                <h3 className="text-[16px] font-bold text-foreground">Xoá nhân viên?</h3>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Xoá vĩnh viễn <b className="text-foreground">{view.fullName}</b> ({view.code}) cùng toàn bộ hồ sơ,
+                  hợp đồng, tài liệu, tài sản{view.userId ? " và tài khoản đăng nhập" : ""}. Hành động không thể hoàn tác.
+                </p>
+                <p className="mt-2 text-[12px] text-muted-foreground">Gợi ý: nếu chỉ nghỉ việc, hãy đổi trạng thái sang “Đã nghỉ” thay vì xoá.</p>
+              </div>
+            </div>
+            {deleteError && <p className="mt-3 text-[12.5px] text-destructive">{deleteError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" disabled={deleting} onClick={() => setConfirmDelete(false)} className="rounded-xl">Huỷ</Button>
+              <Button disabled={deleting} onClick={handleDelete} className="gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-600">
+                <Trash2 className="size-4" /> {deleting ? "Đang xoá…" : "Xoá vĩnh viễn"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -191,6 +259,126 @@ function LabeledInput({ label, children }: { label: string; children: React.Reac
   );
 }
 
+// File picker that uploads straight to object storage and reports back the key.
+function FileUploadField({
+  scope, ownerId, value, onUploaded, onClear,
+}: {
+  scope: UploadScope;
+  ownerId?: string;
+  value?: string;
+  onUploaded: (key: string) => void;
+  onClear: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setBusy(true);
+    setFailed(false);
+    uploadFile(file, scope, ownerId)
+      .then((key) => onUploaded(key))
+      .catch(() => setFailed(true))
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <div>
+      {value ? (
+        <div className="flex h-9 items-center justify-between rounded-lg border border-input bg-card px-3 text-[13px]">
+          <span className="flex items-center gap-1.5 truncate text-emerald-600">
+            <Check className="size-3.5 shrink-0" /> Đã đính kèm tệp
+          </span>
+          <button type="button" onClick={onClear} className="ml-2 cursor-pointer text-muted-foreground hover:text-rose-600">
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ) : (
+        <label className={cn(inputCls, "cursor-pointer items-center gap-1.5 text-muted-foreground", busy && "opacity-60")}>
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Paperclip className="size-3.5" />}
+          <span className="truncate">{busy ? "Đang tải lên…" : "Chọn tệp để tải lên"}</span>
+          <input type="file" className="hidden" disabled={busy} onChange={pick} />
+        </label>
+      )}
+      {failed && <div className="mt-1 text-[11px] text-rose-600">Tải tệp thất bại, thử lại.</div>}
+    </div>
+  );
+}
+
+// Opens a stored object via a short-lived signed URL.
+function DownloadLink({ fileKey, label }: { fileKey: string; label?: string }) {
+  const [busy, setBusy] = useState(false);
+  function open() {
+    setBusy(true);
+    signDownload(fileKey)
+      .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
+      .catch(() => {})
+      .finally(() => setBusy(false));
+  }
+  return (
+    <button type="button" onClick={open} disabled={busy}
+      className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium text-primary-600 hover:underline disabled:opacity-60">
+      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+      {label ?? "Tải tệp"}
+    </button>
+  );
+}
+
+// Header avatar with inline upload (resolves the stored key to a signed URL for display).
+function AvatarUploader({
+  employeeId, avatarKey, initials, canManage, onChanged,
+}: {
+  employeeId: string;
+  avatarKey?: string;
+  initials: string;
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!avatarKey) return;
+    let cancelled = false;
+    signDownload(avatarKey)
+      .then((u) => { if (!cancelled) setUrl(u); })
+      .catch(() => { if (!cancelled) setUrl(null); });
+    return () => { cancelled = true; };
+  }, [avatarKey]);
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    uploadFile(file, "avatar", employeeId)
+      .then((key) => employeeService.updateProfile(employeeId, { avatarUrl: key }))
+      .then(() => onChanged())
+      .catch(() => {})
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <Avatar className="size-16 bg-white/10 text-[20px] text-white ring-2 ring-white/20">
+        {avatarKey && url && <AvatarImage src={url} alt={initials} />}
+        <AvatarFallback className="bg-transparent text-white">{initials}</AvatarFallback>
+      </Avatar>
+      {canManage && (
+        <label className={cn(
+          "absolute -bottom-1 -right-1 flex size-6 cursor-pointer items-center justify-center rounded-full bg-white text-secondary-900 shadow ring-2 ring-[#163985] transition hover:bg-white/90",
+          busy && "pointer-events-none opacity-60",
+        )} title="Đổi ảnh đại diện">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <Camera className="size-3" />}
+          <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={pick} />
+        </label>
+      )}
+    </div>
+  );
+}
+
 // per-tab fetch with a reload key
 function useResource<T>(fetcher: () => Promise<T[]>, dep: string) {
   const [state, setState] = useState<{ loading: boolean; items: T[]; error: boolean }>({
@@ -214,7 +402,7 @@ function ProfileTab({ view, profile }: { view: EmployeeView; profile: EmployeePr
     <div className="flex flex-col gap-5">
       <Panel title="Thông tin cá nhân">
         <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-          <Field label="Họ và tên" value={fullNameOf(profile?.firstName ?? view.firstName, profile?.lastName ?? view.lastName) || view.fullName} />
+          <Field label="Họ và tên" value={fullNameOf(profile?.firstName ?? view.firstName, profile?.lastName ?? view.lastName, profile?.middleName ?? view.middleName) || view.fullName} />
           <Field label="Ngày sinh" value={dob} />
           <Field label="Giới tính" value={(profile?.gender && GENDER[profile.gender]) || (view.gender ? GENDER[view.gender] : "")} />
           <Field label="Tình trạng hôn nhân" value={(profile?.maritalStatus && MARITAL[profile.maritalStatus]) || (view.maritalStatus ? MARITAL[view.maritalStatus] : "")} />
@@ -352,10 +540,10 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <Button variant="outline" disabled={busy} onClick={() => run(employeeService.resetPassword(view.id), "Đã gửi mật khẩu tạm tới email.")} className="justify-start gap-2.5 rounded-xl">
+            <Button variant="outline" disabled={busy} onClick={() => run(employeeService.resetPassword(view.id), "Đã gửi liên kết đặt lại mật khẩu tới email.")} className="justify-start gap-2.5 rounded-xl">
               <RefreshCw className="size-4" strokeWidth={1.8} /> Đặt lại mật khẩu
             </Button>
-            <Button variant="outline" disabled={busy} onClick={() => run(employeeService.resendInvite(view.id), "Đã gửi lại email lời mời.")} className="justify-start gap-2.5 rounded-xl">
+            <Button variant="outline" disabled={busy} onClick={() => run(employeeService.resendInvite(view.id), "Đã gửi lại email kích hoạt tài khoản.")} className="justify-start gap-2.5 rounded-xl">
               <Send className="size-4" strokeWidth={1.8} /> Gửi lại email lời mời
             </Button>
             {disabled ? (
@@ -379,20 +567,47 @@ function ContactsTab({ employeeId, canManage }: { employeeId: string; canManage:
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeContactRecord>(() => employeeService.contacts(employeeId), `${employeeId}:${rk}`);
-  const [f, setF] = useState({ name: "", relationship: "spouse", phone: "", isPrimary: false });
+  const emptyForm = { name: "", relationship: "spouse", phone: "", isPrimary: false };
+  const [f, setF] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  function remove(contactId: string) {
+    setRemoving(contactId);
+    employeeService
+      .deleteContact(employeeId, contactId)
+      .then(() => setRk((k) => k + 1))
+      .catch(() => {})
+      .finally(() => setRemoving(null));
+  }
+
+  function startEdit(c: EmployeeContactRecord) {
+    setEditingId(c._id);
+    setF({ name: c.name, relationship: c.relationship, phone: c.phone ?? "", isPrimary: !!c.isPrimary });
+    setAdding(true);
+  }
+
+  function closeForm() {
+    setAdding(false);
+    setEditingId(null);
+    setF(emptyForm);
+  }
 
   function save() {
     setBusy(true);
-    employeeService
-      .addContact(employeeId, { name: f.name.trim(), relationship: f.relationship as EmployeeContactRecord["relationship"], phone: f.phone.trim() || undefined, isPrimary: f.isPrimary })
-      .then(() => { setAdding(false); setF({ name: "", relationship: "spouse", phone: "", isPrimary: false }); setRk((k) => k + 1); })
+    const payload = { name: f.name.trim(), relationship: f.relationship as EmployeeContactRecord["relationship"], phone: f.phone.trim() || undefined, isPrimary: f.isPrimary };
+    const req = editingId
+      ? employeeService.updateContact(employeeId, editingId, payload)
+      : employeeService.addContact(employeeId, payload);
+    req
+      .then(() => { closeForm(); setRk((k) => k + 1); })
       .catch(() => {})
       .finally(() => setBusy(false));
   }
 
   return (
-    <Panel title="Người liên hệ khẩn cấp" action={canManage && <Button variant="outline" size="sm" onClick={() => setAdding((a) => !a)} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
+    <Panel title="Người liên hệ khẩn cấp" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
           <LabeledInput label="Họ tên"><input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></LabeledInput>
@@ -404,8 +619,8 @@ function ContactsTab({ employeeId, canManage }: { employeeId: string; canManage:
           <LabeledInput label="Điện thoại"><input className={inputCls} value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></LabeledInput>
           <label className="flex items-end gap-2 pb-1 text-[12.5px]"><input type="checkbox" checked={f.isPrimary} onChange={(e) => setF({ ...f, isPrimary: e.target.checked })} className="size-4 accent-primary-500" /> Liên hệ chính</label>
           <div className="col-span-2 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setAdding(false)} className="rounded-lg">Huỷ</Button>
-            <Button size="sm" disabled={busy || !f.name.trim()} onClick={save} className="rounded-lg">Lưu</Button>
+            <Button variant="outline" size="sm" onClick={closeForm} className="rounded-lg">Huỷ</Button>
+            <Button size="sm" disabled={busy || !f.name.trim()} onClick={save} className="rounded-lg">{editingId ? "Cập nhật" : "Lưu"}</Button>
           </div>
         </div>
       )}
@@ -422,7 +637,13 @@ function ContactsTab({ employeeId, canManage }: { employeeId: string; canManage:
                   </div>
                   <div className="text-[12px] text-muted-foreground">{REL[c.relationship] ?? c.relationship} · <span className="font-mono">{c.phone ?? "—"}</span></div>
                 </div>
-                <Button variant="ghost" size="icon" className="size-8"><Phone className="size-4 text-muted-foreground" /></Button>
+                {c.phone && <a href={`tel:${c.phone}`} className="flex size-8 items-center justify-center rounded-lg hover:bg-muted"><Phone className="size-4 text-muted-foreground" /></a>}
+                {canManage && (
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => startEdit(c)} className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={removing === c._id} onClick={() => remove(c._id)} className="size-8 text-muted-foreground hover:text-rose-600"><Trash2 className="size-4" /></Button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -436,26 +657,61 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeDocumentRecord>(() => employeeService.documents(employeeId), `${employeeId}:${rk}`);
-  const [f, setF] = useState({ documentType: "id_card", documentNumber: "", issuedDate: "", expiryDate: "", issuedBy: "" });
+  const emptyForm = { documentType: "id_card", documentNumber: "", issuedDate: "", expiryDate: "", issuedBy: "", fileUrl: "" };
+  const [f, setF] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  function remove(docId: string) {
+    setRemoving(docId);
+    employeeService
+      .deleteDocument(employeeId, docId)
+      .then(() => setRk((k) => k + 1))
+      .catch(() => {})
+      .finally(() => setRemoving(null));
+  }
+
+  function startEdit(d: EmployeeDocumentRecord) {
+    setEditingId(d._id);
+    setF({
+      documentType: d.documentType,
+      documentNumber: d.documentNumber,
+      issuedDate: d.issuedDate ? d.issuedDate.slice(0, 10) : "",
+      expiryDate: d.expiryDate ? d.expiryDate.slice(0, 10) : "",
+      issuedBy: d.issuedBy ?? "",
+      fileUrl: d.fileUrl ?? "",
+    });
+    setAdding(true);
+  }
+
+  function closeForm() {
+    setAdding(false);
+    setEditingId(null);
+    setF(emptyForm);
+  }
 
   function save() {
     setBusy(true);
-    employeeService
-      .addDocument(employeeId, {
-        documentType: f.documentType as EmployeeDocumentRecord["documentType"],
-        documentNumber: f.documentNumber.trim(),
-        issuedDate: f.issuedDate || undefined,
-        expiryDate: f.expiryDate || undefined,
-        issuedBy: f.issuedBy.trim() || undefined,
-      })
-      .then(() => { setAdding(false); setF({ documentType: "id_card", documentNumber: "", issuedDate: "", expiryDate: "", issuedBy: "" }); setRk((k) => k + 1); })
+    const payload = {
+      documentType: f.documentType as EmployeeDocumentRecord["documentType"],
+      documentNumber: f.documentNumber.trim(),
+      issuedDate: f.issuedDate || undefined,
+      expiryDate: f.expiryDate || undefined,
+      issuedBy: f.issuedBy.trim() || undefined,
+      fileUrl: f.fileUrl || undefined,
+    };
+    const req = editingId
+      ? employeeService.updateDocument(employeeId, editingId, payload)
+      : employeeService.addDocument(employeeId, payload);
+    req
+      .then(() => { closeForm(); setRk((k) => k + 1); })
       .catch(() => {})
       .finally(() => setBusy(false));
   }
 
   return (
-    <Panel title="Tài liệu & giấy tờ" action={canManage && <Button variant="outline" size="sm" onClick={() => setAdding((a) => !a)} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
+    <Panel title="Tài liệu & giấy tờ" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
           <LabeledInput label="Loại giấy tờ">
@@ -464,12 +720,19 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
             </select>
           </LabeledInput>
           <LabeledInput label="Số"><input className={inputCls} value={f.documentNumber} onChange={(e) => setF({ ...f, documentNumber: e.target.value })} /></LabeledInput>
-          <LabeledInput label="Ngày cấp"><input type="date" className={inputCls} value={f.issuedDate} onChange={(e) => setF({ ...f, issuedDate: e.target.value })} /></LabeledInput>
-          <LabeledInput label="Hết hạn"><input type="date" className={inputCls} value={f.expiryDate} onChange={(e) => setF({ ...f, expiryDate: e.target.value })} /></LabeledInput>
+          <LabeledInput label="Ngày cấp"><DateField className={inputCls} value={f.issuedDate} onChange={(iso) => setF({ ...f, issuedDate: iso })} /></LabeledInput>
+          <LabeledInput label="Hết hạn"><DateField className={inputCls} value={f.expiryDate} onChange={(iso) => setF({ ...f, expiryDate: iso })} /></LabeledInput>
           <LabeledInput label="Nơi cấp"><input className={inputCls} value={f.issuedBy} onChange={(e) => setF({ ...f, issuedBy: e.target.value })} /></LabeledInput>
+          <div className="col-span-2">
+            <LabeledInput label="Tệp đính kèm">
+              <FileUploadField scope="document" ownerId={employeeId} value={f.fileUrl}
+                onUploaded={(key) => setF((s) => ({ ...s, fileUrl: key }))}
+                onClear={() => setF((s) => ({ ...s, fileUrl: "" }))} />
+            </LabeledInput>
+          </div>
           <div className="col-span-2 flex items-end justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setAdding(false)} className="rounded-lg">Huỷ</Button>
-            <Button size="sm" disabled={busy || !f.documentNumber.trim()} onClick={save} className="rounded-lg">Lưu</Button>
+            <Button variant="outline" size="sm" onClick={closeForm} className="rounded-lg">Huỷ</Button>
+            <Button size="sm" disabled={busy || !f.documentNumber.trim()} onClick={save} className="rounded-lg">{editingId ? "Cập nhật" : "Lưu"}</Button>
           </div>
         </div>
       )}
@@ -485,7 +748,14 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
                     Số: <span className="font-mono">{d.documentNumber}</span>
                     {d.issuedDate ? ` · Cấp ${formatDate(d.issuedDate)}` : ""}{d.expiryDate ? ` · HH ${formatDate(d.expiryDate)}` : ""}
                   </div>
+                  {d.fileUrl && <div className="mt-1.5"><DownloadLink fileKey={d.fileUrl} /></div>}
                 </div>
+                {canManage && (
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => startEdit(d)} className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={removing === d._id} onClick={() => remove(d._id)} className="size-8 text-muted-foreground hover:text-rose-600"><Trash2 className="size-4" /></Button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -499,26 +769,51 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeContractRecord>(() => employeeService.contracts(employeeId), `${employeeId}:${rk}`);
-  const [f, setF] = useState({ contractType: "probation", contractNumber: "", startDate: "", endDate: "", baseSalary: "" });
+  const emptyForm = { contractType: "probation", contractNumber: "", startDate: "", endDate: "", baseSalary: "", fileUrl: "" };
+  const [f, setF] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  function startEdit(c: EmployeeContractRecord) {
+    setEditingId(c._id);
+    setF({
+      contractType: c.contractType,
+      contractNumber: c.contractNumber,
+      startDate: c.startDate ? c.startDate.slice(0, 10) : "",
+      endDate: c.endDate ? c.endDate.slice(0, 10) : "",
+      baseSalary: String(parseDecimal(c.baseSalary) || ""),
+      fileUrl: c.fileUrl ?? "",
+    });
+    setAdding(true);
+  }
+
+  function closeForm() {
+    setAdding(false);
+    setEditingId(null);
+    setF(emptyForm);
+  }
 
   function save() {
     setBusy(true);
-    employeeService
-      .addContract(employeeId, {
-        contractType: f.contractType as EmployeeContractRecord["contractType"],
-        contractNumber: f.contractNumber.trim(),
-        startDate: f.startDate,
-        endDate: f.endDate || undefined,
-        baseSalary: Number(f.baseSalary) || 0,
-      })
-      .then(() => { setAdding(false); setF({ contractType: "probation", contractNumber: "", startDate: "", endDate: "", baseSalary: "" }); setRk((k) => k + 1); })
+    const payload = {
+      contractType: f.contractType as EmployeeContractRecord["contractType"],
+      contractNumber: f.contractNumber.trim(),
+      startDate: f.startDate,
+      endDate: f.endDate || undefined,
+      baseSalary: Number(f.baseSalary) || 0,
+      fileUrl: f.fileUrl || undefined,
+    };
+    const req = editingId
+      ? employeeService.updateContract(employeeId, editingId, payload)
+      : employeeService.addContract(employeeId, payload);
+    req
+      .then(() => { closeForm(); setRk((k) => k + 1); })
       .catch(() => {})
       .finally(() => setBusy(false));
   }
 
   return (
-    <Panel title="Hợp đồng lao động" action={canManage && <Button variant="outline" size="sm" onClick={() => setAdding((a) => !a)} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
+    <Panel title="Hợp đồng lao động" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
           <LabeledInput label="Loại HĐ">
@@ -527,12 +822,17 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
             </select>
           </LabeledInput>
           <LabeledInput label="Số HĐ"><input className={cn(inputCls, "font-mono")} value={f.contractNumber} onChange={(e) => setF({ ...f, contractNumber: e.target.value })} /></LabeledInput>
-          <LabeledInput label="Bắt đầu"><input type="date" className={inputCls} value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></LabeledInput>
-          <LabeledInput label="Kết thúc"><input type="date" className={inputCls} value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></LabeledInput>
+          <LabeledInput label="Bắt đầu"><DateField className={inputCls} value={f.startDate} onChange={(iso) => setF({ ...f, startDate: iso })} /></LabeledInput>
+          <LabeledInput label="Kết thúc"><DateField className={inputCls} value={f.endDate} onChange={(iso) => setF({ ...f, endDate: iso })} /></LabeledInput>
           <LabeledInput label="Lương cơ bản (₫)"><input type="number" className={cn(inputCls, "font-mono")} value={f.baseSalary} onChange={(e) => setF({ ...f, baseSalary: e.target.value })} /></LabeledInput>
+          <LabeledInput label="Tệp hợp đồng">
+            <FileUploadField scope="contract" ownerId={employeeId} value={f.fileUrl}
+              onUploaded={(key) => setF((s) => ({ ...s, fileUrl: key }))}
+              onClear={() => setF((s) => ({ ...s, fileUrl: "" }))} />
+          </LabeledInput>
           <div className="col-span-2 flex items-end justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setAdding(false)} className="rounded-lg">Huỷ</Button>
-            <Button size="sm" disabled={busy || !f.contractNumber.trim() || !f.startDate} onClick={save} className="rounded-lg">Lưu</Button>
+            <Button variant="outline" size="sm" onClick={closeForm} className="rounded-lg">Huỷ</Button>
+            <Button size="sm" disabled={busy || !f.contractNumber.trim() || !f.startDate} onClick={save} className="rounded-lg">{editingId ? "Cập nhật" : "Lưu"}</Button>
           </div>
         </div>
       )}
@@ -543,7 +843,12 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
               <div key={c._id} className="rounded-xl border p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[13px] font-semibold text-foreground">{c.contractNumber}</span>
-                  <Badge variant={c.status === "active" ? "emerald" : "slate"}>{c.status === "active" ? "Hiệu lực" : "Hết hiệu lực"}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant={c.status === "active" ? "emerald" : "slate"}>{c.status === "active" ? "Hiệu lực" : "Hết hiệu lực"}</Badge>
+                    {canManage && (
+                      <Button variant="ghost" size="icon" onClick={() => startEdit(c)} className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
                   <Field label="Loại" value={CONTRACT_TYPE[c.contractType] ?? c.contractType} />
@@ -551,6 +856,7 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
                   <Field label="Bắt đầu" value={formatDate(c.startDate)} />
                   <Field label="Kết thúc" value={c.endDate ? formatDate(c.endDate) : "Không thời hạn"} />
                 </div>
+                {c.fileUrl && <div className="mt-3"><DownloadLink fileKey={c.fileUrl} label="Tải hợp đồng" /></div>}
               </div>
             ))}
           </div>
@@ -564,39 +870,91 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeAssetRecord>(() => employeeService.assets(employeeId), `${employeeId}:${rk}`);
-  const [f, setF] = useState({ assetName: "", assetCode: "", assignedDate: "", condition: "good", note: "" });
+  const emptyForm = { assetName: "", assetCode: "", assignedDate: "", condition: "good", note: "" };
+  const [f, setF] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  function markReturned(assetId: string) {
+    setActingId(assetId);
+    employeeService
+      .returnAsset(employeeId, assetId, {})
+      .then(() => setRk((k) => k + 1))
+      .catch(() => {})
+      .finally(() => setActingId(null));
+  }
+
+  // Re-assign a previously returned asset (clear the returned date).
+  function reassign(assetId: string) {
+    setActingId(assetId);
+    employeeService
+      .updateAsset(employeeId, assetId, { returnedDate: null })
+      .then(() => setRk((k) => k + 1))
+      .catch(() => {})
+      .finally(() => setActingId(null));
+  }
+
+  function remove(assetId: string) {
+    setActingId(assetId);
+    employeeService
+      .deleteAsset(employeeId, assetId)
+      .then(() => setRk((k) => k + 1))
+      .catch(() => {})
+      .finally(() => setActingId(null));
+  }
+
+  function startEdit(a: EmployeeAssetRecord) {
+    setEditingId(a._id);
+    setF({
+      assetName: a.assetName,
+      assetCode: a.assetCode,
+      assignedDate: a.assignedDate ? a.assignedDate.slice(0, 10) : "",
+      condition: a.condition,
+      note: a.note ?? "",
+    });
+    setAdding(true);
+  }
+
+  function closeForm() {
+    setAdding(false);
+    setEditingId(null);
+    setF(emptyForm);
+  }
 
   function save() {
     setBusy(true);
-    employeeService
-      .addAsset(employeeId, {
-        assetName: f.assetName.trim(),
-        assetCode: f.assetCode.trim(),
-        assignedDate: f.assignedDate,
-        condition: f.condition as EmployeeAssetRecord["condition"],
-        note: f.note.trim() || undefined,
-      })
-      .then(() => { setAdding(false); setF({ assetName: "", assetCode: "", assignedDate: "", condition: "good", note: "" }); setRk((k) => k + 1); })
+    const payload = {
+      assetName: f.assetName.trim(),
+      assetCode: f.assetCode.trim(),
+      assignedDate: f.assignedDate,
+      condition: f.condition as EmployeeAssetRecord["condition"],
+      note: f.note.trim() || undefined,
+    };
+    const req = editingId
+      ? employeeService.updateAsset(employeeId, editingId, payload)
+      : employeeService.addAsset(employeeId, payload);
+    req
+      .then(() => { closeForm(); setRk((k) => k + 1); })
       .catch(() => {})
       .finally(() => setBusy(false));
   }
 
   return (
-    <Panel title="Tài sản được cấp" action={canManage && <Button variant="outline" size="sm" onClick={() => setAdding((a) => !a)} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Cấp tài sản</Button>}>
+    <Panel title="Tài sản được cấp" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Cấp tài sản</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
           <LabeledInput label="Tên tài sản"><input className={inputCls} value={f.assetName} onChange={(e) => setF({ ...f, assetName: e.target.value })} /></LabeledInput>
           <LabeledInput label="Mã tài sản"><input className={cn(inputCls, "font-mono")} value={f.assetCode} onChange={(e) => setF({ ...f, assetCode: e.target.value })} /></LabeledInput>
-          <LabeledInput label="Ngày cấp"><input type="date" className={inputCls} value={f.assignedDate} onChange={(e) => setF({ ...f, assignedDate: e.target.value })} /></LabeledInput>
+          <LabeledInput label="Ngày cấp"><DateField className={inputCls} value={f.assignedDate} onChange={(iso) => setF({ ...f, assignedDate: iso })} /></LabeledInput>
           <LabeledInput label="Tình trạng">
             <select className={inputCls} value={f.condition} onChange={(e) => setF({ ...f, condition: e.target.value })}>
               {Object.entries(COND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </LabeledInput>
           <div className="col-span-2 flex items-end justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setAdding(false)} className="rounded-lg">Huỷ</Button>
-            <Button size="sm" disabled={busy || !f.assetName.trim() || !f.assetCode.trim() || !f.assignedDate} onClick={save} className="rounded-lg">Lưu</Button>
+            <Button variant="outline" size="sm" onClick={closeForm} className="rounded-lg">Huỷ</Button>
+            <Button size="sm" disabled={busy || !f.assetName.trim() || !f.assetCode.trim() || !f.assignedDate} onClick={save} className="rounded-lg">{editingId ? "Cập nhật" : "Lưu"}</Button>
           </div>
         </div>
       )}
@@ -608,9 +966,23 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
                 <span className="flex size-10 items-center justify-center rounded-lg" style={CHIP("cyan")}><Laptop className="size-5" strokeWidth={1.7} /></span>
                 <div className="flex-1">
                   <div className="text-[13.5px] font-semibold text-foreground">{a.assetName}</div>
-                  <div className="text-[12px] text-muted-foreground">Mã: <span className="font-mono">{a.assetCode}</span> · Cấp {formatDate(a.assignedDate)}</div>
+                  <div className="text-[12px] text-muted-foreground">
+                    Mã: <span className="font-mono">{a.assetCode}</span> · Cấp {formatDate(a.assignedDate)}
+                    {a.returnedDate ? ` · Đã thu hồi ${formatDate(a.returnedDate)}` : ""}
+                  </div>
                 </div>
-                <Badge variant="slate">{COND[a.condition] ?? a.condition}</Badge>
+                <Badge variant={a.returnedDate ? "slate" : "emerald"}>{a.returnedDate ? "Đã thu hồi" : (COND[a.condition] ?? a.condition)}</Badge>
+                {canManage && (
+                  <div className="flex items-center">
+                    <Button variant="ghost" size="icon" disabled={actingId === a._id} onClick={() => startEdit(a)} title="Chỉnh sửa" className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
+                    {a.returnedDate ? (
+                      <Button variant="ghost" size="icon" disabled={actingId === a._id} onClick={() => reassign(a._id)} title="Cấp lại tài sản" className="size-8 text-muted-foreground hover:text-emerald-600"><RotateCcw className="size-4" /></Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" disabled={actingId === a._id} onClick={() => markReturned(a._id)} title="Thu hồi tài sản" className="size-8 text-muted-foreground hover:text-amber-600"><RotateCcw className="size-4" /></Button>
+                    )}
+                    <Button variant="ghost" size="icon" disabled={actingId === a._id} onClick={() => remove(a._id)} title="Xoá tài sản" className="size-8 text-muted-foreground hover:text-rose-600"><Trash2 className="size-4" /></Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

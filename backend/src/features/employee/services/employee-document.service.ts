@@ -3,7 +3,10 @@ import { HttpError } from '@shared/errors/http-error';
 import { employeeDocumentRepository } from '@features/employee/repositories/employee-document.repository';
 import { employeeRepository } from '@features/employee/repositories/employee.repository';
 import { auditService } from '@features/iam/services/audit.service';
-import type { CreateDocumentDto } from '@features/employee/dto/sub-resource.dto';
+import type {
+  CreateDocumentDto,
+  UpdateDocumentDto,
+} from '@features/employee/dto/sub-resource.dto';
 
 export const employeeDocumentService = {
   async list(employeeId: string) {
@@ -26,6 +29,19 @@ export const employeeDocumentService = {
       resource: 'employeeDocument',
       action: 'create',
       resourceId: doc._id.toString(),
+    });
+    return doc.toJSON();
+  },
+
+  async update(docId: string, input: UpdateDocumentDto, auditUserId: string) {
+    const doc = await employeeDocumentRepository.updateById(docId, input);
+    if (!doc) throw new HttpError(404, 'Document not found', 'EMP_005');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'employeeDocument',
+      action: 'update',
+      resourceId: docId,
+      changes: input as Record<string, unknown>,
     });
     return doc.toJSON();
   },

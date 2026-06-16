@@ -28,6 +28,13 @@ export const documentController = {
       });
     } catch (err) { next(err); }
   },
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { docId } = req.params as { docId: string };
+      res.json({ data: await employeeDocumentService.update(docId, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
@@ -152,6 +159,20 @@ export const assetController = {
       res.json({
         data: await employeeAssetService.markReturned(assetId, req.body, user.userId),
       });
+    } catch (err) { next(err); }
+  },
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { assetId } = req.params as { assetId: string };
+      res.json({ data: await employeeAssetService.update(assetId, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { assetId } = req.params as { assetId: string };
+      res.json({ data: await employeeAssetService.remove(assetId, user.userId) });
     } catch (err) { next(err); }
   },
 };

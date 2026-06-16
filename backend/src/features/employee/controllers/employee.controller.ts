@@ -88,6 +88,17 @@ export const employeeController = {
     }
   },
 
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      const result = await employeeService.remove(id, user.userId);
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async getProfile(req: Request, res: Response, next: NextFunction) {
     try {
       requireUser(req);

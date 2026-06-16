@@ -97,6 +97,7 @@ export const HIST_EVENT: Record<HistoryEvent, string> = {
   transfer: "Điều chuyển",
   salary_change: "Thay đổi lương",
   contract_renew: "Gia hạn HĐ",
+  info_update: "Cập nhật thông tin",
   terminated: "Nghỉ việc",
 };
 
@@ -118,9 +119,9 @@ export const STATUS_GROUP_LABEL = {
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
 
-/** Vietnamese name order: "{lastName} {firstName}". */
-export function fullNameOf(firstName?: string, lastName?: string): string {
-  return [lastName, firstName].filter(Boolean).join(" ").trim();
+/** Vietnamese name order: "{lastName} {middleName} {firstName}". */
+export function fullNameOf(firstName?: string, lastName?: string, middleName?: string): string {
+  return [lastName, middleName, firstName].filter(Boolean).join(" ").trim();
 }
 
 export function initialsOf(firstName?: string, lastName?: string): string {
@@ -139,11 +140,22 @@ export function formatDate(iso?: string | null): string {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
-/** Format money (number or Decimal128 string) with thousands separators. */
-export function formatMoney(value?: number | string | null): string {
+/**
+ * Coerce a money value to a number. Tolerates plain numbers, numeric strings,
+ * and Mongo's `{ $numberDecimal: "..." }` BSON wrapper (defensive — the backend
+ * now serializes Decimal128 to a string, but older payloads may still leak it).
+ */
+export function parseDecimal(value?: number | string | { $numberDecimal?: string } | null): number {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "object") return Number(value.$numberDecimal ?? NaN);
+  return typeof value === "string" ? Number(value) : value;
+}
+
+/** Format money (number, Decimal128 string, or `{ $numberDecimal }`) with thousands separators. */
+export function formatMoney(value?: number | string | { $numberDecimal?: string } | null): string {
   if (value === null || value === undefined || value === "") return "0";
-  const n = typeof value === "string" ? Number(value) : value;
-  if (Number.isNaN(n)) return String(value);
+  const n = parseDecimal(value);
+  if (Number.isNaN(n)) return "0";
   return n.toLocaleString("vi-VN");
 }
 
@@ -160,7 +172,7 @@ function positionTitle(ref: PositionRef | string | null | undefined): string {
 function managerName(ref: ManagerRef | string | null | undefined): string {
   if (!ref || typeof ref === "string") return "";
   const p = ref.profile;
-  const name = p ? fullNameOf(p.firstName, p.lastName) : "";
+  const name = p ? fullNameOf(p.firstName, p.lastName, p.middleName) : "";
   return name || ref.employeeCode || "";
 }
 
@@ -177,8 +189,9 @@ function refId(ref: { _id: string } | string | null | undefined): string {
 export function toEmployeeView(rec: EmployeeRecord): EmployeeView {
   const profile = isObject(rec.profile) ? rec.profile : undefined;
   const firstName = profile?.firstName ?? "";
+  const middleName = profile?.middleName ?? "";
   const lastName = profile?.lastName ?? "";
-  const full = fullNameOf(firstName, lastName) || rec.employeeCode;
+  const full = fullNameOf(firstName, lastName, middleName) || rec.employeeCode;
   const personalEmail = profile?.email ?? "";
   const workEmail = profile?.workEmail ?? "";
 
@@ -187,6 +200,7 @@ export function toEmployeeView(rec: EmployeeRecord): EmployeeView {
     code: rec.employeeCode,
     fingerprintId: rec.fingerprintId ?? "",
     firstName,
+    middleName,
     lastName,
     fullName: full,
     initials: initialsOf(firstName, lastName),

@@ -14,7 +14,6 @@ export interface AppEventMap {
     userId: string;
     employeeId: string;
     username: string;
-    tempPassword: string;
     sendTo?: string;
   };
   'employee.created': { employeeId: string; createdBy: string };

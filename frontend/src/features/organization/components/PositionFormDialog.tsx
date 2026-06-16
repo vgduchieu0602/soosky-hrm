@@ -17,6 +17,10 @@ import type {
   Position,
   UpdatePositionInput,
 } from "@features/organization/types/organization.types";
+import {
+  fieldErrors,
+  positionFormSchema,
+} from "@features/organization/schemas/organization.schema";
 
 export type PositionFormMode = "create" | "edit";
 
@@ -53,13 +57,19 @@ export function PositionFormDialog({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fErrors, setFErrors] = useState<Record<string, string>>({});
 
   const canSubmit =
     title.trim().length > 0 && (mode === "edit" || code.trim().length > 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || submitting) return;
+    if (submitting) return;
+    const errs = fieldErrors(positionFormSchema, {
+      title, code: code.toUpperCase(), level, description,
+    });
+    if (errs) { setFErrors(errs); return; }
+    setFErrors({});
     setSubmitting(true);
     setError(null);
 
@@ -117,6 +127,7 @@ export function PositionFormDialog({
                 maxLength={120}
                 autoFocus
               />
+              {fErrors.title && <span className="text-[11px] text-destructive">{fErrors.title}</span>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -130,10 +141,12 @@ export function PositionFormDialog({
                 disabled={mode === "edit"}
                 className={cn(mode === "edit" && "opacity-60")}
               />
-              {mode === "edit" && (
+              {mode === "edit" ? (
                 <span className="text-[11px] text-muted-foreground">
                   Mã không thể thay đổi sau khi tạo.
                 </span>
+              ) : (
+                fErrors.code && <span className="text-[11px] text-destructive">{fErrors.code}</span>
               )}
             </div>
 

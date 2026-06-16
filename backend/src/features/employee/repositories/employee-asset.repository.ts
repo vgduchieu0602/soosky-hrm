@@ -15,4 +15,14 @@ export const employeeAssetRepository = {
     if (!Types.ObjectId.isValid(id)) return null;
     return EmployeeAsset.findByIdAndUpdate(id, patch, { new: true });
   },
+
+  updateById(id: string, patch: Partial<IEmployeeAsset>) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return EmployeeAsset.findByIdAndUpdate(id, patch, { new: true });
+  },
+
+  deleteById(id: string) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return EmployeeAsset.findByIdAndDelete(id);
+  },
 };

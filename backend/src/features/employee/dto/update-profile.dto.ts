@@ -4,12 +4,14 @@ import { GENDER, MARITAL_STATUS } from '@shared/models/employee-profile.model';
 export const updateProfileDto = z
   .object({
     firstName: z.string().min(1).max(120).trim().optional(),
+    middleName: z.string().max(120).trim().optional(),
     lastName: z.string().min(1).max(120).trim().optional(),
     dateOfBirth: z.coerce.date().optional(),
     gender: z.enum(GENDER).optional(),
     nationality: z.string().min(2).max(3).optional(),
     maritalStatus: z.enum(MARITAL_STATUS).optional(),
-    avatarUrl: z.string().url().optional(),
+    // Object storage key (avatars/<id>/<uuid>-file.png), not a full URL.
+    avatarUrl: z.string().min(1).max(1024).optional(),
     avatarId: z.string().optional(),
     email: z.string().email().optional(),
     workEmail: z.string().email().optional(),

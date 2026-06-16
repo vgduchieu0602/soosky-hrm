@@ -9,3 +9,4 @@ description: >
   Giữ nguyên ý định gốc, loại bỏ những từ thừa thãi và các câu cú lủng củng. Tuyệt đối không viết theo kiểu robot, sáo rỗng, quá trang nghiêm hoặc có mùi 'thao túng tâm lý'/passive-aggressive. Sau khi đưa ra 3 bản, hãy gợi ý cho tôi phiên bản nào phù hợp nhất với ngữ cảnh và giải thích lý do. Nếu tin nhắn thô của tôi quá tối nghĩa, hãy hỏi lại tôi muốn gửi cho ai và mục đích cuối cùng là gì.”
 ---
 
+

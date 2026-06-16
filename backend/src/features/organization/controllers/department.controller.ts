@@ -41,4 +41,39 @@ export const departmentController = {
       res.json({ data: await departmentService.archive(id, user.userId) });
     } catch (err) { next(err); }
   },
+  async assignHead(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await departmentService.assignHead(id, req.body.managerId, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async move(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await departmentService.move(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async transferEmployees(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await departmentService.transferEmployees(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async merge(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await departmentService.merge(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async history(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await departmentService.history(id) });
+    } catch (err) { next(err); }
+  },
 };

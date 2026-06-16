@@ -5,9 +5,14 @@ import {
 } from '@shared/models/employee-contract.model';
 
 export const employeeContractRepository = {
-  listByEmployee(employeeId: string) {
+  async listByEmployee(employeeId: string) {
     if (!Types.ObjectId.isValid(employeeId)) return [];
-    return EmployeeContractModel.find({ employeeId }).sort({ startDate: -1 }).lean();
+    const rows = await EmployeeContractModel.find({ employeeId }).sort({ startDate: -1 }).lean();
+    // Decimal128 survives `.lean()` as a BSON object — normalize to a string.
+    return rows.map((r) => ({
+      ...r,
+      baseSalary: r.baseSalary != null ? String(r.baseSalary) : '0',
+    }));
   },
 
   findActive(employeeId: string) {

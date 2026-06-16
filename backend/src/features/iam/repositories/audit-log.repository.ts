@@ -21,6 +21,23 @@ interface CreateAuditInput {
 }
 
 export const auditLogRepository = {
+  async list(
+    filter: { resource?: string; action?: string; resourceId?: string; limit?: number } = {},
+  ) {
+    const query: Record<string, unknown> = {};
+    if (filter.resource) query.resource = filter.resource;
+    if (filter.action) query.action = filter.action;
+    if (filter.resourceId && Types.ObjectId.isValid(filter.resourceId)) {
+      query.resourceId = new Types.ObjectId(filter.resourceId);
+    }
+    const limit = Math.min(filter.limit ?? 100, 500);
+    return AuditLog.find(query)
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .populate({ path: 'userId', select: 'username email' })
+      .lean();
+  },
+
   create(input: CreateAuditInput) {
     return AuditLog.create({
       userId: input.userId ? new Types.ObjectId(input.userId) : undefined,

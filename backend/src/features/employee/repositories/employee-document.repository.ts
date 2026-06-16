@@ -14,6 +14,11 @@ export const employeeDocumentRepository = {
     return EmployeeDocumentModel.create(input);
   },
 
+  updateById(id: string, patch: Partial<IEmployeeDocument>) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return EmployeeDocumentModel.findByIdAndUpdate(id, patch, { new: true });
+  },
+
   deleteById(id: string) {
     if (!Types.ObjectId.isValid(id)) return null;
     return EmployeeDocumentModel.findByIdAndDelete(id);

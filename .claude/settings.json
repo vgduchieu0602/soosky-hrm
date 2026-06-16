@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "pm-product-discovery@pm-skills": true,
+    "pm-product-strategy@pm-skills": true,
+    "pm-market-research@pm-skills": true,
+    "pm-execution@pm-skills": true
+  }
+}

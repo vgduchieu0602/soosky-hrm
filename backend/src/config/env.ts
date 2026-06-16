@@ -24,6 +24,17 @@ const schema = z.object({
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+
+  // Object storage (S3-compatible — Backblaze B2). When S3_BUCKET is empty,
+  // the storage service is treated as unconfigured and presign calls fail fast.
+  // For Backblaze B2 the endpoint looks like https://s3.us-west-004.backblazeb2.com
+  S3_ENDPOINT: z.string().optional(),
+  S3_REGION: z.string().default('us-west-004'),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  // Seconds a presigned URL stays valid (upload & download).
+  S3_PRESIGN_TTL: z.coerce.number().default(900),
 });
 
 export const env = schema.parse(process.env);

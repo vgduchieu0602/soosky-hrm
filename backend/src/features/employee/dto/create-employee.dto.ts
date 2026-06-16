@@ -15,6 +15,7 @@ export const createEmployeeDto = z.object({
   salaryZone: z.enum(SALARY_ZONE).optional(),
   profile: z.object({
     firstName: z.string().min(1).max(120).trim(),
+    middleName: z.string().max(120).trim().optional(),
     lastName: z.string().min(1).max(120).trim(),
     dateOfBirth: z.coerce.date().optional(),
     gender: z.enum(GENDER).optional(),

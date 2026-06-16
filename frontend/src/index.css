@@ -3,7 +3,8 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    /* App canvas is a faint slate so white cards lift off the page */
+    --background: 210 40% 98%;
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
@@ -80,9 +81,35 @@
     --ring: 196 100% 48%;
   }
 
+  /* Tailwind v4 dropped the default border color (was gray-200 in v3), so a
+     bare `border`/`border-t`/`border-b` falls back to currentColor and renders
+     as dark/near-black lines. Restore a soft slate default app-wide. */
+  *,
+  ::before,
+  ::after {
+    border-color: hsl(var(--border));
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family: "Be Vietnam Pro", "Inter", system-ui, -apple-system,
+      "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Honour OS-level reduced-motion: drop decorative motion, keep instant UI */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   /* Slide-over panel animation used by EmployeeDetail */

@@ -82,7 +82,7 @@ export const employeeRepository = {
               },
             },
             { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
-            { $project: { employeeCode: 1, 'profile.firstName': 1, 'profile.lastName': 1 } },
+            { $project: { employeeCode: 1, 'profile.firstName': 1, 'profile.middleName': 1, 'profile.lastName': 1 } },
           ],
           as: 'manager',
         },
@@ -124,6 +124,7 @@ export const employeeRepository = {
               employeeCode: '$manager.employeeCode',
               profile: {
                 firstName: '$manager.profile.firstName',
+                middleName: '$manager.profile.middleName',
                 lastName: '$manager.profile.lastName',
               },
             },
@@ -132,6 +133,7 @@ export const employeeRepository = {
         },
         profile: {
           firstName: '$profile.firstName',
+          middleName: '$profile.middleName',
           lastName: '$profile.lastName',
           email: '$profile.email',
           workEmail: '$profile.workEmail',
@@ -217,6 +219,7 @@ function buildSearchMatch(q?: string): Record<string, unknown> | null {
       { employeeCode: rx },
       { fingerprintId: rx },
       { 'profile.firstName': rx },
+      { 'profile.middleName': rx },
       { 'profile.lastName': rx },
       { 'profile.email': rx },
       { 'profile.workEmail': rx },

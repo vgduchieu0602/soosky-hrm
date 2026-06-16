@@ -62,8 +62,10 @@ export const accountProvisioningService = {
       );
     }
 
-    const tempPassword = generateRandomPassword(10);
-    const hashed = await hashPassword(tempPassword);
+    // No temp password is communicated. The account is created with an
+    // unusable random password; the employee sets their own via the emailed
+    // set-password link before they can log in.
+    const placeholderPassword = await hashPassword(generateRandomPassword(24));
 
     const session = await mongoose.startSession();
     try {
@@ -73,7 +75,7 @@ export const accountProvisioningService = {
             {
               username,
               email: profile.email,
-              password: hashed,
+              password: placeholderPassword,
               employeeId: employee._id,
               status: 'active',
               mustChangePassword: false,
@@ -111,7 +113,6 @@ export const accountProvisioningService = {
         userId: result._id.toString(),
         employeeId: employee._id.toString(),
         username,
-        tempPassword,
         sendTo: dto.sendEmail ? profile.email : undefined,
       });
 
@@ -120,7 +121,7 @@ export const accountProvisioningService = {
       return {
         userId: result._id.toString(),
         username,
-        tempPasswordSentTo: dto.sendEmail ? profile.email : null,
+        linkSentTo: dto.sendEmail ? profile.email : null,
       };
     } finally {
       await session.endSession();

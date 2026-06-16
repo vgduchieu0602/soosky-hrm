@@ -3,8 +3,10 @@ import { env } from '@config/env';
 import { HttpError } from '@shared/errors/http-error';
 import { authService } from '@features/iam/services/auth.service';
 import { tokenService } from '@features/iam/services/token.service';
+import { passwordSetupService } from '@features/iam/services/password-setup.service';
 import type { LoginDto } from '@features/iam/dto/login.dto';
 import type { ChangePasswordDto } from '@features/iam/dto/change-password.dto';
+import type { SetPasswordDto } from '@features/iam/dto/set-password.dto';
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
 
@@ -85,6 +87,29 @@ export const authController = {
       const { currentPassword, newPassword } = req.body as ChangePasswordDto;
       const result = await authService.changePassword(req.user.userId, currentPassword, newPassword);
       res.json({ data: result, message: 'Đổi mật khẩu thành công' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** Public — validate a set-password/reset token before showing the form. */
+  async checkSetupToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = (req.query.token as string | undefined)?.trim();
+      if (!token) throw new HttpError(400, 'Thiếu token', 'IAM_011');
+      const result = await passwordSetupService.check(token);
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** Public — set the password using a single-use token from the email link. */
+  async setPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, password } = req.body as SetPasswordDto;
+      const result = await passwordSetupService.consume(token, password);
+      res.json({ data: result, message: 'Thiết lập mật khẩu thành công' });
     } catch (err) {
       next(err);
     }

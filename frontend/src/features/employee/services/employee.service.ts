@@ -7,6 +7,7 @@ import type {
   EmployeeContractRecord,
   EmployeeDocumentRecord,
   EmployeeHistoryRecord,
+  EmployeeProfile,
   EmployeeRecord,
   EmployeeStats,
   GrantLoginInput,
@@ -17,7 +18,12 @@ import type {
   NewContactInput,
   NewContractInput,
   NewDocumentInput,
+  ReturnAssetInput,
+  TerminateInput,
   UpdateAccountInput,
+  UpdateAssetInput,
+  UpdateProfileInput,
+  UpdateWorkInput,
 } from "@features/employee/types/employee.types";
 
 interface ApiEnvelope<T> {
@@ -76,6 +82,37 @@ export const employeeService = {
       { status },
     );
     return data.data;
+  },
+
+  // Update core work info (department, position, manager, type, status, salary zone).
+  async update(id: string, input: UpdateWorkInput): Promise<EmployeeRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeRecord>>(
+      `/admin/employees/${id}`,
+      input,
+    );
+    return data.data;
+  },
+
+  // Update PII profile fields.
+  async updateProfile(id: string, input: UpdateProfileInput): Promise<EmployeeProfile> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeProfile>>(
+      `/employees/${id}/profile`,
+      input,
+    );
+    return data.data;
+  },
+
+  async terminate(id: string, input: TerminateInput = {}): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(
+      `/admin/employees/${id}/terminate`,
+      input,
+    );
+    return data.data;
+  },
+
+  // Hard delete (cascade) — admin & HR only.
+  async remove(id: string): Promise<void> {
+    await api.delete(`/admin/employees/${id}`);
   },
 
   async grantLogin(id: string, input: GrantLoginInput): Promise<GrantLoginResult> {
@@ -155,21 +192,94 @@ export const employeeService = {
     return data.data;
   },
 
+  // ---- sub-resources (edit / delete / return) ----
+  async updateContact(
+    id: string,
+    contactId: string,
+    input: Partial<NewContactInput>,
+  ): Promise<EmployeeContactRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeContactRecord>>(
+      `/employees/${id}/contacts/${contactId}`,
+      input,
+    );
+    return data.data;
+  },
+
+  async deleteContact(id: string, contactId: string): Promise<void> {
+    await api.delete(`/employees/${id}/contacts/${contactId}`);
+  },
+
+  async updateDocument(
+    id: string,
+    docId: string,
+    input: Partial<NewDocumentInput>,
+  ): Promise<EmployeeDocumentRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeDocumentRecord>>(
+      `/admin/employees/${id}/documents/${docId}`,
+      input,
+    );
+    return data.data;
+  },
+
+  async deleteDocument(id: string, docId: string): Promise<void> {
+    await api.delete(`/admin/employees/${id}/documents/${docId}`);
+  },
+
+  async updateContract(
+    id: string,
+    contractId: string,
+    input: Partial<NewContractInput>,
+  ): Promise<EmployeeContractRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeContractRecord>>(
+      `/admin/employees/${id}/contracts/${contractId}`,
+      input,
+    );
+    return data.data;
+  },
+
+  async returnAsset(
+    id: string,
+    assetId: string,
+    input: ReturnAssetInput = {},
+  ): Promise<EmployeeAssetRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeAssetRecord>>(
+      `/admin/employees/${id}/assets/${assetId}/return`,
+      input,
+    );
+    return data.data;
+  },
+
+  async updateAsset(
+    id: string,
+    assetId: string,
+    input: UpdateAssetInput,
+  ): Promise<EmployeeAssetRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeAssetRecord>>(
+      `/admin/employees/${id}/assets/${assetId}`,
+      input,
+    );
+    return data.data;
+  },
+
+  async deleteAsset(id: string, assetId: string): Promise<void> {
+    await api.delete(`/admin/employees/${id}/assets/${assetId}`);
+  },
+
   // ---- account (linked user) ----
   async account(id: string): Promise<AccountView> {
     const { data } = await api.get<ApiEnvelope<AccountView>>(`/employees/${id}/account`);
     return data.data;
   },
 
-  async resetPassword(id: string): Promise<{ tempPasswordSentTo: string }> {
-    const { data } = await api.post<ApiEnvelope<{ tempPasswordSentTo: string }>>(
+  async resetPassword(id: string): Promise<{ linkSentTo: string }> {
+    const { data } = await api.post<ApiEnvelope<{ linkSentTo: string }>>(
       `/admin/employees/${id}/reset-password`,
     );
     return data.data;
   },
 
-  async resendInvite(id: string): Promise<{ tempPasswordSentTo: string }> {
-    const { data } = await api.post<ApiEnvelope<{ tempPasswordSentTo: string }>>(
+  async resendInvite(id: string): Promise<{ linkSentTo: string }> {
+    const { data } = await api.post<ApiEnvelope<{ linkSentTo: string }>>(
       `/admin/employees/${id}/resend-invite`,
     );
     return data.data;

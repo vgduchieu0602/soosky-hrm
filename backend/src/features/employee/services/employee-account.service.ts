@@ -3,8 +3,6 @@ import mongoose, { Types } from 'mongoose';
 import { logger } from '@core/logger/logger';
 import { eventBus } from '@core/events/event-bus';
 import { HttpError } from '@shared/errors/http-error';
-import { hashPassword } from '@shared/utils/hash.util';
-import { generateRandomPassword } from '@shared/utils/password.util';
 
 import { User } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
@@ -22,14 +20,12 @@ declare module '@core/events/event-bus' {
       userId: string;
       employeeId: string;
       username: string;
-      tempPassword: string;
       sendTo?: string;
     };
     'employee.account.invite-resent': {
       userId: string;
       employeeId: string;
       username: string;
-      tempPassword: string;
       sendTo?: string;
     };
   }
@@ -85,12 +81,9 @@ export const employeeAccountService = {
     };
   },
 
-  /** Generate a fresh temp password, force change on next login, email it. */
+  /** Email the employee a fresh "set new password" link (no password is set here). */
   async resetPassword(employeeId: string, auditUserId: string) {
     const { employee, user } = await loadUserForEmployee(employeeId);
-    const tempPassword = generateRandomPassword(10);
-    user.password = await hashPassword(tempPassword);
-    user.mustChangePassword = false;
     user.failedLoginAttempts = 0;
     if (user.status === 'locked') user.status = 'active';
     await user.save();
@@ -100,28 +93,23 @@ export const employeeAccountService = {
       resource: 'user',
       action: 'update',
       resourceId: user._id.toString(),
-      changes: { passwordReset: true },
+      changes: { passwordResetLinkSent: true },
     });
 
     eventBus.emit('employee.account.password-reset', {
       userId: user._id.toString(),
       employeeId: employee._id.toString(),
       username: user.username,
-      tempPassword,
       sendTo: user.email,
     });
 
-    log.info({ employeeId, userId: user._id }, 'account password reset');
-    return { userId: user._id.toString(), tempPasswordSentTo: user.email };
+    log.info({ employeeId, userId: user._id }, 'account password-reset link sent');
+    return { userId: user._id.toString(), linkSentTo: user.email };
   },
 
-  /** Re-send the activation invite (issues a new temp password). */
+  /** Re-send the activation invite (a fresh set-password link). */
   async resendInvite(employeeId: string, auditUserId: string) {
     const { employee, user } = await loadUserForEmployee(employeeId);
-    const tempPassword = generateRandomPassword(10);
-    user.password = await hashPassword(tempPassword);
-    user.mustChangePassword = false;
-    await user.save();
 
     await auditService.record({
       userId: auditUserId,
@@ -135,12 +123,11 @@ export const employeeAccountService = {
       userId: user._id.toString(),
       employeeId: employee._id.toString(),
       username: user.username,
-      tempPassword,
       sendTo: user.email,
     });
 
     log.info({ employeeId, userId: user._id }, 'account invite resent');
-    return { userId: user._id.toString(), tempPasswordSentTo: user.email };
+    return { userId: user._id.toString(), linkSentTo: user.email };
   },
 
   /** Enable/disable login and/or change the assigned role. */

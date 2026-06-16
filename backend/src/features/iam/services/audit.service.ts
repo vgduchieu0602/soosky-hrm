@@ -26,4 +26,10 @@ export const auditService = {
       log.error({ err, input }, 'Failed to write audit log');
     }
   },
+
+  list(
+    filter: { resource?: string; action?: string; resourceId?: string; limit?: number } = {},
+  ) {
+    return auditLogRepository.list(filter);
+  },
 };

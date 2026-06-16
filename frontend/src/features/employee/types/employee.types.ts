@@ -13,7 +13,7 @@ export type ContractStatus = "active" | "expired" | "terminated";
 export type Relationship = "spouse" | "parent" | "sibling" | "other";
 export type AssetCondition = "new" | "good" | "fair" | "damaged";
 export type HistoryEvent =
-  | "hired" | "promotion" | "transfer" | "salary_change" | "contract_renew" | "terminated";
+  | "hired" | "promotion" | "transfer" | "salary_change" | "contract_renew" | "info_update" | "terminated";
 
 // ---- Populated reference shapes returned by the list endpoint ----
 export interface DepartmentRef {
@@ -30,11 +30,12 @@ export interface PositionRef {
 export interface ManagerRef {
   _id: string;
   employeeCode: string;
-  profile?: { firstName?: string; lastName?: string } | null;
+  profile?: { firstName?: string; middleName?: string; lastName?: string } | null;
 }
 
 export interface EmployeeProfile {
   firstName: string;
+  middleName?: string;
   lastName: string;
   dateOfBirth?: string;
   gender?: Gender;
@@ -73,6 +74,7 @@ export interface EmployeeView {
   code: string;
   fingerprintId: string;
   firstName: string;
+  middleName: string;
   lastName: string;
   fullName: string;
   initials: string;
@@ -135,6 +137,7 @@ export interface CreateEmployeeInput {
   salaryZone?: SalaryZone;
   profile: {
     firstName: string;
+    middleName?: string;
     lastName: string;
     dateOfBirth?: string;
     gender?: Gender;
@@ -145,6 +148,42 @@ export interface CreateEmployeeInput {
     phone?: string;
     address?: string;
   };
+}
+
+// ---- edit inputs ----
+export interface UpdateProfileInput {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: Gender;
+  nationality?: string;
+  maritalStatus?: MaritalStatus;
+  email?: string;
+  workEmail?: string;
+  phone?: string;
+  address?: string;
+  avatarUrl?: string;
+}
+
+export interface UpdateWorkInput {
+  departmentId?: string;
+  positionId?: string;
+  managerId?: string | null;
+  employeeType?: EmployeeType;
+  status?: EmployeeStatus;
+  salaryZone?: SalaryZone;
+}
+
+export interface ReturnAssetInput {
+  returnedDate?: string;
+  condition?: AssetCondition;
+  note?: string;
+}
+
+export interface TerminateInput {
+  terminationDate?: string;
+  reason?: string;
 }
 
 // ---- sub-resource create inputs ----
@@ -171,6 +210,7 @@ export interface NewContractInput {
   baseSalary: number;
   currency?: string;
   status?: ContractStatus;
+  fileUrl?: string;
 }
 export interface NewAssetInput {
   assetName: string;
@@ -178,6 +218,15 @@ export interface NewAssetInput {
   assignedDate: string;
   condition?: AssetCondition;
   note?: string;
+}
+// Edit an asset; `returnedDate: null` re-assigns a previously returned asset.
+export interface UpdateAssetInput {
+  assetName?: string;
+  assetCode?: string;
+  assignedDate?: string;
+  condition?: AssetCondition;
+  note?: string;
+  returnedDate?: string | null;
 }
 
 // ---- Sub-resources (one row each) ----
@@ -210,6 +259,7 @@ export interface EmployeeContractRecord {
   baseSalary: number | string;
   currency: string;
   status: ContractStatus;
+  fileUrl?: string;
 }
 
 export interface EmployeeAssetRecord {
@@ -258,5 +308,5 @@ export interface GrantLoginInput {
 export interface GrantLoginResult {
   userId: string;
   username: string;
-  tempPasswordSentTo: string | null;
+  linkSentTo: string | null;
 }

@@ -29,4 +29,16 @@ const AvatarFallback = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTM
 );
 AvatarFallback.displayName = "AvatarFallback";
 
-export { Avatar, AvatarFallback };
+const AvatarImage = React.forwardRef<HTMLImageElement, React.ImgHTMLAttributes<HTMLImageElement>>(
+  ({ className, alt = "", ...props }, ref) => (
+    <img
+      ref={ref}
+      alt={alt}
+      className={cn("absolute inset-0 h-full w-full object-cover", className)}
+      {...props}
+    />
+  ),
+);
+AvatarImage.displayName = "AvatarImage";
+
+export { Avatar, AvatarImage, AvatarFallback };

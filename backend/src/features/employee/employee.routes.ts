@@ -20,6 +20,7 @@ import { grantLoginDto } from '@features/employee/dto/grant-login.dto';
 import { updateAccountDto } from '@features/employee/dto/account.dto';
 import {
   createDocumentDto,
+  updateDocumentDto,
   createContactDto,
   updateContactDto,
   createBankAccountDto,
@@ -27,6 +28,7 @@ import {
   createContractDto,
   updateContractDto,
   createAssetDto,
+  updateAssetDto,
   returnAssetDto,
   terminateEmployeeDto,
 } from '@features/employee/dto/sub-resource.dto';
@@ -120,6 +122,8 @@ router.post(
   validate(terminateEmployeeDto, 'body'),
   employeeController.terminate,
 );
+// Hard delete (cascade) — admin & HR only
+router.delete('/admin/employees/:id', authenticate, hrOrAdmin, employeeController.remove);
 router.post(
   '/admin/employees/:id/reset-password',
   authenticate,
@@ -138,6 +142,13 @@ router.patch(
   hrOrAdmin,
   validate(updateAccountDto, 'body'),
   employeeController.updateAccount,
+);
+router.patch(
+  '/admin/employees/:id/documents/:docId',
+  authenticate,
+  hrOrAdmin,
+  validate(updateDocumentDto, 'body'),
+  documentController.update,
 );
 router.delete(
   '/admin/employees/:id/documents/:docId',
@@ -172,6 +183,19 @@ router.patch(
   hrOrAdmin,
   validate(returnAssetDto, 'body'),
   assetController.markReturned,
+);
+router.patch(
+  '/admin/employees/:id/assets/:assetId',
+  authenticate,
+  hrOrAdmin,
+  validate(updateAssetDto, 'body'),
+  assetController.update,
+);
+router.delete(
+  '/admin/employees/:id/assets/:assetId',
+  authenticate,
+  hrOrAdmin,
+  assetController.remove,
 );
 
 export default router;

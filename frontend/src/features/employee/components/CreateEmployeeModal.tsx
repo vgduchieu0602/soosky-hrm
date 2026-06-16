@@ -1,6 +1,7 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { X, Check, ChevronLeft, ChevronRight, UserPlus, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
 import { employeeService } from "@features/employee/services/employee.service";
 import { toEmployeeView } from "@features/employee/constants";
@@ -23,6 +24,7 @@ const inputCls =
 
 interface FormState {
   firstName: string;
+  middleName: string;
   lastName: string;
   dateOfBirth: string;
   gender: Gender;
@@ -45,7 +47,7 @@ interface FormState {
 }
 
 const INITIAL: FormState = {
-  firstName: "", lastName: "", dateOfBirth: "", gender: "male", phone: "", email: "", workEmail: "",
+  firstName: "", middleName: "", lastName: "", dateOfBirth: "", gender: "male", phone: "", email: "", workEmail: "",
   nationality: "VN", maritalStatus: "single", address: "",
   employeeCode: "", fingerprintId: "", departmentId: "", positionId: "", managerId: "",
   employeeType: "full_time", hireDate: "", salaryZone: "zone1",
@@ -62,6 +64,10 @@ export function CreateEmployeeModal({ onClose, onCreated }: Props) {
   const [managers, setManagers] = useState<MgrOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Holds the id once the employee record exists, so a retry (e.g. after a
+  // failed grant-login) only re-runs the account step instead of creating a
+  // duplicate employee.
+  const createdIdRef = useRef<string | null>(null);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -114,6 +120,7 @@ export function CreateEmployeeModal({ onClose, onCreated }: Props) {
       salaryZone: form.salaryZone,
       profile: {
         firstName: form.firstName.trim(),
+        middleName: form.middleName.trim() || undefined,
         lastName: form.lastName.trim(),
         dateOfBirth: form.dateOfBirth || undefined,
         gender: form.gender,
@@ -126,29 +133,44 @@ export function CreateEmployeeModal({ onClose, onCreated }: Props) {
       },
     };
 
-    employeeService
-      .create(payload)
-      .then((created) => {
-        if (form.grantAccount && form.email.trim()) {
-          // Best-effort: grant login right after creation. Failure here is
-          // surfaced but does not undo the created employee.
-          return employeeService
-            .grantLogin(created._id, { sendEmail: form.sendInvite })
-            .then(() => undefined)
-            .catch(() => undefined);
-        }
-        return undefined;
+    const wantsAccount = form.grantAccount && !!form.email.trim();
+
+    // Reuse the already-created employee on retry so we never duplicate it.
+    const ensureEmployee = createdIdRef.current
+      ? Promise.resolve(createdIdRef.current)
+      : employeeService.create(payload).then((created) => {
+          createdIdRef.current = created._id;
+          return created._id;
+        });
+
+    ensureEmployee
+      .then((id) => {
+        if (!wantsAccount) return undefined;
+        // The account step is separate from creation: this is what provisions
+        // the login and sends the credentials email. Its failure must surface
+        // (e.g. duplicate email, SMTP/Gmail rejected) — not be swallowed.
+        return employeeService.grantLogin(id, { sendEmail: form.sendInvite }).then(() => undefined);
       })
       .then(() => { onCreated(); })
       .catch((e) => {
-        setError(e?.response?.data?.error?.message ?? "Không thể tạo nhân viên. Kiểm tra lại thông tin.");
+        const msg = e?.response?.data?.error?.message;
+        if (createdIdRef.current) {
+          // Employee saved, but provisioning/email failed.
+          setError(
+            msg
+              ? `Đã tạo hồ sơ nhân viên, nhưng cấp tài khoản/gửi thư thất bại: ${msg}. Bấm “Tạo nhân viên” để thử lại bước cấp tài khoản, hoặc cấp lại sau ở tab “Tài khoản”.`
+              : "Đã tạo hồ sơ nhân viên, nhưng cấp tài khoản/gửi thư thất bại. Thử lại hoặc cấp tài khoản sau ở tab “Tài khoản”.",
+          );
+        } else {
+          setError(msg ?? "Không thể tạo nhân viên. Kiểm tra lại thông tin.");
+        }
       })
       .finally(() => setSubmitting(false));
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" style={{ animation: "fadeIn .2s ease" }} onClick={onClose} />
+      <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" style={{ animation: "fadeIn .2s ease" }} />
       <div className="relative flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl" style={{ animation: "fadeIn .2s ease" }}>
         {/* header */}
         <div className="relative shrink-0 overflow-hidden px-6 pb-5 pt-6 text-white" style={{ background: "linear-gradient(135deg,#1B3A74,#163985 55%,#11295C)" }}>
@@ -239,11 +261,14 @@ function Step1({ form, set }: { form: FormState; set: SetFn }) {
         <FormField label="Họ" required>
           <input className={inputCls} placeholder="Nguyễn" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
         </FormField>
+        <FormField label="Tên đệm">
+          <input className={inputCls} placeholder="Văn" value={form.middleName} onChange={(e) => set("middleName", e.target.value)} />
+        </FormField>
         <FormField label="Tên" required>
-          <input className={inputCls} placeholder="Văn A" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
+          <input className={inputCls} placeholder="An" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
         </FormField>
         <FormField label="Ngày sinh">
-          <input type="date" className={inputCls} value={form.dateOfBirth} onChange={(e) => set("dateOfBirth", e.target.value)} />
+          <DateField className={inputCls} value={form.dateOfBirth} onChange={(iso) => set("dateOfBirth", iso)} />
         </FormField>
         <FormField label="Giới tính">
           <select className={inputCls} value={form.gender} onChange={(e) => set("gender", e.target.value as Gender)}>
@@ -316,7 +341,7 @@ function Step2({
         </select>
       </FormField>
       <FormField label="Ngày vào làm" required>
-        <input type="date" className={inputCls} value={form.hireDate} onChange={(e) => set("hireDate", e.target.value)} />
+        <DateField className={inputCls} value={form.hireDate} onChange={(iso) => set("hireDate", iso)} />
       </FormField>
       <FormField label="Vùng lương">
         <select className={inputCls} value={form.salaryZone} onChange={(e) => set("salaryZone", e.target.value as SalaryZone)}>
@@ -336,7 +361,7 @@ function Step3({ form, set }: { form: FormState; set: SetFn }) {
         <div className="flex-1">
           <div className="text-[13.5px] font-semibold text-foreground">Cấp tài khoản đăng nhập ngay</div>
           <p className="mt-0.5 text-[12px] text-muted-foreground">
-            Sau khi tạo hồ sơ, hệ thống sẽ cấp tài khoản dùng email cá nhân và gửi mật khẩu tạm.
+            Sau khi tạo hồ sơ, hệ thống sẽ cấp tài khoản dùng email cá nhân và gửi liên kết để nhân viên tự thiết lập mật khẩu.
             {!form.email && " (Cần nhập email cá nhân ở bước 1)"}
           </p>
         </div>

@@ -43,6 +43,19 @@ const employeeContractSchema = new Schema<IEmployeeContract>(
   },
 );
 
+// Serialize Decimal128 baseSalary to a plain string so clients never receive
+// the raw `{ $numberDecimal }` BSON wrapper. (Lean reads are normalized in the
+// repository instead, since lean bypasses this transform.)
+employeeContractSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    const r = ret as unknown as Record<string, unknown>;
+    if (r.baseSalary != null && typeof r.baseSalary === 'object') {
+      r.baseSalary = String(r.baseSalary);
+    }
+    return r;
+  },
+});
+
 export const EmployeeContractModel = mongoose.model<IEmployeeContract>(
   DB_NAME,
   employeeContractSchema,

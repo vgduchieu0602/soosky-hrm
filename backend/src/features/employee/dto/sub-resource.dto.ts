@@ -8,13 +8,17 @@ export const createDocumentDto = z
   .object({
     documentType: z.enum(DOCUMENT_TYPE),
     documentNumber: z.string().min(1).max(80).trim(),
-    fileUrl: z.string().url().optional(),
+    // Object storage key (e.g. employee-documents/<id>/<uuid>-file.pdf), not a full URL.
+    fileUrl: z.string().min(1).max(1024).optional(),
     issuedDate: z.coerce.date().optional(),
     expiryDate: z.coerce.date().optional(),
     issuedBy: z.string().max(120).optional(),
   })
   .strict();
 export type CreateDocumentDto = z.infer<typeof createDocumentDto>;
+
+export const updateDocumentDto = createDocumentDto.partial();
+export type UpdateDocumentDto = z.infer<typeof updateDocumentDto>;
 
 export const createContactDto = z
   .object({
@@ -53,7 +57,8 @@ export const createContractDto = z
     endDate: z.coerce.date().optional(),
     baseSalary: z.coerce.number().nonnegative(),
     currency: z.string().min(3).max(3).default('VND'),
-    fileUrl: z.string().url().optional(),
+    // Object storage key (e.g. contracts/<id>/<uuid>-file.pdf), not a full URL.
+    fileUrl: z.string().min(1).max(1024).optional(),
     status: z.enum(CONTRACT_STATUS).default('active'),
   })
   .strict();
@@ -72,6 +77,12 @@ export const createAssetDto = z
   })
   .strict();
 export type CreateAssetDto = z.infer<typeof createAssetDto>;
+
+// Edit any asset field; `returnedDate: null` re-assigns a returned asset.
+export const updateAssetDto = createAssetDto
+  .partial()
+  .extend({ returnedDate: z.coerce.date().nullable().optional() });
+export type UpdateAssetDto = z.infer<typeof updateAssetDto>;
 
 export const returnAssetDto = z
   .object({

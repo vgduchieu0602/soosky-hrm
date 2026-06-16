@@ -8,6 +8,9 @@ import { errorHandler } from '@shared/middlewares/error-handler';
 import { iamRouter } from '@features/iam';
 import { employeeRouter } from '@features/employee';
 import { organizationRouter } from '@features/organization';
+import { settingsRouter } from '@features/settings';
+import { attendanceRouter } from '@features/attendance';
+import { storageRouter } from '@features/storage';
 
 export function createApp() {
   //Khởi tạo Express app
@@ -26,6 +29,9 @@ export function createApp() {
   app.use('/api/v1', iamRouter);
   app.use('/api/v1', organizationRouter);
   app.use('/api/v1', employeeRouter);
+  app.use('/api/v1', settingsRouter);
+  app.use('/api/v1', attendanceRouter);
+  app.use('/api/v1', storageRouter);
 
   //Register Error Handler
   app.use(errorHandler);

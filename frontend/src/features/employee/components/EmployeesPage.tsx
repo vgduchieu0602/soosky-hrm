@@ -356,6 +356,8 @@ export default function EmployeesPage() {
           onClose={() => setSelected(null)}
           onStatusChanged={handleStatusChange}
           onAccountGranted={handleAccountGranted}
+          onUpdated={reloadAll}
+          onDeleted={() => { setSelected(null); reloadAll(); }}
         />
       )}
       {creating && (

@@ -16,6 +16,10 @@ import type {
   DepartmentNode,
   UpdateDepartmentInput,
 } from "@features/organization/types/organization.types";
+import {
+  departmentFormSchema,
+  fieldErrors,
+} from "@features/organization/schemas/organization.schema";
 
 export type DepartmentFormMode = "create" | "edit";
 
@@ -64,6 +68,13 @@ export function DepartmentFormDialog({
   const [parentId, setParentId] = useState<string>(() =>
     isEdit ? (target.parentDepartmentId ?? "") : (presetParentId ?? ""),
   );
+  const [costCenter, setCostCenter] = useState(() =>
+    isEdit ? (target.costCenter ?? "") : "",
+  );
+  const [location, setLocation] = useState(() =>
+    isEdit ? (target.location ?? "") : "",
+  );
+  const [email, setEmail] = useState(() => (isEdit ? (target.email ?? "") : ""));
   const [description, setDescription] = useState(() =>
     isEdit ? (target.description ?? "") : "",
   );
@@ -72,6 +83,7 @@ export function DepartmentFormDialog({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fErrors, setFErrors] = useState<Record<string, string>>({});
 
   const parentOptions = useMemo(() => {
     const excluded =
@@ -83,25 +95,26 @@ export function DepartmentFormDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || submitting) return;
+    if (submitting) return;
+    const errs = fieldErrors(departmentFormSchema, {
+      name, code, parentDepartmentId: parentId, costCenter, location, email, description, status,
+    });
+    if (errs) { setFErrors(errs); return; }
+    setFErrors({});
     setSubmitting(true);
     setError(null);
 
+    const common = {
+      name: name.trim(),
+      code: code.trim().toUpperCase(),
+      parentDepartmentId: parentId || null,
+      costCenter: costCenter.trim() || undefined,
+      location: location.trim() || undefined,
+      email: email.trim() || undefined,
+      description: description.trim() || undefined,
+    };
     const payload: CreateDepartmentInput | UpdateDepartmentInput =
-      mode === "create"
-        ? {
-            name: name.trim(),
-            code: code.trim().toUpperCase(),
-            parentDepartmentId: parentId || null,
-            description: description.trim() || undefined,
-          }
-        : {
-            name: name.trim(),
-            code: code.trim().toUpperCase(),
-            parentDepartmentId: parentId || null,
-            description: description.trim() || undefined,
-            status,
-          };
+      mode === "create" ? common : { ...common, status };
 
     try {
       await onSubmit(payload);
@@ -143,6 +156,7 @@ export function DepartmentFormDialog({
                 maxLength={120}
                 autoFocus
               />
+              {fErrors.name && <span className="text-[11px] text-destructive">{fErrors.name}</span>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -154,6 +168,7 @@ export function DepartmentFormDialog({
                 placeholder="VD: BE"
                 maxLength={20}
               />
+              {fErrors.code && <span className="text-[11px] text-destructive">{fErrors.code}</span>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -171,6 +186,43 @@ export function DepartmentFormDialog({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dept-cost-center">Trung tâm chi phí</Label>
+              <Input
+                id="dept-cost-center"
+                value={costCenter}
+                onChange={(e) => setCostCenter(e.target.value)}
+                placeholder="VD: CC-ENG"
+                maxLength={50}
+              />
+              {fErrors.costCenter && <span className="text-[11px] text-destructive">{fErrors.costCenter}</span>}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dept-location">Địa điểm</Label>
+              <Input
+                id="dept-location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="VD: Hà Nội"
+                maxLength={120}
+              />
+              {fErrors.location && <span className="text-[11px] text-destructive">{fErrors.location}</span>}
+            </div>
+
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <Label htmlFor="dept-email">Email phòng ban</Label>
+              <Input
+                id="dept-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="VD: engineering@soosky.co"
+                maxLength={120}
+              />
+              {fErrors.email && <span className="text-[11px] text-destructive">{fErrors.email}</span>}
             </div>
 
             {mode === "edit" && (

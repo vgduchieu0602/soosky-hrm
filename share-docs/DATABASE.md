@@ -116,10 +116,14 @@
 - `name`: String — display name, e.g., `Engineering`
 - `code`: String — short code, e.g., `ENG`, unique
 - `parentDepartmentId`: ObjectId ref `departments` — null for root
+- `managerId`: ObjectId ref `employees` — department head (trưởng phòng), nullable
+- `costCenter`: String — cost-center code, optional
+- `location`: String — physical location, optional
+- `email`: String — department mailbox, optional, lowercase
 - `description`: String
 - `status`: String — `active` | `archived`
 
-**Indexes:** `code` unique, `parentDepartmentId`
+**Indexes:** `code` unique, `parentDepartmentId`, `managerId`
 
 **Position**
 
@@ -313,6 +317,7 @@
 - `nonResidentTaxRate`: Number - default 20
 - `taxBrackets`: Array of Object
 - `insurancePates`: Object
+- `salaryComponentWeights`: Object — tỉ lệ (%) cho công thức lương 20/60/20, mặc định `{ attendance: 20, performance: 60, goal: 20 }` (tổng = 100)
 - `createdBy`: ObbjectId ref `users`
 - `updatedBy`: ObbjectId ref `users`
 
@@ -401,6 +406,7 @@
 - `payrollPeriodId`: ObjectId ref `payrollPeriods`
 - `employeeId`: ObjectId ref `employees`
 - `policyConfigId`: ObjectId ref salaryPolicyConfigs
+- `monthlyEvaluationId`: ObjectId ref `monthlyEvaluations` - nguồn điểm hiệu suất/mục tiêu của kỳ
 
 - `standardWorkDays`: Number
 - `actualWorkDays`: Number
@@ -408,7 +414,15 @@
 - `workDays`: Number
 
 - `baseSalary`: NUmber (Decimal128) - snapshot lương cơ bản tại thời điểm tính
-- `proRatedBaseSalary`: Number (Decimal128) - lương cơ bản theo ngày công thực tế
+
+- **Công thức lương 20/60/20** — `proRatedBaseSalary` (lương cơ bản thực hưởng theo hiệu quả) = tổng 3 cấu phần dưới, sau đó vẫn chạy tiếp gross → bảo hiểm → thuế như cũ:
+- `attendanceRatio`: Number — `actualWorkDays / standardWorkDays` (0–1)
+- `performanceRatio`: Number — snapshot từ `MonthlyEvaluation` (0–100)
+- `goalRatio`: Number — snapshot từ `MonthlyEvaluation` (0–100)
+- `attendanceComponent`: Number (Decimal128) — `(weights.attendance/100) × baseSalary × attendanceRatio`
+- `performanceComponent`: Number (Decimal128) — `(weights.performance/100) × baseSalary × performanceRatio/100`
+- `goalComponent`: Number (Decimal128) — `(weights.goal/100) × baseSalary × goalRatio/100`
+- `proRatedBaseSalary`: Number (Decimal128) — `attendanceComponent + performanceComponent + goalComponent`
 - `totalTaxableAllowances`: Number (Decimal128) - Tổng phụ cấp thuế
 - `totalNonTaxableAllowances`: Number (Decimal128) - Tổng phụ cấp không chịu thuế
 - `totalAllowances`: Number (Decimal128) - (Taxable + Non-Taxable)
@@ -507,6 +521,33 @@
 - `scores`: Object (Mixed) — per-competency, e.g., `{ teamwork: 4, ownership: 5 }`
 - `submittedAt`: Date
 
+**PerformanceCriterion** — Bộ tiêu chí hiệu suất cấu hình được (dùng cho lương 60%)
+
+- `key`: String — unique, vd `on_time_delivery`
+- `label`: String — tên tiêu chí hiển thị
+- `description`: String
+- `weight`: Number — trọng số (%), tổng các tiêu chí `active` = 100
+- `order`: Number — thứ tự hiển thị
+- `status`: String — `active` | `archived`
+
+> Seed mặc định 4 tiêu chí, mỗi tiêu chí weight 25.
+
+**MonthlyEvaluation** — Đánh giá hiệu suất + mục tiêu theo tháng (do admin/HR chấm), gắn với `PayrollPeriod`
+
+- `employeeId`: ObjectId ref `employees`, indexed
+- `payrollPeriodId`: ObjectId ref `payrollPeriods`, indexed — gắn theo tháng
+- `criteriaScores`: [{ `criterionId`: ObjectId ref `performanceCriteria`, `score`: Number 0–100 }]
+- `performanceRatio`: Number 0–100 — computed = Σ(score × weight)/Σweight (tỉ lệ hiệu suất, ứng 60% lương)
+- `goalResult`: Number 0–100 — % kết quả đạt được trong tháng (người đánh giá nhập)
+- `goalRatio`: Number 0–100 — snapshot dùng cho lương (mặc định = `goalResult`, ứng 20% lương)
+- `evaluatedBy`: ObjectId ref `users` — admin/HR thực hiện đánh giá
+- `status`: String — `draft` | `submitted` | `approved`
+- `submittedAt`: Date
+- `approvedAt`: Date
+- `note`: String
+
+**Indexes:** compound unique `{ employeeId: 1, payrollPeriodId: 1 }`
+
 ---
 
 ## 3. Relationships
@@ -572,6 +613,10 @@
 - `Employee` **1 : N** `Kpi`
 - `Employee` **1 : N** `PerformanceReview` — as both `employeeId` and `reviewerId`
 - `PerformanceReview` **1 : N** `ReviewFeedback`
+- `Employee` **1 : N** `MonthlyEvaluation`
+- `PayrollPeriod` **1 : N** `MonthlyEvaluation`
+- `MonthlyEvaluation` **N : M** `PerformanceCriterion` — via embedded `criteriaScores`
+- `Payroll` **N : 1** `MonthlyEvaluation` — nguồn điểm hiệu suất/mục tiêu
 
 ### 3.7 Special Cases
 
