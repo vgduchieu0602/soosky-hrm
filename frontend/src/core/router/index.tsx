@@ -6,8 +6,9 @@ import SetPasswordPage from "@pages/SetPasswordPage";
 import DashboardPage from "@pages/DashboardPage";
 import EmployeesPage from "@pages/EmployeesPage";
 import DepartmentsPage from "@pages/DepartmentsPage";
-import AttendancePage from "@pages/AttendancePage";
+import MyAttendancePage from "@features/attendance/components/MyAttendancePage";
 import LeavePage from "@pages/LeavePage";
+import AttendanceByRole from "./AttendanceByRole";
 import PayrollPage from "@pages/PayrollPage";
 import PerformancePage from "@pages/PerformancePage";
 import SettingsPage from "@pages/SettingsPage";
@@ -35,7 +36,8 @@ export const router = createBrowserRouter([
           { path: "dashboard", element: <DashboardPage /> },
           { path: "employees", element: <EmployeesPage /> },
           { path: "departments", element: <DepartmentsPage /> },
-          { path: "attendance", element: <AttendancePage /> },
+          { path: "attendance", element: <AttendanceByRole /> },
+          { path: "me/attendance", element: <MyAttendancePage /> },
           { path: "leave", element: <LeavePage /> },
           { path: "payroll", element: <PayrollPage /> },
           { path: "performance", element: <PerformancePage /> },

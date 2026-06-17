@@ -16,6 +16,7 @@ export interface Role {
   name: string;
   description?: string;
   isSystem?: boolean;
+  permissionIds?: string[];
 }
 
 export interface Permission {

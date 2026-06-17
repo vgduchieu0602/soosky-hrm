@@ -25,6 +25,13 @@ export const shiftService = {
     await auditService.record({ userId, resource: 'shift', action: 'update', resourceId: id, changes: input });
     return updated.toJSON();
   },
+  // Soft-remove a ca (archive) — keeps it referenced by historical records.
+  async remove(id: string, userId: string) {
+    const updated = await Shift.findByIdAndUpdate(oid(id), { status: 'archived' }, { new: true });
+    if (!updated) throw new HttpError(404, 'Shift not found', 'ATT_001');
+    await auditService.record({ userId, resource: 'shift', action: 'delete', resourceId: id });
+    return { id };
+  },
 };
 
 export const holidayService = {

@@ -16,6 +16,9 @@ export interface ICompanyConfig {
   standardWorkDays: number;
   /** Fiscal/pay cycle anchor day of month (1–28). */
   payCycleStartDay: number;
+  /** Attendance tolerance — minutes of grace before "late" / "early leave". */
+  graceLateMinutes: number;
+  graceEarlyMinutes: number;
   contactEmail?: string;
   address?: string;
   created_at?: Date;
@@ -34,6 +37,8 @@ const companyConfigSchema = new Schema<ICompanyConfig>(
     currency: { type: String, default: 'VND', uppercase: true, trim: true },
     standardWorkDays: { type: Number, default: 22, min: 1, max: 31 },
     payCycleStartDay: { type: Number, default: 1, min: 1, max: 28 },
+    graceLateMinutes: { type: Number, default: 5, min: 0, max: 120 },
+    graceEarlyMinutes: { type: Number, default: 5, min: 0, max: 120 },
     contactEmail: { type: String, lowercase: true, trim: true },
     address: { type: String, trim: true },
   },

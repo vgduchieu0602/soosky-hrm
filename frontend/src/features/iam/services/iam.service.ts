@@ -27,6 +27,21 @@ export const iamService = {
     const { data } = await api.get<Env<Role[]>>("/roles");
     return data.data ?? [];
   },
+  async getRole(id: string): Promise<Role> {
+    const { data } = await api.get<Env<Role>>(`/roles/${id}`);
+    return data.data;
+  },
+  async createRole(input: { name: string; description?: string; permissionIds: string[] }): Promise<Role> {
+    const { data } = await api.post<Env<Role>>("/roles", input);
+    return data.data;
+  },
+  async updateRole(id: string, input: { description?: string; permissionIds: string[] }): Promise<Role> {
+    const { data } = await api.patch<Env<Role>>(`/roles/${id}`, input);
+    return data.data;
+  },
+  async deleteRole(id: string): Promise<void> {
+    await api.delete(`/roles/${id}`);
+  },
   async listPermissions(): Promise<Permission[]> {
     const { data } = await api.get<Env<Permission[]>>("/permissions");
     return data.data ?? [];

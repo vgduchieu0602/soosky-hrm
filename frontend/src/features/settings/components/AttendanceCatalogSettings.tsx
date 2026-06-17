@@ -31,15 +31,21 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
   }, [rk]);
 
   const reload = () => setRk((k) => k + 1);
+  const activeShifts = shifts.filter((s) => s.status !== "archived");
 
   // shift form
-  const [shiftForm, setShiftForm] = useState({ name: "", startTime: "08:00", endTime: "17:00" });
+  const [shiftForm, setShiftForm] = useState({ name: "", startTime: "08:00", endTime: "12:00", breakMinutes: "0" });
   const [holidayForm, setHolidayForm] = useState({ name: "", date: "" });
   const [symbolForm, setSymbolForm] = useState({ code: "", label: "" });
 
   function addShift() {
-    settingsService.createShift({ name: shiftForm.name.trim(), startTime: shiftForm.startTime, endTime: shiftForm.endTime })
-      .then(() => { setShiftForm({ name: "", startTime: "08:00", endTime: "17:00" }); reload(); })
+    settingsService.createShift({
+      name: shiftForm.name.trim(),
+      startTime: shiftForm.startTime,
+      endTime: shiftForm.endTime,
+      breakMinutes: Number(shiftForm.breakMinutes) || 0,
+    })
+      .then(() => { setShiftForm({ name: "", startTime: "08:00", endTime: "12:00", breakMinutes: "0" }); reload(); })
       .catch(() => {});
   }
   function addHoliday() {
@@ -59,19 +65,40 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
     <div className="flex flex-col gap-6">
       {/* Shifts */}
       <Card className="p-6">
-        <h3 className="mb-4 text-[15px] font-semibold text-foreground">Ca làm việc</h3>
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold text-foreground">Ca làm việc</h3>
+          <span className="rounded-full bg-muted px-2.5 py-0.5 text-[12px] font-medium text-muted-foreground">{activeShifts.length} ca/ngày</span>
+        </div>
+        <p className="mb-4 text-[12.5px] text-muted-foreground">Số ca và giờ giấc do bạn cấu hình; bảng chấm công sẽ hiển thị đúng số ca này mỗi ngày.</p>
         {canManage && (
-          <div className="mb-4 grid grid-cols-[2fr_1fr_1fr_auto] items-end gap-3">
-            <input className={inputCls} placeholder="Tên ca (VD: Giờ hành chính)" value={shiftForm.name} onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })} />
-            <input type="time" className={inputCls} value={shiftForm.startTime} onChange={(e) => setShiftForm({ ...shiftForm, startTime: e.target.value })} />
-            <input type="time" className={inputCls} value={shiftForm.endTime} onChange={(e) => setShiftForm({ ...shiftForm, endTime: e.target.value })} />
-            <Button size="sm" disabled={!shiftForm.name.trim()} onClick={addShift} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm</Button>
+          <div className="mb-4 grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-3">
+            <input className={inputCls} placeholder="Tên ca (VD: Ca sáng)" value={shiftForm.name} onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })} />
+            <input type="time" lang="en-GB" className={inputCls} value={shiftForm.startTime} onChange={(e) => setShiftForm({ ...shiftForm, startTime: e.target.value })} />
+            <input type="time" lang="en-GB" className={inputCls} value={shiftForm.endTime} onChange={(e) => setShiftForm({ ...shiftForm, endTime: e.target.value })} />
+            <input type="number" min={0} className={inputCls} placeholder="Nghỉ (phút)" value={shiftForm.breakMinutes} onChange={(e) => setShiftForm({ ...shiftForm, breakMinutes: e.target.value })} />
+            <Button size="sm" disabled={!shiftForm.name.trim()} onClick={addShift} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm ca</Button>
           </div>
         )}
-        <List rows={shifts} empty="Chưa có ca làm việc." render={(s) => (
-          <div key={s._id} className="flex items-center gap-3 rounded-lg border p-3 text-[13px]">
-            <span className="flex-1 font-medium text-foreground">{s.name}</span>
-            <span className="font-mono text-[12px] text-muted-foreground">{s.startTime}–{s.endTime}</span>
+        <List rows={activeShifts} empty="Chưa có ca làm việc — hãy thêm ít nhất 1 ca." render={(s) => (
+          <div key={s._id} className="grid grid-cols-[2fr_auto_auto_auto] items-center gap-3 rounded-lg border p-3 text-[13px]">
+            {canManage ? (
+              <input className={inputCls} defaultValue={s.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.name) settingsService.updateShift(s._id, { name: v }).then(reload).catch(() => {}); }} />
+            ) : (
+              <span className="font-medium text-foreground">{s.name}</span>
+            )}
+            {canManage ? (
+              <div className="flex items-center gap-1.5">
+                <input type="time" lang="en-GB" className={cn(inputCls, "w-[110px]")} defaultValue={s.startTime} onBlur={(e) => { if (e.target.value !== s.startTime) settingsService.updateShift(s._id, { startTime: e.target.value }).then(reload).catch(() => {}); }} />
+                <span className="text-muted-foreground">–</span>
+                <input type="time" lang="en-GB" className={cn(inputCls, "w-[110px]")} defaultValue={s.endTime} onBlur={(e) => { if (e.target.value !== s.endTime) settingsService.updateShift(s._id, { endTime: e.target.value }).then(reload).catch(() => {}); }} />
+              </div>
+            ) : (
+              <span className="font-mono text-[12px] text-muted-foreground">{s.startTime}–{s.endTime}</span>
+            )}
+            <span className="text-[12px] text-muted-foreground">nghỉ {s.breakMinutes}′</span>
+            {canManage && (
+              <Button variant="ghost" size="icon" onClick={() => settingsService.deleteShift(s._id).then(reload).catch(() => {})} className="size-8 text-muted-foreground hover:text-rose-600" aria-label="Xoá ca"><Trash2 className="size-4" /></Button>
+            )}
           </div>
         )} />
       </Card>

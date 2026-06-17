@@ -21,7 +21,7 @@ export const roleController = {
 
       const { id } = req.params as { id: string };
       const role = await roleService.findById(id);
-      res.json({ data: role.toJSON() });
+      res.json({ data: role });
     } catch (err) {
       next(err);
     }

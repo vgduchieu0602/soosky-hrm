@@ -12,6 +12,7 @@ import { changePasswordDto } from '@features/iam/dto/change-password.dto';
 import { setPasswordDto } from '@features/iam/dto/set-password.dto';
 import { createUserDto } from '@features/iam/dto/create-user.dto';
 import { createRoleDto } from '@features/iam/dto/create-role.dto';
+import { updateRoleDto } from '@features/iam/dto/update-role.dto';
 import { createPermissionDto } from '@features/iam/dto/create-permission.dto';
 
 const router = Router();
@@ -34,12 +35,13 @@ router.get('/users/:id', authenticate, userController.getById);
 router.patch('/users/:id', authenticate, userController.update);
 router.delete('/users/:id', authenticate, userController.delete);
 
-// Role routes
-router.post('/roles', authenticate, validate(createRoleDto, 'body'), roleController.create);
+// Role routes — mutations are admin-only
+const adminOnly = requireRoles('admin');
+router.post('/roles', authenticate, adminOnly, validate(createRoleDto, 'body'), roleController.create);
 router.get('/roles', authenticate, roleController.list);
 router.get('/roles/:id', authenticate, roleController.getById);
-router.patch('/roles/:id', authenticate, roleController.update);
-router.delete('/roles/:id', authenticate, roleController.delete);
+router.patch('/roles/:id', authenticate, adminOnly, validate(updateRoleDto, 'body'), roleController.update);
+router.delete('/roles/:id', authenticate, adminOnly, roleController.delete);
 
 // Permission routes
 router.post('/permissions', authenticate, validate(createPermissionDto, 'body'), permissionController.create);

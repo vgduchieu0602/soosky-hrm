@@ -10,6 +10,8 @@ export const updateCompanyConfigDto = z
     currency: z.string().min(3).max(3).optional(),
     standardWorkDays: z.coerce.number().int().min(1).max(31).optional(),
     payCycleStartDay: z.coerce.number().int().min(1).max(28).optional(),
+    graceLateMinutes: z.coerce.number().int().min(0).max(120).optional(),
+    graceEarlyMinutes: z.coerce.number().int().min(0).max(120).optional(),
     contactEmail: z.string().email().optional(),
     address: z.string().max(255).optional(),
   })

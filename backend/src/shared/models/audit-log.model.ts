@@ -16,7 +16,7 @@ export interface IAuditLog {
 
 const auditLogSchema = new Schema<IAuditLog>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'users', index: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'user', index: true },
     resource: { type: String, required: true, index: true },
     action: { type: String, required: true, index: true },
     resourceId: { type: Schema.Types.ObjectId },

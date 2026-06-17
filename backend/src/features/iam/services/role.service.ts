@@ -51,9 +51,10 @@ export const roleService = {
   },
 
   async findById(roleId: string) {
-    const role = await Role.findById(roleId);
+    const role = await Role.findById(roleId).lean();
     if (!role) throw new HttpError(404, 'Role not found', 'IAM_007');
-    return role;
+    const rps = await RolePermission.find({ roleId }).select('permissionId').lean();
+    return { ...role, permissionIds: rps.map((rp) => rp.permissionId.toString()) };
   },
 
   async list() {

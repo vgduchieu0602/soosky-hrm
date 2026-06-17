@@ -61,6 +61,13 @@ export const settingsService = {
     const { data } = await api.post<Env<Shift>>("/admin/shifts", input);
     return data.data;
   },
+  async updateShift(id: string, input: Record<string, unknown>): Promise<Shift> {
+    const { data } = await api.patch<Env<Shift>>(`/admin/shifts/${id}`, input);
+    return data.data;
+  },
+  async deleteShift(id: string): Promise<void> {
+    await api.delete(`/admin/shifts/${id}`);
+  },
   async listHolidays(): Promise<Holiday[]> {
     const { data } = await api.get<Env<Holiday[]>>("/holidays");
     return data.data ?? [];

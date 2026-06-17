@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { Building2, Users, ShieldCheck, ScrollText, UserCog, type LucideIcon } from "lucide-react";
+import { Building2, Users, ShieldCheck, ScrollText, UserCog, CalendarClock, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { useAuthStore } from "@core/store/auth.store";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
 import { CompanySettings } from "@features/settings/components/CompanySettings";
+import { AttendanceCatalogSettings } from "@features/settings/components/AttendanceCatalogSettings";
 import { UsersSettings, RolesSettings } from "@features/iam/components/UserAccessSettings";
 import { AuditLogSettings } from "@features/iam/components/AuditLogSettings";
 
-type TabId = "company" | "users" | "roles" | "audit";
+type TabId = "company" | "attendance" | "users" | "roles" | "audit";
 const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
   { id: "company", label: "Chung", Icon: Building2 },
+  { id: "attendance", label: "Chấm công", Icon: CalendarClock },
   { id: "users", label: "Người dùng", Icon: Users },
   { id: "roles", label: "Vai trò & quyền", Icon: ShieldCheck },
   { id: "audit", label: "Nhật ký", Icon: ScrollText },
@@ -66,6 +68,7 @@ export default function SystemSettingsPage() {
             </div>
 
             {tab === "company" && <CompanySettings canManage={isAdmin} />}
+            {tab === "attendance" && <AttendanceCatalogSettings canManage={isHrOrAdmin} />}
             {tab === "users" && <UsersSettings canManage={isAdmin} />}
             {tab === "roles" && isAdmin && <RolesSettings />}
             {tab === "audit" && isAdmin && <AuditLogSettings />}

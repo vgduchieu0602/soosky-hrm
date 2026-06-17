@@ -21,6 +21,9 @@ export const catalogController = {
   async updateShift(req: Request, res: Response, next: NextFunction) {
     try { res.json({ data: await shiftService.update((req.params as { id: string }).id, req.body, userId(req)) }); } catch (e) { next(e); }
   },
+  async removeShift(req: Request, res: Response, next: NextFunction) {
+    try { res.json({ data: await shiftService.remove((req.params as { id: string }).id, userId(req)) }); } catch (e) { next(e); }
+  },
 
   // holidays
   async listHolidays(_req: Request, res: Response, next: NextFunction) {

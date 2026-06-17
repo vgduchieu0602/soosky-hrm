@@ -39,6 +39,8 @@ export function CompanySettings({ canManage }: Props) {
       currency: cfg.currency,
       standardWorkDays: cfg.standardWorkDays,
       payCycleStartDay: cfg.payCycleStartDay,
+      graceLateMinutes: cfg.graceLateMinutes,
+      graceEarlyMinutes: cfg.graceEarlyMinutes,
       contactEmail: cfg.contactEmail || undefined,
       address: cfg.address || undefined,
     })
@@ -72,6 +74,12 @@ export function CompanySettings({ canManage }: Props) {
         </Field>
         <Field label="Ngày bắt đầu kỳ lương">
           <input type="number" className={inputCls} disabled={!canManage} value={cfg.payCycleStartDay} onChange={(e) => set("payCycleStartDay", Number(e.target.value))} />
+        </Field>
+        <Field label="Dung sai đi muộn (phút)">
+          <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.graceLateMinutes} onChange={(e) => set("graceLateMinutes", Number(e.target.value))} />
+        </Field>
+        <Field label="Dung sai về sớm (phút)">
+          <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.graceEarlyMinutes} onChange={(e) => set("graceEarlyMinutes", Number(e.target.value))} />
         </Field>
         <Field label="Email liên hệ">
           <input className={inputCls} disabled={!canManage} value={cfg.contactEmail ?? ""} onChange={(e) => set("contactEmail", e.target.value)} />

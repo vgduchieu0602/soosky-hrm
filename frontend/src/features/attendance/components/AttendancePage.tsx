@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Search, Download, ChevronDown, Check, Users, Clock, CalendarDays, History, type LucideIcon } from "lucide-react";
+import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,40 +8,31 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/shared/utils/cn";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
-import {
-  MARKS,
-  MARK_ORDER,
-  MONTH_DAYS,
-  dow,
-  DOW_LABEL,
-  isWeekend,
-  WORKING_DAYS,
-  DEPTS,
-  EMPLOYEES,
-  summarize,
-} from "@features/attendance/data/attendance.data";
 import type { ChipColor } from "@features/dashboard/data";
-import type { AttendanceEmployee, MarkKey } from "@features/attendance/data/attendance.data";
+import { attendanceService } from "@features/attendance/services/attendance.service";
+import type {
+  AdminGrid,
+  AttendanceRecord,
+  RosterEmployee,
+  ShiftOption,
+} from "@features/attendance/types/attendance.types";
+import {
+  STATUS_META,
+  MONTH_OPTIONS,
+  monthDays,
+  recordDateKey,
+  hhmmVN,
+  vnInstant,
+} from "@features/attendance/attendance.constants";
 
 const chipStyle = (color: ChipColor): CSSProperties => ({
   background: `var(--chip-${color}-bg)`,
   color: `var(--chip-${color}-ink)`,
 });
 
-const isHalfMark = (key: MarkKey) => key === "half_work" || key === "half_w_p" || key === "half_p_unpaid";
+const ALL = "Tất cả";
 
-const STAT_ICON: Record<string, LucideIcon> = { Users, Clock, CalendarDays, History };
-
-interface StatCardProps {
-  chip: ChipColor;
-  icon: keyof typeof STAT_ICON;
-  label: string;
-  value: ReactNode;
-  sub?: string;
-}
-
-function StatCard({ chip, icon, label, value, sub }: StatCardProps) {
-  const Icon = STAT_ICON[icon];
+function StatCard({ chip, icon: Icon, label, value }: { chip: ChipColor; icon: typeof Users; label: string; value: ReactNode }) {
   return (
     <Card className="flex items-center gap-3.5 p-4">
       <span className="flex size-11 items-center justify-center rounded-2xl" style={chipStyle(chip)}>
@@ -49,52 +40,31 @@ function StatCard({ chip, icon, label, value, sub }: StatCardProps) {
       </span>
       <div className="min-w-0">
         <div className="text-[22px] font-bold leading-none tabular-nums text-foreground">{value}</div>
-        <div className="mt-1 text-[12px] text-muted-foreground">
-          {label}
-          {sub && <span className="text-muted-foreground/70"> · {sub}</span>}
-        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">{label}</div>
       </div>
     </Card>
   );
 }
 
-interface FilterSelectProps {
-  label: string;
-  value: string;
-  options: readonly string[];
-  onChange: (v: string) => void;
-  valueWidth?: number;
-}
-
-function FilterSelect({ label, value, options, onChange, valueWidth = 92 }: FilterSelectProps) {
+function Select({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
+  const cur = options.find((o) => o.value === value);
   return (
     <div className="relative">
       <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} className="h-9 gap-2 rounded-full text-[13px]">
         <span className="text-muted-foreground">{label}:</span>
-        <span className="inline-block text-left font-semibold" style={{ minWidth: valueWidth }}>
-          {value}
-        </span>
+        <span className="font-semibold">{cur?.label ?? value}</span>
         <ChevronDown className="size-3 text-muted-foreground" />
       </Button>
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-11 z-30 max-h-[280px] min-w-[160px] overflow-y-auto rounded-xl border bg-card p-1.5 shadow-md">
+          <div className="absolute right-0 top-11 z-30 max-h-[280px] min-w-[170px] overflow-y-auto rounded-xl border bg-card p-1.5 shadow-md">
             {options.map((o) => (
-              <button
-                key={o}
-                onClick={() => {
-                  onChange(o);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] transition-colors hover:bg-muted",
-                  value === o && "font-semibold text-primary-600",
-                )}
-              >
-                {o}
-                {value === o && <Check className="size-3.5" strokeWidth={2.4} />}
+              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+                className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] hover:bg-muted", value === o.value && "font-semibold text-primary-600")}>
+                {o.label}
+                {value === o.value && <Check className="size-3.5" strokeWidth={2.4} />}
               </button>
             ))}
           </div>
@@ -104,150 +74,66 @@ function FilterSelect({ label, value, options, onChange, valueWidth = 92 }: Filt
   );
 }
 
-const dotStyle = (color: ChipColor, half: boolean): CSSProperties =>
-  half ? { boxShadow: `inset 0 0 0 2px var(--chip-${color}-ink)` } : { background: `var(--chip-${color}-ink)` };
-
-interface MarkCellProps {
-  value?: MarkKey;
-  weekend: boolean;
-  onChange: (key: MarkKey) => void;
+interface EditTarget {
+  employee: RosterEmployee;
+  dateKey: string;
+  records: Record<string, AttendanceRecord>; // keyed by shiftId
 }
-
-function MarkCell({ value, weekend, onChange }: MarkCellProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-
-  const m = value ? MARKS[value] : null;
-  const half = value ? isHalfMark(value) : false;
-  return (
-    <td className={cn("relative px-0 py-2 text-center", weekend && "bg-slate-50/40")}>
-      <button
-        ref={ref}
-        onClick={() => setOpen((o) => !o)}
-        className="group/dot inline-flex size-7 items-center justify-center rounded-full transition hover:bg-muted"
-        title={m ? m.label : "Chưa chấm"}
-        aria-label={m ? m.label : "Chưa chấm"}
-      >
-        {m ? (
-          <span className="block size-2.5 rounded-full" style={dotStyle(m.color, half)} />
-        ) : (
-          <span
-            className={cn(
-              "block size-2.5 rounded-full ring-1 ring-inset ring-border",
-              weekend ? "opacity-40" : "opacity-0 group-hover/dot:opacity-100",
-            )}
-          />
-        )}
-      </button>
-      {open && (
-        <div className="absolute left-1/2 top-9 z-40 w-[230px] -translate-x-1/2 rounded-xl border bg-card p-1.5 text-left shadow-md">
-          {MARK_ORDER.map((key) => {
-            const s = MARKS[key];
-            return (
-              <button
-                key={key}
-                onClick={() => {
-                  onChange(key);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[12px] transition-colors hover:bg-muted",
-                  value === key && "bg-muted",
-                )}
-              >
-                <span className="inline-flex size-5 shrink-0 items-center justify-center">
-                  <span className="block size-2.5 rounded-full" style={dotStyle(s.color, isHalfMark(key))} />
-                </span>
-                <span className="flex-1 text-foreground">{s.label}</span>
-                {value === key && <Check className="size-3.5 text-primary-600" strokeWidth={2.4} />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </td>
-  );
-}
-
-const num = (n: number): ReactNode =>
-  n === 0 ? (
-    <span className="text-muted-foreground/50">—</span>
-  ) : (
-    <span className="tabular-nums">{Number.isInteger(n) ? n : n.toFixed(1)}</span>
-  );
-
-function SumTh({ children, first }: { children: ReactNode; first?: boolean }) {
-  return (
-    <th
-      className={cn(
-        "sticky top-0 z-20 bg-card px-3 py-2.5 text-right align-bottom text-[10px] font-medium uppercase leading-tight tracking-wide text-muted-foreground/70",
-        first && "pl-5",
-      )}
-      style={{ minWidth: 64 }}
-    >
-      {children}
-    </th>
-  );
-}
-function SumTd({ children, first, strong }: { children: ReactNode; first?: boolean; strong?: boolean }) {
-  return (
-    <td className={cn("px-3 py-2.5 text-right text-[12.5px] tabular-nums", first && "pl-5", strong ? "font-semibold text-foreground" : "text-muted-foreground")}>
-      {children}
-    </td>
-  );
-}
-
-const ALL = "Tất cả";
 
 export default function AttendancePage() {
-  const [dept, setDept] = useState<string>(ALL);
-  const [month, setMonth] = useState("Tháng 6, 2026");
+  const [month, setMonth] = useState(MONTH_OPTIONS[0].value);
+  const [dept, setDept] = useState(ALL);
   const [q, setQ] = useState("");
-  const [data, setData] = useState<AttendanceEmployee[]>(() => EMPLOYEES.map((e) => ({ ...e, days: { ...e.days } })));
+  const [grid, setGrid] = useState<AdminGrid | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [edit, setEdit] = useState<EditTarget | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    attendanceService
+      .adminGrid({ month })
+      .then((g) => { if (active) { setGrid(g); setLoading(false); } })
+      .catch(() => { if (active) { setGrid({ month, employees: [], shifts: [], records: [] }); setLoading(false); } });
+    return () => { active = false; };
+  }, [month, reloadKey]);
+
+  const days = useMemo(() => monthDays(month), [month]);
+  const shifts = useMemo(() => grid?.shifts ?? [], [grid]);
+
+  const recordMap = useMemo(() => {
+    const m = new Map<string, AttendanceRecord>();
+    for (const r of grid?.records ?? []) {
+      if (r.shiftId) m.set(`${r.employeeId}_${recordDateKey(r.date)}_${r.shiftId}`, r);
+    }
+    return m;
+  }, [grid]);
+
+  const deptOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of grid?.employees ?? []) if (e.departmentName) set.add(e.departmentName);
+    return [ALL, ...Array.from(set).sort()];
+  }, [grid]);
 
   const rows = useMemo(
     () =>
-      data.filter((e) => {
-        if (dept !== ALL && e.dept !== dept) return false;
-        if (q && !`${e.name} ${e.code} ${e.dept}`.toLowerCase().includes(q.toLowerCase())) return false;
+      (grid?.employees ?? []).filter((e) => {
+        if (dept !== ALL && e.departmentName !== dept) return false;
+        if (q && !`${e.fullName} ${e.employeeCode}`.toLowerCase().includes(q.toLowerCase())) return false;
         return true;
       }),
-    [data, dept, q],
+    [grid, dept, q],
   );
 
-  // Đổi trạng thái chấm công cho 1 ô. Các cột tổng hợp (công thực tế, nghỉ phép,
-  // nghỉ lễ, nghỉ chế độ, tổng công, phép dư) tự tính lại qua summarize() khi render.
-  // Chọn lại đúng trạng thái đang có sẽ bỏ chấm ô đó (toggle off) → không tính vào tổng.
-  const setMark = (empIdx: number, day: number, key: MarkKey) =>
-    setData((prev) =>
-      prev.map((e, i) => {
-        if (i !== empIdx) return e;
-        const days = { ...e.days };
-        if (days[day] === key) {
-          delete days[day];
-        } else {
-          days[day] = key;
-        }
-        return { ...e, days };
-      }),
-    );
-
-  const totals = useMemo(() => {
-    const c = (k: MarkKey) => data.reduce((s, e) => s + MONTH_DAYS.filter((d) => e.days[d] === k).length, 0);
-    return {
-      late: c("late"),
-      annual: c("annual") + c("half_w_p") * 0.5 + c("half_p_unpaid") * 0.5,
-      remote: c("remote"),
-    };
-  }, [data]);
+  const stats = useMemo(() => {
+    let late = 0;
+    let leave = 0;
+    for (const r of grid?.records ?? []) {
+      if (r.status === "late") late += 1;
+      if (r.status === "leave_paid") leave += 1;
+    }
+    return { people: grid?.employees.length ?? 0, late, leave };
+  }, [grid]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -260,30 +146,26 @@ export default function AttendancePage() {
               <div>
                 <h1 className="text-[26px] font-bold tracking-tight text-foreground">Chấm công</h1>
                 <p className="mt-1 text-[13.5px] text-muted-foreground">
-                  Bảng công {month} · {WORKING_DAYS} ngày công chuẩn · ô chấm cấu hình tại Cài đặt hệ thống.
+                  {shifts.length} ca/ngày (cấu hình tại Cài đặt). Bấm ô để nhập giờ vào–ra theo từng ca.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <FilterSelect
-                  label="Tháng"
-                  value={month}
-                  valueWidth={92}
-                  options={["Tháng 4, 2026", "Tháng 5, 2026", "Tháng 6, 2026"]}
-                  onChange={setMonth}
-                />
-                <FilterSelect label="Phòng ban" value={dept} valueWidth={84} options={DEPTS} onChange={setDept} />
-                <Button variant="outline" size="sm" className="h-9 gap-2 rounded-full text-[13px]">
-                  <Download className="size-3.5" strokeWidth={1.8} /> Xuất Excel
-                </Button>
+                <Select label="Tháng" value={month} options={MONTH_OPTIONS} onChange={setMonth} />
+                <Select label="Phòng ban" value={dept} options={deptOptions.map((d) => ({ value: d, label: d }))} onChange={setDept} />
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
-              <StatCard chip="blue" icon="Users" label="Nhân sự chấm công" value={data.length} />
-              <StatCard chip="amber" icon="Clock" label="Lượt đi muộn" value={totals.late} sub="trong tháng" />
-              <StatCard chip="violet" icon="CalendarDays" label="Ngày phép đã dùng" value={totals.annual} />
-              <StatCard chip="blue" icon="History" label="Ngày remote" value={totals.remote} />
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard chip="blue" icon={Users} label="Nhân sự" value={stats.people} />
+              <StatCard chip="amber" icon={Clock} label="Lượt đi muộn" value={stats.late} />
+              <StatCard chip="violet" icon={CalendarDays} label="Lượt nghỉ phép" value={stats.leave} />
             </div>
+
+            {shifts.length === 0 && !loading && (
+              <Card className="p-4 text-[13px] text-muted-foreground">
+                Chưa cấu hình ca làm. Vào <b className="text-foreground">Cài đặt → Chấm công</b> để thêm ca trước khi chấm công.
+              </Card>
+            )}
 
             <Card className="overflow-hidden">
               <div className="flex flex-wrap items-center gap-3 p-4">
@@ -292,113 +174,224 @@ export default function AttendancePage() {
                   <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm theo tên, mã NV…" className="h-9 pl-10 text-[13px]" />
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]">
-                  {(["full", "late", "annual", "remote", "unpaid", "holiday", "makeup"] as MarkKey[]).map((k) => {
-                    const s = MARKS[k];
-                    return (
-                      <span key={k} className="inline-flex items-center gap-1.5">
-                        <span className="block size-2 rounded-full" style={{ background: `var(--chip-${s.color}-ink)` }} />
-                        <span className="text-muted-foreground">{s.label}</span>
-                      </span>
-                    );
-                  })}
+                  {(["present", "late", "leave_paid", "holiday", "absent"] as const).map((k) => (
+                    <span key={k} className="inline-flex items-center gap-1.5">
+                      <span className="block size-2 rounded-full" style={{ background: `var(--chip-${STATUS_META[k].color}-ink)` }} />
+                      <span className="text-muted-foreground">{STATUS_META[k].label}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
 
-              <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 300px)" }}>
+              <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 320px)" }}>
                 <table className="border-separate text-[12px]" style={{ borderSpacing: 0, minWidth: "100%" }}>
                   <thead>
                     <tr>
-                      <th
-                        className="sticky left-0 top-0 z-30 bg-card px-5 py-3 text-left align-bottom text-[11px] font-medium tracking-wide text-muted-foreground"
-                        style={{ minWidth: 210 }}
-                      >
+                      <th className="sticky left-0 top-0 z-30 bg-card px-5 py-3 text-left align-bottom text-[11px] font-medium tracking-wide text-muted-foreground" style={{ minWidth: 210 }}>
                         NHÂN VIÊN
                       </th>
-                      {MONTH_DAYS.map((d) => (
-                        <th key={d} className="sticky top-0 z-20 bg-card px-0 py-2.5 text-center align-bottom" style={{ minWidth: 34 }}>
-                          <div className={cn("text-[9px] font-medium uppercase leading-none", isWeekend(d) ? "text-rose-300" : "text-muted-foreground/45")}>
-                            {DOW_LABEL[dow(d)]}
-                          </div>
-                          <div className={cn("mt-1 text-[12px] font-semibold leading-none tabular-nums", isWeekend(d) ? "text-rose-400" : "text-foreground/70")}>
-                            {d}
-                          </div>
+                      {days.map((d) => (
+                        <th key={d.key} className="sticky top-0 z-20 bg-card px-0 py-2.5 text-center align-bottom" style={{ minWidth: 34 }}>
+                          <div className={cn("text-[12px] font-semibold leading-none tabular-nums", d.weekend ? "text-rose-400" : "text-foreground/70")}>{d.day}</div>
                         </th>
                       ))}
-                      <SumTh first>Công thực tế</SumTh>
-                      <SumTh>Nghỉ phép</SumTh>
-                      <SumTh>Nghỉ lễ</SumTh>
-                      <SumTh>Nghỉ chế độ</SumTh>
-                      <SumTh>Tổng công</SumTh>
-                      <SumTh>Phép dư</SumTh>
-                      <th
-                        className="sticky top-0 z-20 bg-card px-4 py-2.5 text-left align-bottom text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70"
-                        style={{ minWidth: 150 }}
-                      >
-                        Ghi chú
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((e) => {
-                      const realIdx = data.indexOf(e);
-                      const sm = summarize(e);
-                      return (
-                        <tr key={e.code} className="group transition-colors hover:bg-slate-50 [&>td]:border-b [&>td]:border-border/40">
-                          <td
-                            className="sticky left-0 z-10 bg-card px-5 py-2.5 transition-colors group-hover:bg-slate-50"
-                            style={{ boxShadow: "1px 0 0 0 var(--border)" }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Avatar className="size-8 text-[11px]">
-                                <AvatarFallback>{e.initials}</AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <div className="truncate text-[13px] font-medium text-foreground">{e.name}</div>
-                                <div className="truncate text-[11px] text-muted-foreground/80">
-                                  <span className="font-mono">{e.code}</span> · {e.dept}
-                                </div>
-                              </div>
+                    {rows.map((e) => (
+                      <tr key={e._id} className="group transition-colors hover:bg-slate-50 [&>td]:border-b [&>td]:border-border/40">
+                        <td className="sticky left-0 z-10 bg-card px-5 py-2.5 transition-colors group-hover:bg-slate-50" style={{ boxShadow: "1px 0 0 0 var(--border)" }}>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-8 text-[11px]"><AvatarFallback>{e.fullName.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-medium text-foreground">{e.fullName || e.employeeCode}</div>
+                              <div className="truncate text-[11px] text-muted-foreground/80"><span className="font-mono">{e.employeeCode}</span> · {e.departmentName}</div>
                             </div>
-                          </td>
-                          {MONTH_DAYS.map((d) => (
-                            <MarkCell key={d} value={e.days[d]} weekend={isWeekend(d)} onChange={(key) => setMark(realIdx, d, key)} />
-                          ))}
-                          <SumTd first strong>{num(sm.w)}</SumTd>
-                          <SumTd>{num(sm.p)}</SumTd>
-                          <SumTd>{num(sm.l)}</SumTd>
-                          <SumTd>{num(sm.c)}</SumTd>
-                          <SumTd strong>{num(sm.total)}</SumTd>
-                          <SumTd>
-                            <span className={cn("font-semibold tabular-nums", sm.remaining < 0 ? "text-rose-500" : "text-foreground")}>{sm.remaining}</span>
-                          </SumTd>
-                          <td className="px-4 py-2.5 text-[12px] text-muted-foreground">
-                            {e.note || <span className="text-muted-foreground/30">—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {rows.length === 0 && (
-                      <tr>
-                        <td colSpan={MONTH_DAYS.length + 8} className="px-4 py-16 text-center text-[13px] text-muted-foreground">
-                          Không có nhân viên phù hợp.
+                          </div>
                         </td>
+                        {days.map((d) => {
+                          const records: Record<string, AttendanceRecord> = {};
+                          for (const s of shifts) {
+                            const r = recordMap.get(`${e._id}_${d.key}_${s._id}`);
+                            if (r) records[s._id] = r;
+                          }
+                          const title = shifts
+                            .filter((s) => records[s._id])
+                            .map((s) => `${s.name}: ${STATUS_META[records[s._id]!.status].label}`)
+                            .join(" · ");
+                          return (
+                            <td key={d.key} className={cn("px-0 py-2 text-center", d.weekend && "bg-slate-50/40")}>
+                              <button
+                                onClick={() => setEdit({ employee: e, dateKey: d.key, records })}
+                                className="inline-flex h-7 items-center justify-center gap-0.5 rounded-full px-1 transition hover:bg-muted"
+                                title={title || "Chưa chấm"}
+                              >
+                                {shifts.length === 0 ? (
+                                  <span className="block size-2 rounded-full opacity-0" />
+                                ) : (
+                                  shifts.map((s) => {
+                                    const rec = records[s._id];
+                                    const meta = rec ? STATUS_META[rec.status] : null;
+                                    return meta ? (
+                                      <span key={s._id} className="block size-2 rounded-full" style={{ background: `var(--chip-${meta.color}-ink)` }} />
+                                    ) : (
+                                      <span key={s._id} className="block size-2 rounded-full opacity-0 ring-1 ring-inset ring-border group-hover:opacity-100" />
+                                    );
+                                  })
+                                )}
+                              </button>
+                            </td>
+                          );
+                        })}
                       </tr>
+                    ))}
+                    {!loading && rows.length === 0 && (
+                      <tr><td colSpan={days.length + 1} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Không có nhân viên phù hợp.</td></tr>
+                    )}
+                    {loading && (
+                      <tr><td colSpan={days.length + 1} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Đang tải…</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
 
               <div className="flex items-center justify-between px-4 py-3 text-[12.5px] text-muted-foreground">
-                <span>
-                  Hiển thị <b className="text-foreground tabular-nums">{rows.length}</b> / {data.length} nhân viên · {month}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-emerald-400" /> Bấm vào ô để chấm công
-                </span>
+                <span>Hiển thị <b className="text-foreground tabular-nums">{rows.length}</b> / {grid?.employees.length ?? 0} nhân viên</span>
+                <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-400" /> Mỗi ô = {shifts.length} ca</span>
               </div>
             </Card>
           </div>
         </main>
+      </div>
+
+      {edit && (
+        <CellEditor
+          target={edit}
+          shifts={shifts}
+          onClose={() => setEdit(null)}
+          onSaved={() => { setEdit(null); setReloadKey((k) => k + 1); }}
+        />
+      )}
+    </div>
+  );
+}
+
+const MANUAL_OPTIONS = [
+  { value: "", label: "— Theo giờ vào/ra —" },
+  { value: "leave_paid", label: "Nghỉ phép" },
+  { value: "leave_unpaid", label: "Nghỉ không lương" },
+  { value: "holiday", label: "Nghỉ lễ" },
+  { value: "absent", label: "Vắng" },
+] as const;
+
+interface ShiftForm {
+  checkIn: string;
+  checkOut: string;
+  manual: string;
+}
+
+const isManualStatus = (s?: string) => !!s && ["leave_paid", "leave_unpaid", "holiday", "absent"].includes(s);
+
+function initForm(rec?: AttendanceRecord): ShiftForm {
+  return {
+    checkIn: hhmmVN(rec?.checkIn),
+    checkOut: hhmmVN(rec?.checkOut),
+    manual: isManualStatus(rec?.status) ? (rec?.status as string) : "",
+  };
+}
+
+const inputCls = "h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20";
+
+function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; shifts: ShiftOption[]; onClose: () => void; onSaved: () => void }) {
+  const { employee, dateKey, records } = target;
+  const [forms, setForms] = useState<Record<string, ShiftForm>>(() => {
+    const init: Record<string, ShiftForm> = {};
+    for (const s of shifts) init[s._id] = initForm(records[s._id]);
+    return init;
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const update = (shiftId: string, patch: Partial<ShiftForm>) =>
+    setForms((f) => ({ ...f, [shiftId]: { ...f[shiftId], ...patch } }));
+
+  function save() {
+    setSaving(true);
+    setError(null);
+    const actions: Promise<unknown>[] = [];
+    for (const s of shifts) {
+      const f = forms[s._id];
+      const existing = records[s._id];
+      const hasTimes = !!f.checkIn || !!f.checkOut;
+      if (f.manual) {
+        actions.push(attendanceService.upsert({ employeeId: employee._id, date: dateKey, shiftId: s._id, status: f.manual as "leave_paid" }));
+      } else if (hasTimes) {
+        actions.push(
+          attendanceService.upsert({
+            employeeId: employee._id,
+            date: dateKey,
+            shiftId: s._id,
+            checkIn: f.checkIn ? vnInstant(dateKey, f.checkIn) : null,
+            checkOut: f.checkOut ? vnInstant(dateKey, f.checkOut) : null,
+          }),
+        );
+      } else if (existing) {
+        actions.push(attendanceService.remove(existing._id));
+      }
+    }
+    if (actions.length === 0) { onClose(); return; }
+    Promise.all(actions)
+      .then(() => onSaved())
+      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể lưu chấm công."))
+      .finally(() => setSaving(false));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+        <h3 className="text-[16px] font-bold text-foreground">Chấm công · {shifts.length} ca</h3>
+        <p className="mt-0.5 text-[12.5px] text-muted-foreground">{employee.fullName || employee.employeeCode} · {dateKey}</p>
+
+        <div className="mt-4 flex flex-col gap-4">
+          {shifts.map((s) => {
+            const f = forms[s._id];
+            return (
+              <div key={s._id} className="rounded-xl border border-border/70 p-3.5">
+                <div className="mb-2.5 flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-foreground">{s.name}</span>
+                  <span className="text-[11.5px] text-muted-foreground tabular-nums">{s.startTime}–{s.endTime}</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <select className={inputCls} value={f.manual} onChange={(e) => update(s._id, { manual: e.target.value })}>
+                    {MANUAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  {!f.manual && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[12px] font-medium text-foreground">Giờ vào</label>
+                        <input type="time" lang="en-GB" step={60} className={cn(inputCls, "mt-1.5")} value={f.checkIn} onChange={(e) => update(s._id, { checkIn: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-[12px] font-medium text-foreground">Giờ ra</label>
+                        <input type="time" lang="en-GB" step={60} className={cn(inputCls, "mt-1.5")} value={f.checkOut} onChange={(e) => update(s._id, { checkOut: e.target.value })} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {shifts.length === 0 && <p className="text-[13px] text-muted-foreground">Chưa cấu hình ca làm.</p>}
+          <p className="text-[11.5px] text-muted-foreground">Để trống cả giờ và trạng thái của một ca để xoá ca đó.</p>
+          {error && <p className="text-[12.5px] text-destructive">{error}</p>}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} className="rounded-xl">Huỷ</Button>
+          <Button onClick={save} disabled={saving || shifts.length === 0} className="rounded-xl">{saving ? "Đang lưu…" : "Lưu"}</Button>
+        </div>
       </div>
     </div>
   );

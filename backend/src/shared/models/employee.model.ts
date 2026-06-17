@@ -55,8 +55,18 @@ const employeeSchema = new Schema<IEmployee>(
   },
 );
 
-employeeSchema.index({ userId: 1 }, { unique: true, sparse: true });
-employeeSchema.index({ fingerprintId: 1 }, { unique: true, sparse: true });
+// Unique only among employees that actually have a value. We store `null`
+// explicitly (default: null), and a *sparse* unique index still indexes null
+// values — so two unlinked employees would collide. A partial index keyed on
+// the value's type excludes null/missing entirely, which is what we want.
+employeeSchema.index(
+  { userId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } },
+);
+employeeSchema.index(
+  { fingerprintId: 1 },
+  { unique: true, partialFilterExpression: { fingerprintId: { $type: 'string' } } },
+);
 employeeSchema.index({ departmentId: 1, status: 1 });
 
 export const Employee = mongoose.model<IEmployee>(DB_NAME, employeeSchema);

@@ -6,6 +6,8 @@ export interface CompanyConfig {
   currency: string;
   standardWorkDays: number;
   payCycleStartDay: number;
+  graceLateMinutes: number;
+  graceEarlyMinutes: number;
   contactEmail?: string;
   address?: string;
 }
