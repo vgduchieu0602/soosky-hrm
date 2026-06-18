@@ -181,7 +181,7 @@ export function DepartmentDetailTabs({
                   <Clock className="size-3.5 text-muted-foreground" />
                   <span className="flex-1 font-medium text-foreground">{describeHistory(h)}</span>
                   <span className="tabular-nums text-muted-foreground">
-                    {new Date(h.timestamp).toLocaleString("vi-VN")}
+                    {new Date(h.timestamp).toLocaleString("vi-VN", { hour12: false })}
                   </span>
                 </li>
               ))}

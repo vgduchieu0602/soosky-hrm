@@ -69,7 +69,7 @@ export function AuditLogSettings() {
             <tbody>
               {pageRows.map((e) => (
                 <tr key={e._id} className="border-b border-border/60 last:border-0">
-                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{new Date(e.timestamp).toLocaleString("vi-VN")}</td>
+                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{new Date(e.timestamp).toLocaleString("vi-VN", { hour12: false })}</td>
                   <td className="px-4 py-2.5 text-foreground">{actorName(e)}</td>
                   <td className="px-4 py-2.5">
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}

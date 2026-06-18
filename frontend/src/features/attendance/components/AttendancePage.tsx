@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { TimeInput } from "@/components/ui/time-input";
 import { cn } from "@/shared/utils/cn";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
@@ -371,11 +372,11 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[12px] font-medium text-foreground">Giờ vào</label>
-                        <input type="time" lang="en-GB" step={60} className={cn(inputCls, "mt-1.5")} value={f.checkIn} onChange={(e) => update(s._id, { checkIn: e.target.value })} />
+                        <TimeInput className={cn(inputCls, "mt-1.5")} value={f.checkIn} onChange={(v) => update(s._id, { checkIn: v })} />
                       </div>
                       <div>
                         <label className="text-[12px] font-medium text-foreground">Giờ ra</label>
-                        <input type="time" lang="en-GB" step={60} className={cn(inputCls, "mt-1.5")} value={f.checkOut} onChange={(e) => update(s._id, { checkOut: e.target.value })} />
+                        <TimeInput className={cn(inputCls, "mt-1.5")} value={f.checkOut} onChange={(v) => update(s._id, { checkOut: v })} />
                       </div>
                     </div>
                   )}

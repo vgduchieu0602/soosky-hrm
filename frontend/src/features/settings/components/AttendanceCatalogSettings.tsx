@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { TimeInput } from "@/components/ui/time-input";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
 import type { AttendanceSymbol, Holiday, Shift } from "@features/settings/types/settings.types";
@@ -73,8 +74,8 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
         {canManage && (
           <div className="mb-4 grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-3">
             <input className={inputCls} placeholder="Tên ca (VD: Ca sáng)" value={shiftForm.name} onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })} />
-            <input type="time" lang="en-GB" className={inputCls} value={shiftForm.startTime} onChange={(e) => setShiftForm({ ...shiftForm, startTime: e.target.value })} />
-            <input type="time" lang="en-GB" className={inputCls} value={shiftForm.endTime} onChange={(e) => setShiftForm({ ...shiftForm, endTime: e.target.value })} />
+            <TimeInput className={inputCls} value={shiftForm.startTime} onChange={(v) => setShiftForm({ ...shiftForm, startTime: v })} />
+            <TimeInput className={inputCls} value={shiftForm.endTime} onChange={(v) => setShiftForm({ ...shiftForm, endTime: v })} />
             <input type="number" min={0} className={inputCls} placeholder="Nghỉ (phút)" value={shiftForm.breakMinutes} onChange={(e) => setShiftForm({ ...shiftForm, breakMinutes: e.target.value })} />
             <Button size="sm" disabled={!shiftForm.name.trim()} onClick={addShift} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm ca</Button>
           </div>
@@ -88,9 +89,9 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
             )}
             {canManage ? (
               <div className="flex items-center gap-1.5">
-                <input type="time" lang="en-GB" className={cn(inputCls, "w-[110px]")} defaultValue={s.startTime} onBlur={(e) => { if (e.target.value !== s.startTime) settingsService.updateShift(s._id, { startTime: e.target.value }).then(reload).catch(() => {}); }} />
+                <TimeInput className={cn(inputCls, "w-[96px]")} value={s.startTime} onChange={(v) => { if (v && v !== s.startTime) settingsService.updateShift(s._id, { startTime: v }).then(reload).catch(() => {}); }} />
                 <span className="text-muted-foreground">–</span>
-                <input type="time" lang="en-GB" className={cn(inputCls, "w-[110px]")} defaultValue={s.endTime} onBlur={(e) => { if (e.target.value !== s.endTime) settingsService.updateShift(s._id, { endTime: e.target.value }).then(reload).catch(() => {}); }} />
+                <TimeInput className={cn(inputCls, "w-[96px]")} value={s.endTime} onChange={(v) => { if (v && v !== s.endTime) settingsService.updateShift(s._id, { endTime: v }).then(reload).catch(() => {}); }} />
               </div>
             ) : (
               <span className="font-mono text-[12px] text-muted-foreground">{s.startTime}–{s.endTime}</span>
