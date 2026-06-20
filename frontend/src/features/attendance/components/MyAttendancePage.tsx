@@ -16,6 +16,9 @@ export default function MyAttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [shifts, setShifts] = useState<ShiftOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [punching, setPunching] = useState(false);
+  const [punchErr, setPunchErr] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -23,7 +26,17 @@ export default function MyAttendancePage() {
       .then(([r, s]) => { if (active) { setRecords(r.records); setShifts(s); setLoading(false); } })
       .catch(() => { if (active) { setRecords([]); setLoading(false); } });
     return () => { active = false; };
-  }, [month]);
+  }, [month, reloadKey]);
+
+  function punch(kind: "in" | "out") {
+    setPunching(true);
+    setPunchErr(null);
+    const call = kind === "in" ? attendanceService.checkIn() : attendanceService.checkOut();
+    call
+      .then(() => setReloadKey((k) => k + 1))
+      .catch((e) => setPunchErr(e?.response?.data?.message ?? "Chấm công thất bại."))
+      .finally(() => setPunching(false));
+  }
 
   const summary = useMemo(() => {
     let work = 0;
@@ -68,6 +81,24 @@ export default function MyAttendancePage() {
                 {MONTH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
+
+            <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div>
+                <div className="text-[14px] font-semibold text-foreground">Chấm công hôm nay</div>
+                <div className="mt-0.5 text-[12.5px] text-muted-foreground">Bấm vào đầu giờ và ra về cuối giờ.</div>
+                {punchErr && <div className="mt-1.5 text-[12px] text-destructive">{punchErr}</div>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => punch("in")} disabled={punching}
+                  className="h-10 cursor-pointer rounded-xl bg-primary-500 px-5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50">
+                  Check-in
+                </button>
+                <button onClick={() => punch("out")} disabled={punching}
+                  className="h-10 cursor-pointer rounded-xl border border-input bg-card px-5 text-[13px] font-semibold text-foreground transition hover:bg-muted disabled:opacity-50">
+                  Check-out
+                </button>
+              </div>
+            </Card>
 
             <div className="grid grid-cols-3 gap-4">
               <Card className="p-4"><div className="text-[22px] font-bold tabular-nums">{summary.work}</div><div className="mt-1 text-[12px] text-muted-foreground">Ngày công</div></Card>

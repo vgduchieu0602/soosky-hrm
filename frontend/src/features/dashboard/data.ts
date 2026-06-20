@@ -18,6 +18,8 @@ export const NAV_ITEMS = [
   { id: "leave", label: "Nghỉ phép", icon: "CalendarDays", to: "/leave" },
   { id: "pay", label: "Bảng lương", icon: "Wallet", to: "/payroll" },
   { id: "perf", label: "Đánh giá", icon: "Trophy", to: "/performance" },
+  { id: "mypayslips", label: "Phiếu lương của tôi", icon: "ReceiptText", to: "/me/payslips" },
+  { id: "myeval", label: "Đánh giá của tôi", icon: "ClipboardList", to: "/me/evaluations" },
 ] as const;
 
 export interface TopKpi {

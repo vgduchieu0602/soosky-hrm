@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Plus, Trash2, Clock, CalendarDays, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TimeInput } from "@/components/ui/time-input";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
+import { SettingsSection, CountBadge } from "@features/settings/components/SettingsSection";
 import type { AttendanceSymbol, Holiday, Shift } from "@features/settings/types/settings.types";
 
 const inputCls =
@@ -60,17 +60,18 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
       .catch(() => {});
   }
 
-  if (loading) return <div className="h-40 animate-pulse rounded-xl bg-muted/50" />;
+  if (loading) return <div className="h-64 animate-pulse rounded-2xl bg-muted/50" />;
 
   return (
     <div className="flex flex-col gap-6">
       {/* Shifts */}
-      <Card className="p-6">
-        <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold text-foreground">Ca làm việc</h3>
-          <span className="rounded-full bg-muted px-2.5 py-0.5 text-[12px] font-medium text-muted-foreground">{activeShifts.length} ca/ngày</span>
-        </div>
-        <p className="mb-4 text-[12.5px] text-muted-foreground">Số ca và giờ giấc do bạn cấu hình; bảng chấm công sẽ hiển thị đúng số ca này mỗi ngày.</p>
+      <SettingsSection
+        icon={Clock}
+        tone="cyan"
+        title="Ca làm việc"
+        description="Số ca và giờ giấc do bạn cấu hình; bảng chấm công sẽ hiển thị đúng số ca này mỗi ngày."
+        badge={<CountBadge tone="cyan">{activeShifts.length} ca/ngày</CountBadge>}
+      >
         {canManage && (
           <div className="mb-4 grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-3">
             <input className={inputCls} placeholder="Tên ca (VD: Ca sáng)" value={shiftForm.name} onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })} />
@@ -102,11 +103,16 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
             )}
           </div>
         )} />
-      </Card>
+      </SettingsSection>
 
       {/* Holidays */}
-      <Card className="p-6">
-        <h3 className="mb-4 text-[15px] font-semibold text-foreground">Ngày lễ</h3>
+      <SettingsSection
+        icon={CalendarDays}
+        tone="rose"
+        title="Ngày lễ"
+        description="Ngày nghỉ lễ chính thức — không tính vào ngày công bắt buộc."
+        badge={<CountBadge tone="rose">{holidays.length}</CountBadge>}
+      >
         {canManage && (
           <div className="mb-4 grid grid-cols-[2fr_1fr_auto] items-end gap-3">
             <input className={inputCls} placeholder="Tên ngày lễ" value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} />
@@ -123,11 +129,16 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
             )}
           </div>
         )} />
-      </Card>
+      </SettingsSection>
 
       {/* Symbols */}
-      <Card className="p-6">
-        <h3 className="mb-4 text-[15px] font-semibold text-foreground">Ký hiệu chấm công</h3>
+      <SettingsSection
+        icon={Tags}
+        tone="indigo"
+        title="Ký hiệu chấm công"
+        description="Mã ký hiệu dùng trên bảng chấm công (VD: X = đi làm, P = nghỉ phép)."
+        badge={<CountBadge tone="indigo">{symbols.length}</CountBadge>}
+      >
         {canManage && (
           <div className="mb-4 grid grid-cols-[120px_2fr_auto] items-end gap-3">
             <input className={cn(inputCls, "font-mono")} placeholder="Mã (X, P…)" value={symbolForm.code} onChange={(e) => setSymbolForm({ ...symbolForm, code: e.target.value })} />
@@ -142,7 +153,7 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
             <span className="text-[11px] text-muted-foreground">{s.paidStatus}{s.affectsPayroll ? " · ảnh hưởng lương" : ""}</span>
           </div>
         )} />
-      </Card>
+      </SettingsSection>
     </div>
   );
 }

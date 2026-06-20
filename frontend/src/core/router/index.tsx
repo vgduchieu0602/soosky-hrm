@@ -7,6 +7,8 @@ import DashboardPage from "@pages/DashboardPage";
 import EmployeesPage from "@pages/EmployeesPage";
 import DepartmentsPage from "@pages/DepartmentsPage";
 import MyAttendancePage from "@features/attendance/components/MyAttendancePage";
+import MyPayslipsPage from "@features/payroll/components/MyPayslipsPage";
+import MyEvaluationsPage from "@features/performance/components/MyEvaluationsPage";
 import LeavePage from "@pages/LeavePage";
 import AttendanceByRole from "./AttendanceByRole";
 import PayrollPage from "@pages/PayrollPage";
@@ -38,6 +40,8 @@ export const router = createBrowserRouter([
           { path: "departments", element: <DepartmentsPage /> },
           { path: "attendance", element: <AttendanceByRole /> },
           { path: "me/attendance", element: <MyAttendancePage /> },
+          { path: "me/payslips", element: <MyPayslipsPage /> },
+          { path: "me/evaluations", element: <MyEvaluationsPage /> },
           { path: "leave", element: <LeavePage /> },
           { path: "payroll", element: <PayrollPage /> },
           { path: "performance", element: <PerformancePage /> },

@@ -2,8 +2,14 @@
 import {
   computeAttendanceRatio,
   computeEffectiveBaseSalary,
+  computeInsurance,
+  computeOvertimePay,
+  computePayroll,
   computePerformanceRatio,
+  computeProgressiveTax,
+  hourlyRate,
   DEFAULT_COMPONENT_WEIGHTS,
+  VN_INSURANCE_RATES,
 } from './salary.util';
 
 describe('computePerformanceRatio', () => {
@@ -82,5 +88,173 @@ describe('computeEffectiveBaseSalary', () => {
     expect(result.proRatedBaseSalary).toBe(10_000_000);
     expect(result.attendanceComponent).toBe(3_000_000);
     expect(result.performanceComponent).toBe(5_000_000);
+  });
+});
+
+describe('computeInsurance', () => {
+  // lương cơ sở 2,340,000 × 20 = 46,800,000 ; vùng I 4,960,000 × 20 = 99,200,000
+  const socialHealthCeiling = 46_800_000;
+  const unemploymentCeiling = 99_200_000;
+
+  it('applies statutory employee + employer rates below the cap', () => {
+    const r = computeInsurance({
+      grossSalary: 32_730_000,
+      socialHealthCeiling,
+      unemploymentCeiling,
+    });
+    expect(r.insuranceBase).toBe(32_730_000);
+    expect(r.socialInsurance).toBe(2_618_400); // 8%
+    expect(r.healthInsurance).toBe(490_950); // 1.5%
+    expect(r.unemploymentInsurance).toBe(327_300); // 1%
+    expect(r.insurance).toBe(3_436_650);
+    expect(r.employerSocialInsurance).toBe(5_564_100); // 17%
+    expect(r.employerOccupationalInsurance).toBe(163_650); // 0.5% TNLĐ-BNN
+    expect(r.employerHealthInsurance).toBe(981_900); // 3%
+    expect(r.employerUnemploymentInsurance).toBe(327_300); // 1%
+  });
+
+  it('caps the social/health base at the ceiling for high earners', () => {
+    const r = computeInsurance({
+      grossSalary: 200_000_000,
+      socialHealthCeiling,
+      unemploymentCeiling,
+    });
+    expect(r.insuranceBase).toBe(46_800_000); // capped
+    expect(r.unemploymentInsuranceBase).toBe(99_200_000); // capped at the higher unemployment ceiling
+    expect(r.socialInsurance).toBe(Math.round(46_800_000 * 0.08));
+    expect(r.unemploymentInsurance).toBe(Math.round(99_200_000 * 0.01));
+  });
+
+  it('exposes the VN statutory rates', () => {
+    expect(VN_INSURANCE_RATES.employee).toEqual({ social: 8, health: 1.5, unemployment: 1 });
+    expect(VN_INSURANCE_RATES.employer).toEqual({ social: 17, health: 3, unemployment: 1, occupational: 0.5 });
+  });
+});
+
+describe('computeProgressiveTax', () => {
+  it('returns 0 for non-positive income', () => {
+    expect(computeProgressiveTax(0)).toBe(0);
+    expect(computeProgressiveTax(-1_000)).toBe(0);
+  });
+
+  it('matches each bracket boundary', () => {
+    expect(computeProgressiveTax(5_000_000)).toBe(250_000); // 5%
+    expect(computeProgressiveTax(10_000_000)).toBe(750_000); // +5m@10%
+    expect(computeProgressiveTax(18_000_000)).toBe(1_950_000); // +8m@15%
+  });
+
+  it('computes the top bracket correctly (100m taxable)', () => {
+    // 250k + 500k + 1.2m + 2.8m + 5m + 8.4m + 7m
+    expect(computeProgressiveTax(100_000_000)).toBe(25_150_000);
+  });
+});
+
+describe('computeOvertimePay', () => {
+  it('derives hourly rate from base / (standardWorkDays × 8)', () => {
+    expect(hourlyRate(22_000_000, 22)).toBe(125_000); // 22M / 176h
+  });
+
+  it('applies VN multipliers 1.5 / 2.0 / 3.0', () => {
+    const base = 22_000_000; // hourly = 125,000
+    expect(computeOvertimePay(base, 22, [{ hours: 2, dayType: 'weekday' }])).toBe(375_000); // 125k×1.5×2
+    expect(computeOvertimePay(base, 22, [{ hours: 2, dayType: 'weekend' }])).toBe(500_000); // 125k×2×2
+    expect(computeOvertimePay(base, 22, [{ hours: 2, dayType: 'holiday' }])).toBe(750_000); // 125k×3×2
+  });
+
+  it('sums multiple entries', () => {
+    const base = 22_000_000;
+    expect(
+      computeOvertimePay(base, 22, [
+        { hours: 2, dayType: 'weekday' },
+        { hours: 1, dayType: 'holiday' },
+      ]),
+    ).toBe(375_000 + 375_000);
+  });
+});
+
+describe('computePayroll — non-resident flat tax', () => {
+  it('taxes non-residents at 20% of assessable income, no deductions', () => {
+    const r = computePayroll({
+      baseSalary: 30_000_000,
+      attendanceRatio: 1,
+      performanceRatio: 100,
+      goalRatio: 100,
+      socialHealthCeiling: 46_800_000,
+      unemploymentCeiling: 99_200_000,
+      personalDeduction: 11_000_000,
+      dependentDeduction: 4_400_000,
+      dependentsCount: 2,
+      isResident: false,
+    });
+    // taxableIncome = gross - insurance - nonTaxable(0)
+    const expectedTax = Math.round(r.taxableIncome * 0.2);
+    expect(r.personalDeduction).toBe(0);
+    expect(r.dependentDeduction).toBe(0);
+    expect(r.taxableIncomeAfterDeduction).toBe(r.taxableIncome);
+    expect(r.tax).toBe(expectedTax);
+  });
+});
+
+describe('computePayroll — E1 parallel-run case', () => {
+  // Senior engineer, full attendance & performance, 1 dependent.
+  // baseSalary 30m, taxable allowance 2m, non-taxable (lunch) 730k.
+  const result = computePayroll({
+    baseSalary: 30_000_000,
+    attendanceRatio: 1,
+    performanceRatio: 100,
+    goalRatio: 100,
+    totalTaxableAllowances: 2_000_000,
+    totalNonTaxableAllowances: 730_000,
+    socialHealthCeiling: 46_800_000,
+    unemploymentCeiling: 99_200_000,
+    personalDeduction: 11_000_000,
+    dependentDeduction: 4_400_000,
+    dependentsCount: 1,
+  });
+
+  it('assembles gross from effective base + allowances', () => {
+    expect(result.proRatedBaseSalary).toBe(30_000_000);
+    expect(result.totalAllowances).toBe(2_730_000);
+    expect(result.grossSalary).toBe(32_730_000);
+  });
+
+  it('deducts employee insurance', () => {
+    expect(result.insurance).toBe(3_436_650);
+  });
+
+  it('computes taxable income net of insurance and non-taxable allowance', () => {
+    // 32,730,000 - 3,436,650 - 730,000
+    expect(result.taxableIncome).toBe(28_563_350);
+    // - 11,000,000 personal - 4,400,000 (1 dependent)
+    expect(result.taxableIncomeAfterDeduction).toBe(13_163_350);
+    expect(result.dependentDeduction).toBe(4_400_000);
+  });
+
+  it('computes progressive tax and net salary', () => {
+    // 250k + 500k + 3,163,350@15% (474,502.5 → 474,503)
+    expect(result.tax).toBe(1_224_503);
+    expect(result.totalDeductions).toBe(4_661_153);
+    expect(result.netSalary).toBe(28_068_847);
+  });
+
+  it('keeps net = gross - insurance - tax', () => {
+    expect(result.netSalary).toBe(result.grossSalary - result.insurance - result.tax);
+  });
+
+  it('prorates gross down when attendance/performance drop', () => {
+    const half = computePayroll({
+      baseSalary: 30_000_000,
+      attendanceRatio: 0.5,
+      performanceRatio: 80,
+      goalRatio: 90,
+      socialHealthCeiling: 46_800_000,
+      unemploymentCeiling: 99_200_000,
+      personalDeduction: 11_000_000,
+      dependentDeduction: 4_400_000,
+      dependentsCount: 0,
+    });
+    // attendance 0.2*30m*0.5=3m ; perf 0.6*30m*0.8=14.4m ; goal 0.2*30m*0.9=5.4m
+    expect(half.proRatedBaseSalary).toBe(22_800_000);
+    expect(half.grossSalary).toBe(22_800_000);
   });
 });

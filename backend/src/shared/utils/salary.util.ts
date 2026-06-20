@@ -89,3 +89,319 @@ export function computeEffectiveBaseSalary(input: EffectiveBaseInput): Effective
     proRatedBaseSalary: attendanceComponent + performanceComponent + goalComponent,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Social insurance (BHXH) · health (BHYT) · unemployment (BHTN)
+//
+// Contribution rates (percent of the relevant base):
+//   employee:  social 8   · health 1.5 · unemployment 1
+//   employer:  social 17.5 · health 3   · unemployment 1
+//
+// Two separate bases, each capped:
+//   - social + health base   = min(grossSalary, socialHealthCeiling)
+//     ceiling = baseSalaryReference (lương cơ sở) × insuranceCeilingMultiplier (20)
+//   - unemployment base       = min(grossSalary, unemploymentCeiling)
+//     ceiling = regionalMinWage (lương tối thiểu vùng) × insuranceCeilingMultiplier (20)
+// ---------------------------------------------------------------------------
+
+export interface InsuranceSideRates {
+  /** percent */
+  social: number;
+  /** percent */
+  health: number;
+  /** percent */
+  unemployment: number;
+  /** percent — occupational accident & disease (TNLĐ-BNN), employer only. */
+  occupational?: number;
+}
+
+export interface InsuranceRates {
+  employee: InsuranceSideRates;
+  employer: InsuranceSideRates;
+}
+
+/** Statutory Vietnamese contribution rates (employee 10.5% · employer 21.5%). */
+export const VN_INSURANCE_RATES: InsuranceRates = {
+  employee: { social: 8, health: 1.5, unemployment: 1 },
+  employer: { social: 17, health: 3, unemployment: 1, occupational: 0.5 },
+};
+
+export interface InsuranceInput {
+  grossSalary: number;
+  /** cap for social + health base, e.g. baseSalaryReference × 20 */
+  socialHealthCeiling: number;
+  /** cap for unemployment base, e.g. regionalMinWage × 20 */
+  unemploymentCeiling: number;
+  rates?: InsuranceRates;
+}
+
+export interface InsuranceResult {
+  insuranceBase: number;
+  unemploymentInsuranceBase: number;
+  // employee
+  socialInsurance: number;
+  healthInsurance: number;
+  unemploymentInsurance: number;
+  insurance: number;
+  // employer
+  employerSocialInsurance: number;
+  employerHealthInsurance: number;
+  employerUnemploymentInsurance: number;
+  employerOccupationalInsurance: number;
+}
+
+export function computeInsurance(input: InsuranceInput): InsuranceResult {
+  const rates = input.rates ?? VN_INSURANCE_RATES;
+  const insuranceBase = Math.min(input.grossSalary, input.socialHealthCeiling);
+  const unemploymentInsuranceBase = Math.min(input.grossSalary, input.unemploymentCeiling);
+
+  const socialInsurance = Math.round((insuranceBase * rates.employee.social) / 100);
+  const healthInsurance = Math.round((insuranceBase * rates.employee.health) / 100);
+  const unemploymentInsurance = Math.round(
+    (unemploymentInsuranceBase * rates.employee.unemployment) / 100,
+  );
+
+  return {
+    insuranceBase,
+    unemploymentInsuranceBase,
+    socialInsurance,
+    healthInsurance,
+    unemploymentInsurance,
+    insurance: socialInsurance + healthInsurance + unemploymentInsurance,
+    employerSocialInsurance: Math.round((insuranceBase * rates.employer.social) / 100),
+    employerHealthInsurance: Math.round((insuranceBase * rates.employer.health) / 100),
+    employerUnemploymentInsurance: Math.round(
+      (unemploymentInsuranceBase * rates.employer.unemployment) / 100,
+    ),
+    employerOccupationalInsurance: Math.round(
+      (insuranceBase * (rates.employer.occupational ?? 0)) / 100,
+    ),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Personal income tax (TNCN) — Vietnamese progressive monthly brackets.
+//
+//   bracket | monthly taxable income (after deductions) | rate
+//   --------|--------------------------------------------|-----
+//     1     | 0 – 5,000,000                              |  5%
+//     2     | 5,000,000 – 10,000,000                     | 10%
+//     3     | 10,000,000 – 18,000,000                    | 15%
+//     4     | 18,000,000 – 32,000,000                    | 20%
+//     5     | 32,000,000 – 52,000,000                    | 25%
+//     6     | 52,000,000 – 80,000,000                    | 30%
+//     7     | > 80,000,000                               | 35%
+// ---------------------------------------------------------------------------
+
+export interface TaxBracket {
+  /** upper bound of this bracket (VND); null = no upper bound (top bracket) */
+  upTo: number | null;
+  /** marginal rate, percent */
+  rate: number;
+}
+
+export const VN_PIT_BRACKETS: TaxBracket[] = [
+  { upTo: 5_000_000, rate: 5 },
+  { upTo: 10_000_000, rate: 10 },
+  { upTo: 18_000_000, rate: 15 },
+  { upTo: 32_000_000, rate: 20 },
+  { upTo: 52_000_000, rate: 25 },
+  { upTo: 80_000_000, rate: 30 },
+  { upTo: null, rate: 35 },
+];
+
+/**
+ * Progressive (marginal) tax on income already net of personal & dependent
+ * deductions. Negative/zero income → 0. Brackets must be sorted ascending.
+ */
+export function computeProgressiveTax(
+  taxableIncomeAfterDeduction: number,
+  brackets: TaxBracket[] = VN_PIT_BRACKETS,
+): number {
+  if (taxableIncomeAfterDeduction <= 0) return 0;
+
+  let tax = 0;
+  let lower = 0;
+  for (const bracket of brackets) {
+    const upper = bracket.upTo ?? Infinity;
+    if (taxableIncomeAfterDeduction <= lower) break;
+    const amountInBracket = Math.min(taxableIncomeAfterDeduction, upper) - lower;
+    tax += (amountInBracket * bracket.rate) / 100;
+    lower = upper;
+  }
+  return Math.round(tax);
+}
+
+// ---------------------------------------------------------------------------
+// Overtime pay — Vietnamese statutory multipliers on the hourly rate.
+//
+//   hourlyRate = baseSalary / (standardWorkDays × 8)
+//   weekday  ×1.5 · weekend ×2.0 · holiday ×3.0
+// ---------------------------------------------------------------------------
+
+export type OvertimeDayType = 'weekday' | 'weekend' | 'holiday';
+
+export const VN_OVERTIME_MULTIPLIER: Record<OvertimeDayType, number> = {
+  weekday: 1.5,
+  weekend: 2.0,
+  holiday: 3.0,
+};
+
+export interface OvertimeEntry {
+  hours: number;
+  dayType: OvertimeDayType;
+}
+
+/** Hourly rate from monthly base salary (8h/day × standard work days). */
+export function hourlyRate(baseSalary: number, standardWorkDays: number): number {
+  if (standardWorkDays <= 0) return 0;
+  return baseSalary / (standardWorkDays * 8);
+}
+
+/** Total overtime pay across entries, rounded to integer VND. */
+export function computeOvertimePay(
+  baseSalary: number,
+  standardWorkDays: number,
+  entries: OvertimeEntry[],
+): number {
+  const rate = hourlyRate(baseSalary, standardWorkDays);
+  const total = entries.reduce(
+    (sum, e) => sum + rate * VN_OVERTIME_MULTIPLIER[e.dayType] * e.hours,
+    0,
+  );
+  return Math.round(total);
+}
+
+// ---------------------------------------------------------------------------
+// Full payroll assembly: effective base → gross → insurance → tax → net.
+// All inputs/outputs are plain integer VND; convert at the Decimal128 boundary.
+// ---------------------------------------------------------------------------
+
+export interface ComputePayrollInput {
+  baseSalary: number;
+  // attendance / performance / goal (20/60/20)
+  attendanceRatio: number;
+  performanceRatio: number;
+  goalRatio: number;
+  weights?: SalaryComponentWeights;
+  // additive gross components
+  totalTaxableAllowances?: number;
+  totalNonTaxableAllowances?: number;
+  overtimePay?: number;
+  totalBonuses?: number;
+  // insurance ceilings (already multiplied by the multiplier)
+  socialHealthCeiling: number;
+  unemploymentCeiling: number;
+  insuranceRates?: InsuranceRates;
+  // tax
+  personalDeduction: number;
+  dependentDeduction: number;
+  dependentsCount?: number;
+  taxBrackets?: TaxBracket[];
+  /** Tax resident → progressive + deductions; non-resident → flat rate, no deductions. Default true. */
+  isResident?: boolean;
+  /** Flat PIT rate for non-residents (percent). Default 20. */
+  nonResidentTaxRate?: number;
+}
+
+export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResult {
+  baseSalary: number;
+  totalTaxableAllowances: number;
+  totalNonTaxableAllowances: number;
+  totalAllowances: number;
+  overtimePay: number;
+  totalBonuses: number;
+  grossSalary: number;
+  // tax
+  taxableIncome: number;
+  personalDeduction: number;
+  dependentDeduction: number;
+  dependentsCount: number;
+  taxableIncomeAfterDeduction: number;
+  tax: number;
+  // net
+  totalDeductions: number;
+  netSalary: number;
+}
+
+/**
+ * Pure, end-to-end monthly payroll computation. Mirrors the field layout of
+ * `IPayroll` so the result can be mapped straight onto a payroll record (after
+ * converting money to Decimal128).
+ */
+export function computePayroll(input: ComputePayrollInput): ComputePayrollResult {
+  const effective = computeEffectiveBaseSalary({
+    baseSalary: input.baseSalary,
+    attendanceRatio: input.attendanceRatio,
+    performanceRatio: input.performanceRatio,
+    goalRatio: input.goalRatio,
+    weights: input.weights,
+  });
+
+  const totalTaxableAllowances = input.totalTaxableAllowances ?? 0;
+  const totalNonTaxableAllowances = input.totalNonTaxableAllowances ?? 0;
+  const totalAllowances = totalTaxableAllowances + totalNonTaxableAllowances;
+  const overtimePay = input.overtimePay ?? 0;
+  const totalBonuses = input.totalBonuses ?? 0;
+
+  const grossSalary =
+    effective.proRatedBaseSalary + totalAllowances + overtimePay + totalBonuses;
+
+  const insurance = computeInsurance({
+    grossSalary,
+    socialHealthCeiling: input.socialHealthCeiling,
+    unemploymentCeiling: input.unemploymentCeiling,
+    rates: input.insuranceRates,
+  });
+
+  // Non-taxable allowances are excluded from assessable income.
+  const taxableIncome = grossSalary - insurance.insurance - totalNonTaxableAllowances;
+  const dependentsCount = input.dependentsCount ?? 0;
+
+  // Tax residents get personal + dependent deductions and the progressive
+  // brackets. Non-residents are taxed at a flat rate on assessable income with
+  // NO deductions (Vietnamese PIT rule).
+  const isResident = input.isResident !== false;
+  let personalDeduction: number;
+  let totalDependentDeduction: number;
+  let taxableIncomeAfterDeduction: number;
+  let tax: number;
+  if (isResident) {
+    personalDeduction = input.personalDeduction;
+    totalDependentDeduction = input.dependentDeduction * dependentsCount;
+    taxableIncomeAfterDeduction = Math.max(
+      0,
+      taxableIncome - personalDeduction - totalDependentDeduction,
+    );
+    tax = computeProgressiveTax(taxableIncomeAfterDeduction, input.taxBrackets);
+  } else {
+    personalDeduction = 0;
+    totalDependentDeduction = 0;
+    taxableIncomeAfterDeduction = Math.max(0, taxableIncome);
+    const rate = input.nonResidentTaxRate ?? 20;
+    tax = Math.round((taxableIncomeAfterDeduction * rate) / 100);
+  }
+
+  const totalDeductions = insurance.insurance + tax;
+  const netSalary = grossSalary - insurance.insurance - tax;
+
+  return {
+    ...effective,
+    ...insurance,
+    baseSalary: input.baseSalary,
+    totalTaxableAllowances,
+    totalNonTaxableAllowances,
+    totalAllowances,
+    overtimePay,
+    totalBonuses,
+    grossSalary,
+    taxableIncome,
+    personalDeduction,
+    dependentDeduction: totalDependentDeduction,
+    dependentsCount,
+    taxableIncomeAfterDeduction,
+    tax,
+    totalDeductions,
+    netSalary,
+  };
+}

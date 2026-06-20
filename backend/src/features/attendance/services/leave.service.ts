@@ -1,11 +1,18 @@
-import mongoose, { Types, type PipelineStage } from 'mongoose';
+import mongoose, { Types, type ClientSession, type PipelineStage } from 'mongoose';
 import { logger } from '@core/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { Employee } from '@shared/models/employee.model';
-import { LeaveRequest } from '@shared/models/leave-request.model';
+import { Attendance } from '@shared/models/attendance.model';
+import { Holiday } from '@shared/models/holiday.model';
+import { LeaveRequest, type LeaveType } from '@shared/models/leave-request.model';
 import { LeaveBalance } from '@shared/models/leave-balance.model';
 import { auditService } from '@features/iam/services/audit.service';
-import { vnDateKey } from '@features/attendance/services/attendance-calc';
+import {
+  vnDateKey,
+  enumerateDays,
+  isWeekend,
+  mmddKey,
+} from '@features/attendance/services/attendance-calc';
 import type { SubmitLeaveDto } from '@features/attendance/dto/leave.dto';
 
 const log = logger.child({ feature: 'attendance', module: 'leave' });
@@ -16,10 +23,99 @@ async function employeeOfUser(userId: string) {
   return employee;
 }
 
-function countDays(start: Date, end: Date, half?: string | null): number {
+/**
+ * Load holidays overlapping [start, end] and return a predicate that tells
+ * whether a given date-key is a public holiday. Matches fixed-date holidays
+ * exactly and recurring holidays by MM-DD across the spanned years.
+ */
+async function resolveHolidayChecker(start: Date, end: Date): Promise<(d: Date) => boolean> {
+  const s = vnDateKey(start);
+  const e = vnDateKey(end);
+  const holidays = await Holiday.find({
+    $or: [{ date: { $gte: s, $lte: e } }, { isRecurring: true }],
+  }).lean();
+
+  const fixed = new Set<number>();
+  const recurring = new Set<string>();
+  for (const h of holidays) {
+    const key = vnDateKey(h.date);
+    if (h.isRecurring) recurring.add(mmddKey(key));
+    else fixed.add(key.getTime());
+  }
+  return (d: Date) => fixed.has(d.getTime()) || recurring.has(mmddKey(d));
+}
+
+/** Working days in [start, end], excluding weekends and holidays. Half-day = 0.5. */
+export async function countWorkingDays(
+  start: Date,
+  end: Date,
+  half?: string | null,
+): Promise<number> {
   if (half) return 0.5;
-  const ms = vnDateKey(end).getTime() - vnDateKey(start).getTime();
-  return Math.floor(ms / 86_400_000) + 1;
+  const isHoliday = await resolveHolidayChecker(start, end);
+  let count = 0;
+  for (const day of enumerateDays(start, end)) {
+    if (isWeekend(day) || isHoliday(day)) continue;
+    count += 1;
+  }
+  return count;
+}
+
+/** Throw LV_004 if the leave type has a finite quota and would be exceeded. */
+async function assertBalanceAvailable(
+  employeeId: Types.ObjectId,
+  leaveType: LeaveType,
+  startDate: Date,
+  days: number,
+  session?: ClientSession,
+) {
+  const year = vnDateKey(startDate).getUTCFullYear();
+  const q = LeaveBalance.findOne({ employeeId, leaveType, year });
+  const balance = await (session ? q.session(session) : q).lean();
+  // entitled === 0 means unlimited (e.g. unpaid); no balance row → not yet
+  // configured, treat as unlimited and let HR initialise quotas (G4).
+  if (balance && balance.entitled > 0 && balance.used + days > balance.entitled) {
+    const remaining = balance.entitled - balance.used;
+    throw new HttpError(409, `Vượt quỹ phép còn lại (${remaining} ngày)`, 'LV_004');
+  }
+}
+
+/** Generate the attendance rows for an approved leave (idempotent by leaveRequestId). */
+async function syncLeaveAttendance(
+  req: { _id: Types.ObjectId; employeeId: Types.ObjectId; leaveType: LeaveType; startDate: Date; endDate: Date; halfDaySession?: string | null; createdBy?: Types.ObjectId | null },
+  session: ClientSession,
+) {
+  const status = req.leaveType === 'unpaid' ? 'leave_unpaid' : 'leave_paid';
+  const attSession = req.halfDaySession ?? 'full_day';
+  const isHoliday = await resolveHolidayChecker(req.startDate, req.endDate);
+  const days = req.halfDaySession
+    ? [vnDateKey(req.startDate)]
+    : enumerateDays(req.startDate, req.endDate).filter((d) => !isWeekend(d) && !isHoliday(d));
+
+  for (const day of days) {
+    await Attendance.updateOne(
+      { employeeId: req.employeeId, date: day, leaveRequestId: req._id },
+      {
+        $set: {
+          session: attSession,
+          shiftId: null,
+          status,
+          workHours: 0,
+          lateMinutes: 0,
+          earlyMinutes: 0,
+          source: 'leave',
+          createdBy: req.createdBy ?? null,
+        },
+      },
+      { upsert: true, session },
+    );
+  }
+}
+
+/** Remove attendance rows generated from a leave request (for reject/cancel). */
+async function clearLeaveAttendance(reqId: Types.ObjectId, session?: ClientSession) {
+  const q = Attendance.deleteMany({ leaveRequestId: reqId });
+  await (session ? q.session(session) : q);
 }
 
 function withEmployeePipeline(match: Record<string, unknown>): PipelineStage[] {
@@ -66,7 +162,14 @@ function withEmployeePipeline(match: Record<string, unknown>): PipelineStage[] {
 export const leaveService = {
   async submit(userId: string, dto: SubmitLeaveDto) {
     const employee = await employeeOfUser(userId);
-    const days = countDays(dto.startDate, dto.endDate, dto.halfDaySession);
+    if (vnDateKey(dto.endDate).getTime() < vnDateKey(dto.startDate).getTime()) {
+      throw new HttpError(400, 'Ngày kết thúc phải sau ngày bắt đầu', 'LV_003');
+    }
+    const days = await countWorkingDays(dto.startDate, dto.endDate, dto.halfDaySession);
+    if (days <= 0) {
+      throw new HttpError(400, 'Khoảng nghỉ không có ngày làm việc nào', 'LV_003');
+    }
+    await assertBalanceAvailable(employee._id, dto.leaveType, dto.startDate, days);
     const doc = await LeaveRequest.create({
       employeeId: employee._id,
       leaveType: dto.leaveType,
@@ -121,17 +224,29 @@ export const leaveService = {
           throw new HttpError(409, 'Đơn đã được xử lý', 'LV_002');
         }
 
+        // Re-check quota inside the transaction (balance may have changed).
+        await assertBalanceAvailable(
+          req.employeeId,
+          req.leaveType,
+          req.startDate,
+          req.days,
+          session,
+        );
+
         req.status = 'approved';
         req.approverId = new Types.ObjectId(approverUserId);
         req.approvedAt = new Date();
         await req.save({ session });
 
-        const year = req.startDate.getUTCFullYear();
+        const year = vnDateKey(req.startDate).getUTCFullYear();
         await LeaveBalance.updateOne(
           { employeeId: req.employeeId, leaveType: req.leaveType, year },
           { $inc: { used: req.days }, $setOnInsert: { entitled: 0 } },
           { upsert: true, session },
         );
+
+        // Reflect the approved leave into the attendance grid so payroll sees it.
+        await syncLeaveAttendance(req, session);
 
         await auditService.record({
           userId: approverUserId,
@@ -159,6 +274,8 @@ export const leaveService = {
     req.approverId = new Types.ObjectId(approverUserId);
     req.approvedAt = new Date();
     await req.save();
+    // Defensive: a pending request has no attendance yet, but stay consistent.
+    await clearLeaveAttendance(req._id);
     await auditService.record({
       userId: approverUserId,
       resource: 'leaveRequest',

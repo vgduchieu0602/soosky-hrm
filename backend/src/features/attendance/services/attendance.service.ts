@@ -78,6 +78,49 @@ export const attendanceService = {
     return { employeeId: employee._id.toString(), month, records };
   },
 
+  /** Employee self check-in / check-out for today against the default shift. */
+  async punch(userId: string, kind: 'in' | 'out') {
+    const employee = await Employee.findOne({ userId });
+    if (!employee) throw new HttpError(404, 'Không tìm thấy hồ sơ nhân viên', 'EMP_001');
+
+    const shift = (await Shift.findOne({ status: 'active', type: 'full_day' }).lean())
+      ?? (await Shift.findOne({ status: 'active' }).lean());
+    if (!shift) throw new HttpError(400, 'Chưa cấu hình ca làm', 'ATT_005');
+
+    const policy = await loadPolicy();
+    const now = new Date();
+    const dateKey = vnDateKey(now, policy.timezone);
+    const window: ShiftWindow = { startTime: shift.startTime, endTime: shift.endTime, breakMinutes: shift.breakMinutes };
+
+    const existing = await Attendance.findOne({ employeeId: employee._id, date: dateKey, shiftId: shift._id });
+    if (kind === 'out' && !existing?.checkIn) {
+      throw new HttpError(409, 'Chưa check-in hôm nay', 'ATT_006');
+    }
+
+    const checkIn = kind === 'in' ? now : (existing?.checkIn ?? null);
+    const checkOut = kind === 'out' ? now : (existing?.checkOut ?? null);
+    const fields = computeFields(window, policy, { checkIn, checkOut });
+
+    const doc = await Attendance.findOneAndUpdate(
+      { employeeId: employee._id, date: dateKey, shiftId: shift._id },
+      {
+        $set: {
+          checkIn: fields.checkIn,
+          checkOut: fields.checkOut,
+          status: fields.status,
+          workHours: fields.workHours,
+          lateMinutes: fields.lateMinutes,
+          earlyMinutes: fields.earlyMinutes,
+          source: 'self',
+        },
+        $setOnInsert: { session: 'full_day', createdBy: new Types.ObjectId(userId) },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    log.info({ action: `punch-${kind}`, employeeId: employee._id.toString(), status: fields.status });
+    return doc!.toJSON();
+  },
+
   /** Admin/HR grid: roster + active shifts (ca) + their records for the month. */
   async adminGrid(query: { month: string; departmentId?: string; q?: string }) {
     const [roster, shifts] = await Promise.all([

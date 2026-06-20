@@ -63,9 +63,18 @@ export const employeeAccountService = {
     }
     const employee = await Employee.findById(employeeId);
     if (!employee) throw new HttpError(404, 'Employee not found', 'EMP_001');
-    if (!employee.userId) return { hasAccount: false as const };
 
-    const user = await User.findById(employee.userId);
+    // Primary link: employee.userId. Fall back to the reverse reference
+    // (user.employeeId) so a one-sided link still resolves — and self-heal
+    // the missing employee.userId when we find the orphaned user.
+    let user = employee.userId ? await User.findById(employee.userId) : null;
+    if (!user) {
+      user = await User.findOne({ employeeId: employee._id });
+      if (user && String(employee.userId) !== String(user._id)) {
+        await Employee.updateOne({ _id: employee._id }, { userId: user._id });
+        log.info({ employeeId, userId: user._id.toString() }, 'healed employee.userId from reverse link');
+      }
+    }
     if (!user) return { hasAccount: false as const };
 
     return {

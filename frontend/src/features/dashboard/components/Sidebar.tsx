@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, Building2, Clock, CalendarDays, Wallet, Trophy,
-  Settings, ChevronDown, LogOut,
+  ReceiptText, ClipboardList, Settings, ChevronDown, LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -34,6 +34,8 @@ const ICONS: Record<string, LucideIcon> = {
   CalendarDays,
   Wallet,
   Trophy,
+  ReceiptText,
+  ClipboardList,
 };
 
 interface SidebarProps {
@@ -91,7 +93,12 @@ export default function Sidebar({ active }: SidebarProps) {
         <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
           Quản lý
         </p>
-        {NAV_ITEMS.map((n) => {
+        {NAV_ITEMS.filter((n) => {
+          // "Phiếu lương của tôi" là self-service: ẩn với admin (tài khoản hệ
+          // thống không gắn hồ sơ nhân viên nên không có phiếu lương cá nhân).
+          if ((n.id === "mypayslips" || n.id === "myeval") && user?.roles?.includes("admin")) return false;
+          return true;
+        }).map((n) => {
           const Icon = ICONS[n.icon];
           const isActive = active ? n.id === active : pathname.startsWith(n.to);
           return (

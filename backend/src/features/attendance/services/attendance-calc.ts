@@ -77,6 +77,30 @@ export function vnMonthRange(month: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+/** Enumerate inclusive UTC date-keys (00:00 UTC) from start..end. */
+export function enumerateDays(start: Date, end: Date): Date[] {
+  const out: Date[] = [];
+  const s = vnDateKey(start);
+  const e = vnDateKey(end);
+  for (let t = s.getTime(); t <= e.getTime(); t += 86_400_000) {
+    out.push(new Date(t));
+  }
+  return out;
+}
+
+/** Saturday or Sunday in UTC terms (date-keys are stored at 00:00 UTC). */
+export function isWeekend(dateKey: Date): boolean {
+  const dow = dateKey.getUTCDay(); // 0 = Sun, 6 = Sat
+  return dow === 0 || dow === 6;
+}
+
+/** "MM-DD" of a UTC date-key — used to match recurring holidays. */
+export function mmddKey(dateKey: Date): string {
+  const mm = String(dateKey.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dateKey.getUTCDate()).padStart(2, '0');
+  return `${mm}-${dd}`;
+}
+
 function parseHHmm(v: string): number {
   const [h, m] = v.split(':').map(Number);
   return (h ?? 0) * 60 + (m ?? 0);

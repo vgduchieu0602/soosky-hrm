@@ -10,6 +10,8 @@ import { employeeRouter } from '@features/employee';
 import { organizationRouter } from '@features/organization';
 import { settingsRouter } from '@features/settings';
 import { attendanceRouter } from '@features/attendance';
+import { payrollRouter } from '@features/payroll';
+import { performanceRouter } from '@features/performance';
 import { storageRouter } from '@features/storage';
 
 export function createApp() {
@@ -31,6 +33,8 @@ export function createApp() {
   app.use('/api/v1', employeeRouter);
   app.use('/api/v1', settingsRouter);
   app.use('/api/v1', attendanceRouter);
+  app.use('/api/v1', payrollRouter);
+  app.use('/api/v1', performanceRouter);
   app.use('/api/v1', storageRouter);
 
   //Register Error Handler

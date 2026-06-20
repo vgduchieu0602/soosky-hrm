@@ -2,10 +2,7 @@ export interface CompanyConfig {
   companyName: string;
   logoUrl?: string;
   timezone: string;
-  locale: string;
-  currency: string;
   standardWorkDays: number;
-  payCycleStartDay: number;
   graceLateMinutes: number;
   graceEarlyMinutes: number;
   contactEmail?: string;
@@ -36,6 +33,7 @@ export interface PerformanceCriterion {
   key: string;
   label: string;
   description?: string;
+  type: "performance" | "goal";
   weight: number;
   order: number;
   status: "active" | "archived";

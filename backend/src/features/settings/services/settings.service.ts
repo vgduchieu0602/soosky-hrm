@@ -80,6 +80,9 @@ export const salaryPolicyService = {
       ...(input.salaryComponentWeights && {
         salaryComponentWeights: input.salaryComponentWeights,
       }),
+      ...(input.regionalMinWage && { regionalMinWage: input.regionalMinWage }),
+      ...(input.taxBrackets && { taxBrackets: input.taxBrackets }),
+      ...(input.insuranceRates && { insuranceRates: input.insuranceRates }),
       createdBy: new Types.ObjectId(auditUserId),
     });
     await auditService.record({
@@ -103,6 +106,9 @@ export const salaryPolicyService = {
       patch.dependentDeduction = dec(input.dependentDeduction);
     if (input.nonResidentTaxRate !== undefined) patch.nonResidentTaxRate = input.nonResidentTaxRate;
     if (input.salaryComponentWeights) patch.salaryComponentWeights = input.salaryComponentWeights;
+    if (input.regionalMinWage) patch.regionalMinWage = input.regionalMinWage;
+    if (input.taxBrackets) patch.taxBrackets = input.taxBrackets;
+    if (input.insuranceRates) patch.insuranceRates = input.insuranceRates;
 
     const updated = await SalaryPolicyConfig.findByIdAndUpdate(id, patch, { new: true });
     if (!updated) throw new HttpError(404, 'Policy not found', 'SET_002');
@@ -118,6 +124,16 @@ export const salaryPolicyService = {
 };
 
 // ============================ Performance criteria ============================
+/** Sum of active criteria weights in a type-group, optionally excluding one id. */
+async function activeWeightSum(type: 'performance' | 'goal', excludeId?: string): Promise<number> {
+  const filter: Record<string, unknown> = { status: 'active', type };
+  if (excludeId) filter._id = { $ne: excludeId };
+  const rows = await PerformanceCriterion.find(filter).select('weight').lean();
+  return rows.reduce((s, r) => s + (r.weight ?? 0), 0);
+}
+
+const GROUP_LABEL: Record<string, string> = { performance: 'Hiệu suất', goal: 'Mục tiêu' };
+
 export const performanceCriterionService = {
   async list(includeArchived = false) {
     const filter = includeArchived ? {} : { status: 'active' as const };
@@ -125,13 +141,18 @@ export const performanceCriterionService = {
   },
 
   async create(input: CreateCriterionDto, auditUserId: string) {
-    const dup = await PerformanceCriterion.findOne({ key: input.key.trim() });
-    if (dup) throw new HttpError(409, 'Criterion key already exists', 'SET_003');
+    const type = input.type ?? 'performance';
+    // Admin only names the criterion — key is auto-generated, weights are equal
+    // (ratio = simple average), so no weight input is required.
+    const baseKey = (input.key?.trim() || input.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')) || 'criterion';
+    let key = baseKey;
+    for (let i = 2; await PerformanceCriterion.exists({ key }); i += 1) key = `${baseKey}_${i}`;
     const doc = await PerformanceCriterion.create({
-      key: input.key.trim(),
+      key,
       label: input.label,
       description: input.description,
-      weight: input.weight,
+      type,
+      weight: input.weight ?? 0,
       order: input.order ?? 0,
       status: 'active',
     });
@@ -146,6 +167,15 @@ export const performanceCriterionService = {
 
   async update(id: string, input: UpdateCriterionDto, auditUserId: string) {
     if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Criterion not found', 'SET_004');
+    const existing = await PerformanceCriterion.findById(id).lean();
+    if (!existing) throw new HttpError(404, 'Criterion not found', 'SET_004');
+    // Re-check the group total when weight changes (only for active criteria).
+    if (input.weight != null && (input.status ?? existing.status) === 'active') {
+      const others = await activeWeightSum(existing.type, id);
+      if (others + input.weight > 100) {
+        throw new HttpError(422, `Tổng trọng số nhóm ${GROUP_LABEL[existing.type]} sẽ vượt 100% (khác ${others}%, đặt ${input.weight}%)`, 'SET_WEIGHT');
+      }
+    }
     const updated = await PerformanceCriterion.findByIdAndUpdate(id, input, { new: true });
     if (!updated) throw new HttpError(404, 'Criterion not found', 'SET_004');
     await auditService.record({

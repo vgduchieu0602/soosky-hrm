@@ -43,6 +43,8 @@ router.patch('/admin/attendance-symbols/:id', authenticate, hrOrAdmin, validate(
 // ---- Attendance records ----
 // Self (employee): only own records, derived from the token.
 router.get('/attendances/me', authenticate, attendanceController.myMonth);
+router.post('/attendances/check-in', authenticate, attendanceController.checkIn);
+router.post('/attendances/check-out', authenticate, attendanceController.checkOut);
 // Admin/HR: full grid + chấm/sửa.
 router.get('/admin/attendances', authenticate, hrOrAdmin, attendanceController.adminGrid);
 router.post('/admin/attendances', authenticate, hrOrAdmin, validate(upsertAttendanceDto, 'body'), attendanceController.upsert);

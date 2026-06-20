@@ -18,7 +18,8 @@ export interface AppEventMap {
   };
   'employee.created': { employeeId: string; createdBy: string };
   'employee.terminated': { employeeId: string; terminatedBy: string };
-  // Reserved for future features (payroll, ...) — extend later.
+  'payroll.approved': { periodId: string; count: number; approvedBy: string };
+  'payroll.paid': { periodId: string; count: number; paidBy: string };
 }
 
 class TypedEventBus {

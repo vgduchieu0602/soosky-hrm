@@ -6,10 +6,7 @@ export const updateCompanyConfigDto = z
     companyName: z.string().min(1).max(160).trim().optional(),
     logoUrl: z.string().url().optional(),
     timezone: z.string().min(1).max(64).optional(),
-    locale: z.string().min(2).max(10).optional(),
-    currency: z.string().min(3).max(3).optional(),
     standardWorkDays: z.coerce.number().int().min(1).max(31).optional(),
-    payCycleStartDay: z.coerce.number().int().min(1).max(28).optional(),
     graceLateMinutes: z.coerce.number().int().min(0).max(120).optional(),
     graceEarlyMinutes: z.coerce.number().int().min(0).max(120).optional(),
     contactEmail: z.string().email().optional(),
@@ -40,6 +37,9 @@ export const createSalaryPolicyDto = z
     dependentDeduction: z.coerce.number().nonnegative().optional(),
     nonResidentTaxRate: z.coerce.number().min(0).max(100).optional(),
     salaryComponentWeights: componentWeights.optional(),
+    regionalMinWage: z.record(z.string(), z.coerce.number().nonnegative()).optional(),
+    taxBrackets: z.array(z.object({ upTo: z.number().nullable(), rate: z.number() })).optional(),
+    insuranceRates: z.record(z.string(), z.record(z.string(), z.coerce.number())).optional(),
   })
   .strict();
 export type CreateSalaryPolicyDto = z.infer<typeof createSalaryPolicyDto>;
@@ -53,6 +53,9 @@ export const updateSalaryPolicyDto = z
     dependentDeduction: z.coerce.number().nonnegative().optional(),
     nonResidentTaxRate: z.coerce.number().min(0).max(100).optional(),
     salaryComponentWeights: componentWeights.optional(),
+    regionalMinWage: z.record(z.string(), z.coerce.number().nonnegative()).optional(),
+    taxBrackets: z.array(z.object({ upTo: z.number().nullable(), rate: z.number() })).optional(),
+    insuranceRates: z.record(z.string(), z.record(z.string(), z.coerce.number())).optional(),
   })
   .strict();
 export type UpdateSalaryPolicyDto = z.infer<typeof updateSalaryPolicyDto>;
@@ -60,10 +63,11 @@ export type UpdateSalaryPolicyDto = z.infer<typeof updateSalaryPolicyDto>;
 // ---------- Performance criterion ----------
 export const createCriterionDto = z
   .object({
-    key: z.string().min(1).max(60).trim(),
+    key: z.string().min(1).max(60).trim().optional(),
     label: z.string().min(1).max(200).trim(),
     description: z.string().max(500).optional(),
-    weight: z.coerce.number().min(0).max(100),
+    type: z.enum(['performance', 'goal']).optional(),
+    weight: z.coerce.number().min(0).max(100).optional(),
     order: z.coerce.number().int().min(0).optional(),
   })
   .strict();

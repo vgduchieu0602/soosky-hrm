@@ -274,33 +274,73 @@
 
 ### 6.5 Payroll
 
-| Method | Path                                     | Description                                   | Auth          |
-| ------ | ---------------------------------------- | --------------------------------------------- | ------------- |
-| GET    | `/payroll-periods`                       | List periods                                  | HR / Admin    |
-| GET    | `/payroll-periods/:id`                   | Period detail + summary                       | HR / Admin    |
-| POST   | `/admin/payroll-periods`                 | Create new period                             | HR / Admin    |
-| POST   | `/admin/payroll-periods/:id/compute`     | **Compute payrolls for all active employees** | HR / Admin    |
-| PATCH  | `/admin/payroll-periods/:id/close`       | Close period (lock further edits)             | HR / Admin    |
-| PATCH  | `/admin/payroll-periods/:id/pay`         | Mark all approved payrolls as paid            | HR / Admin    |
-| GET    | `/payrolls/me`                           | Own payroll history                           | Yes           |
-| GET    | `/payrolls/:id`                          | Payroll detail                                | Yes (self/HR) |
-| GET    | `/admin/payrolls`                        | List all payrolls (filter by period/dept)     | HR / Admin    |
-| PATCH  | `/admin/payrolls/:id/approve`            | Approve a payroll                             | HR / Admin    |
-| PATCH  | `/admin/payrolls/:id/mark-paid`          | Mark as paid                                  | HR / Admin    |
-| GET    | `/employees/:id/salary-structures`       | Versioned salary history                      | HR            |
-| POST   | `/admin/employees/:id/salary-structures` | New salary (closes previous)                  | HR / Admin    |
-| GET    | `/employees/:id/allowances`              | Active allowances                             | Yes (self/HR) |
-| POST   | `/admin/employees/:id/allowances`        | Add allowance                                 | HR / Admin    |
-| POST   | `/admin/employees/:id/deductions`        | Add deduction                                 | HR / Admin    |
-| POST   | `/admin/employees/:id/bonuses`           | Add bonus for a period                        | HR / Admin    |
-| GET    | `/admin/tax-configs`                     | List tax configs                              | HR / Admin    |
-| POST   | `/admin/tax-configs`                     | Create tax config (country + year)            | HR / Admin    |
-| GET    | `/admin/insurance-configs`               | List insurance configs                        | HR / Admin    |
-| POST   | `/admin/insurance-configs`               | Create insurance config                       | HR / Admin    |
-| GET    | `/payslips/me`                           | Own payslips                                  | Yes           |
-| GET    | `/payslips/:id`                          | Payslip detail + file URL                     | Yes (self/HR) |
+> **Đã triển khai** (prefix `/api/v1`). Tất cả endpoint dưới yêu cầu role `admin`/`hr_manager`, trừ `mark-paid` chỉ `admin`. Tiền trả về dạng chuỗi Decimal128.
+
+**Kỳ lương & chạy tính (Period & Run)**
+
+| Method | Path                                        | Description                                       | Auth       |
+| ------ | ------------------------------------------- | ------------------------------------------------- | ---------- |
+| GET    | `/payroll/periods`                          | List periods                                      | HR / Admin |
+| GET    | `/payroll/periods/:id`                      | Period detail                                     | HR / Admin |
+| POST   | `/payroll/periods`                          | Create period (auto `standardWorkDays`)           | HR / Admin |
+| PATCH  | `/payroll/periods/:id`                      | Update period (chặn nếu đã khóa)                  | HR / Admin |
+| POST   | `/payroll/periods/:id/close`                | Khóa kỳ (lock run/edit)                           | HR / Admin |
+| POST   | `/payroll/periods/:id/run`                  | **Chạy lương toàn kỳ** (body `requireApprovedEvaluation?`) | HR / Admin |
+| POST   | `/payroll/periods/:id/run/:employeeId`      | Chạy lương 1 nhân viên                            | HR / Admin |
+
+**Bảng lương đã tính (Payrolls)**
+
+| Method | Path                                   | Description                                   | Auth       |
+| ------ | -------------------------------------- | --------------------------------------------- | ---------- |
+| GET    | `/payroll/payrolls`                    | List (filter `payrollPeriodId`/`employeeId`/`status`, phân trang) | HR / Admin |
+| GET    | `/payroll/payrolls/:id`                | Payroll detail                                | HR / Admin |
+| GET    | `/payroll/periods/:periodId/totals`    | Tổng quỹ gross/net theo status (cho BOD)      | HR / Admin |
+
+**Workflow duyệt → thanh toán**
+
+| Method | Path                                   | Description                                   | Auth       |
+| ------ | -------------------------------------- | --------------------------------------------- | ---------- |
+| POST   | `/payroll/periods/:id/approve`         | Duyệt (body `employeeId?` để duyệt 1 NV)      | HR / Admin |
+| POST   | `/payroll/payrolls/:id/revert`         | Mở lại bản đã duyệt về `draft`                | HR / Admin |
+| POST   | `/payroll/periods/:id/mark-paid`       | Đánh dấu thanh toán & khóa kỳ                 | **Admin**  |
+
+**Nhập liệu cấu phần lương (per employee)**
+
+| Method | Path                                            | Description                  | Auth       |
+| ------ | ----------------------------------------------- | ---------------------------- | ---------- |
+| GET    | `/payroll/employees/:employeeId/allowances`     | Phụ cấp của NV               | HR / Admin |
+| POST   | `/payroll/allowances`                           | Thêm phụ cấp                 | HR / Admin |
+| PATCH  | `/payroll/allowances/:id`                       | Sửa phụ cấp                  | HR / Admin |
+| DELETE | `/payroll/allowances/:id`                       | Xóa phụ cấp                  | HR / Admin |
+| GET    | `/payroll/employees/:employeeId/bonuses`        | Thưởng của NV                | HR / Admin |
+| POST   | `/payroll/bonuses`                              | Thêm thưởng (theo kỳ)        | HR / Admin |
+| PATCH  | `/payroll/bonuses/:id`                          | Sửa thưởng                   | HR / Admin |
+| DELETE | `/payroll/bonuses/:id`                          | Xóa thưởng                   | HR / Admin |
+| GET    | `/payroll/employees/:employeeId/deductions`     | Khấu trừ của NV              | HR / Admin |
+| POST   | `/payroll/deductions`                           | Thêm khấu trừ                | HR / Admin |
+| PATCH  | `/payroll/deductions/:id`                       | Sửa khấu trừ                 | HR / Admin |
+| DELETE | `/payroll/deductions/:id`                       | Xóa khấu trừ                 | HR / Admin |
+| GET    | `/payroll/employees/:employeeId/tax-profiles`   | Lịch sử hồ sơ thuế NV        | HR / Admin |
+| POST   | `/payroll/tax-profiles`                         | Thêm hồ sơ thuế (versioned)  | HR / Admin |
+
+> **Chưa triển khai (pha sau):** salary-structures, payslips (`/payslips/me`, `/payslips/:id`), export ngân hàng. Salary policy config quản lý ở `settings` (`GET /settings/salary-policies`, `POST/PATCH /admin/settings/salary-policies`).
 
 ### 6.6 Performance
+
+> **Đã triển khai — Monthly Evaluation (HR/QL chấm trực tiếp, NV xem).** Prefix `/api/v1`. Không cần "khởi tạo": HR mở list NV → chấm → `finalize=false` (nháp) hoặc `true` (duyệt). `performanceRatio` = TB chỉ số `type=performance`; `goalRatio` = TB chỉ số `type=goal` (đều `Σ(score×weight)/Σweight`). Payroll chỉ chạy khi evaluation `approved`/`acknowledged`.
+
+| Method | Path                                          | Description                                  | Auth        |
+| ------ | --------------------------------------------- | -------------------------------------------- | ----------- |
+| GET    | `/performance/evaluations?payrollPeriodId=`   | List đánh giá theo kỳ                        | HR / Admin  |
+| GET    | `/performance/evaluations/me`                 | Đánh giá của chính tôi (xem)                 | Yes         |
+| GET    | `/performance/evaluations/:id`                | Chi tiết                                     | Yes         |
+| POST   | `/performance/evaluations`                    | **Chấm trực tiếp** (upsert): `{employeeId, payrollPeriodId, criteriaScores[], strengths?, finalize?}` → `draft`/`approved` | HR / Admin |
+| POST   | `/performance/evaluations/:id/acknowledge`    | NV xác nhận (kèm `disputeNote?`) → `acknowledged` | Yes (NV) |
+| POST   | `/performance/evaluations/:id/reopen`         | Mở lại `approved` → `draft`                  | HR / Admin  |
+
+Chỉ số (performance 60% + goal 20%) quản lý ở `settings`: `GET /settings/performance-criteria`, `POST/PATCH/DELETE /admin/settings/performance-criteria` (kèm `type`).
+
+> **Chưa triển khai (pha sau)** — appraisal cycle tách rời, goals, KPIs, multi-source feedback:
 
 | Method | Path                                   | Description                        | Auth                  |
 | ------ | -------------------------------------- | ---------------------------------- | --------------------- |

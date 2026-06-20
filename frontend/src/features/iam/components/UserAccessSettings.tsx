@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/shared/utils/cn";
 import { iamService } from "@features/iam/services/iam.service";
+import { Pagination } from "@features/settings/components/Pagination";
 import type { AdminUser, Permission, Role } from "@features/iam/types/iam.types";
 
 const STATUS_LABEL: Record<string, { label: string; variant: string }> = {
@@ -23,6 +24,8 @@ export function UsersSettings({ canManage }: Props) {
   const [error, setError] = useState(false);
   const [rk, setRk] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,6 +34,10 @@ export function UsersSettings({ canManage }: Props) {
       .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
     return () => { cancelled = true; };
   }, [rk]);
+
+  const totalPages = Math.max(1, Math.ceil(users.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedUsers = users.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   function toggle(u: AdminUser) {
     setBusy(u._id);
@@ -53,7 +60,7 @@ export function UsersSettings({ canManage }: Props) {
         <p className="py-6 text-center text-[13px] text-muted-foreground">Chưa có tài khoản nào.</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {users.map((u) => {
+          {pagedUsers.map((u) => {
             const st = STATUS_LABEL[u.status] ?? STATUS_LABEL.disabled;
             return (
               <div key={u._id} className="flex items-center gap-3 rounded-xl border p-3">
@@ -76,6 +83,7 @@ export function UsersSettings({ canManage }: Props) {
               </div>
             );
           })}
+          <Pagination page={safePage} pageSize={pageSize} total={users.length} unit="tài khoản" onPageChange={setPage} onPageSizeChange={setPageSize} />
         </div>
       )}
     </Card>
@@ -89,6 +97,8 @@ export function RolesSettings() {
   const [loading, setLoading] = useState(true);
   const [rk, setRk] = useState(0);
   const [editing, setEditing] = useState<Role | "new" | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +106,10 @@ export function RolesSettings() {
       .then(([r, p]) => { if (!cancelled) { setRoles(r); setPerms(p); setLoading(false); } });
     return () => { cancelled = true; };
   }, [rk]);
+
+  const totalPages = Math.max(1, Math.ceil(roles.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedRoles = roles.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   if (loading) return <div className="h-40 animate-pulse rounded-xl bg-muted/50" />;
 
@@ -109,7 +123,7 @@ export function RolesSettings() {
         <Button size="sm" className="h-9 gap-1.5 rounded-lg" onClick={() => setEditing("new")}><Plus className="size-3.5" /> Tạo vai trò</Button>
       </div>
       <div className="flex flex-col gap-2">
-        {roles.map((r) => (
+        {pagedRoles.map((r) => (
           <div key={r._id} className="flex items-center gap-3 rounded-xl border p-3">
             <span className="flex size-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600"><Shield className="size-4" /></span>
             <div className="flex-1">
@@ -129,6 +143,7 @@ export function RolesSettings() {
             )}
           </div>
         ))}
+        <Pagination page={safePage} pageSize={pageSize} total={roles.length} unit="vai trò" onPageChange={setPage} onPageSizeChange={setPageSize} />
       </div>
 
       {editing && (

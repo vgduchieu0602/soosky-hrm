@@ -29,6 +29,14 @@ export const attendanceService = {
     const { data } = await api.get<Env<MyMonth>>("/attendances/me", { params: { month } });
     return data.data;
   },
+  async checkIn(): Promise<AttendanceRecord> {
+    const { data } = await api.post<Env<AttendanceRecord>>("/attendances/check-in");
+    return data.data;
+  },
+  async checkOut(): Promise<AttendanceRecord> {
+    const { data } = await api.post<Env<AttendanceRecord>>("/attendances/check-out");
+    return data.data;
+  },
   async upsert(input: UpsertAttendanceInput): Promise<AttendanceRecord> {
     const { data } = await api.post<Env<AttendanceRecord>>("/admin/attendances", input);
     return data.data;

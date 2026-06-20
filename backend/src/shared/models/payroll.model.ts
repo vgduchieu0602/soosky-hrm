@@ -56,6 +56,7 @@ export interface IPayroll {
   employerSocialInsurance: Dec;
   employerHealthInsurance: Dec;
   employerUnemploymentInsurance: Dec;
+  employerOccupationalInsurance: Dec;
 
   // Tax
   taxableIncome: Dec;
@@ -130,6 +131,7 @@ const payrollSchema = new Schema<IPayroll>(
     employerSocialInsurance: dec,
     employerHealthInsurance: dec,
     employerUnemploymentInsurance: dec,
+    employerOccupationalInsurance: dec,
 
     taxableIncome: dec,
     personalDeduction: dec,

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { connectDB, disconnectDB } from '@core/database/mongoose';
 import { hashPassword } from '@shared/utils/hash.util';
 import { Permission } from '@shared/models/permission.model';
@@ -7,6 +7,76 @@ import { Role } from '@shared/models/role.model';
 import { RolePermission } from '@shared/models/role-permission.model';
 import { User } from '@shared/models/user.model';
 import { UserRole } from '@shared/models/user-role.model';
+import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
+import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
+import { CompanyConfig } from '@shared/models/company-config.model';
+
+const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(n));
+
+/** Vietnamese statutory payroll policy (2024–2026 figures). */
+async function seedSalaryPolicy() {
+  await SalaryPolicyConfig.findOneAndUpdate(
+    { country: 'VN', year: 2026, effectiveFrom: new Date('2026-01-01') },
+    {
+      $set: {
+        baseSalary: dec(2_340_000), // lương cơ sở (trần BHXH/BHYT = ×20)
+        regionalMinWage: { zone1: 4_960_000, zone2: 4_410_000, zone3: 3_860_000, zone4: 3_450_000 },
+        insuranceCeilingMultiplier: 20,
+        personalDeduction: dec(11_000_000),
+        dependentDeduction: dec(4_400_000),
+        nonResidentTaxRate: 20,
+        taxBrackets: [
+          { upTo: 5_000_000, rate: 5 },
+          { upTo: 10_000_000, rate: 10 },
+          { upTo: 18_000_000, rate: 15 },
+          { upTo: 32_000_000, rate: 20 },
+          { upTo: 52_000_000, rate: 25 },
+          { upTo: 80_000_000, rate: 30 },
+          { upTo: null, rate: 35 },
+        ],
+        insuranceRates: {
+          employee: { social: 8, health: 1.5, unemployment: 1 },
+          employer: { social: 17, health: 3, unemployment: 1, occupational: 0.5 },
+        },
+        salaryComponentWeights: { attendance: 20, performance: 60, goal: 20 },
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+  console.log('  SalaryPolicyConfig: VN 2026 ensured');
+}
+
+/** Default 4 performance criteria (weights sum to 100). */
+async function seedPerformanceCriteria() {
+  const criteria = [
+    // Performance sub-indicators (→ 60%)
+    { key: 'quality', label: 'Chất lượng công việc', type: 'performance', weight: 25, order: 1 },
+    { key: 'productivity', label: 'Năng suất & khối lượng', type: 'performance', weight: 25, order: 2 },
+    { key: 'teamwork', label: 'Phối hợp & tinh thần đồng đội', type: 'performance', weight: 25, order: 3 },
+    { key: 'discipline', label: 'Kỷ luật & tuân thủ', type: 'performance', weight: 25, order: 4 },
+    // Goal sub-indicators (→ 20%)
+    { key: 'goal_individual', label: 'Mục tiêu cá nhân', type: 'goal', weight: 50, order: 1 },
+    { key: 'goal_team', label: 'Mục tiêu nhóm/phòng ban', type: 'goal', weight: 50, order: 2 },
+  ];
+  for (const c of criteria) {
+    await PerformanceCriterion.findOneAndUpdate(
+      { key: c.key },
+      { $set: { label: c.label, type: c.type, weight: c.weight, order: c.order, status: 'active' } },
+      { upsert: true },
+    );
+  }
+  console.log(`  PerformanceCriteria: ${criteria.length} ensured (perf + goal)`);
+}
+
+/** Singleton company config (work days, grace, policy toggles). */
+async function seedCompanyConfig() {
+  await CompanyConfig.findOneAndUpdate(
+    { key: 'global' },
+    { $setOnInsert: { key: 'global', standardWorkDays: 22, overtimeEnabled: false, lateAffectsPay: false } },
+    { upsert: true, setDefaultsOnInsert: true },
+  );
+  console.log('  CompanyConfig: global ensured');
+}
 
 type PermissionSeed = {
   key: string;
@@ -186,6 +256,9 @@ async function main() {
     const roleIds = await seedRoles();
     await seedRolePermissions(roleIds, permIds);
     await seedUsers(roleIds);
+    await seedCompanyConfig();
+    await seedSalaryPolicy();
+    await seedPerformanceCriteria();
     console.log('\nSeed complete. Demo credentials:');
     for (const u of USERS) {
       console.log(`  ${u.email}  /  ${u.password}  (${u.roleName})`);

@@ -29,7 +29,8 @@ export interface IAttendance {
   workHours?: number | null;
   lateMinutes: number;
   earlyMinutes: number;
-  source: string; // 'manual' for HR-entered records
+  leaveRequestId?: Types.ObjectId | null; // set on records generated from an approved leave
+  source: string; // 'manual' for HR-entered records, 'leave' for leave-generated
   note?: string | null;
   createdBy?: Types.ObjectId | null;
   adjustedBy?: Types.ObjectId | null;
@@ -52,6 +53,7 @@ const attendanceSchema = new Schema<IAttendance>(
     workHours: { type: Number, default: null },
     lateMinutes: { type: Number, default: 0 },
     earlyMinutes: { type: Number, default: 0 },
+    leaveRequestId: { type: Schema.Types.ObjectId, ref: 'leaveRequests', default: null, index: true },
     source: { type: String, default: 'manual' },
     note: { type: String, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },

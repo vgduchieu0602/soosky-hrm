@@ -43,6 +43,20 @@ export const attendanceController = {
       next(e);
     }
   },
+  async checkIn(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.status(201).json({ data: await attendanceService.punch(userId(req), 'in') });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async checkOut(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await attendanceService.punch(userId(req), 'out') });
+    } catch (e) {
+      next(e);
+    }
+  },
   async upsert(req: Request, res: Response, next: NextFunction) {
     try {
       res.status(201).json({ data: await attendanceService.upsert(req.body, userId(req)) });

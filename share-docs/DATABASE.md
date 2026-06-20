@@ -340,8 +340,25 @@
 - `startDate`: Date
 - `endDate`: Date
 - `payDate`: Date — scheduled pay date
-- `standardWorkDays`: Number - default: 22
+- `standardWorkDays`: Number - default: 22 (snapshot từ `companyConfig` khi tạo kỳ)
 - `status`: String — `open` | `processing` | `closed` | `paid`
+- `closedAt`: Date — thời điểm khóa kỳ (chặn run/sửa)
+- `closedBy`: ObjectId ref `users`
+- `createdBy`: ObjectId ref `users`
+
+> **Trạng thái vòng đời:** `open` → (duyệt cả kỳ) `processing` → (khóa) `closed`; `paid` khi đã đánh dấu thanh toán. Kỳ `closed`/`paid` không cho chạy lại hay sửa.
+
+**EmployeeTaxProfile** — Hồ sơ thuế NV (đầu vào thuế TNCN), versioned theo `effectiveDate`
+
+- `employeeId`: ObjectId ref `employees`, indexed
+- `taxCode`: String — mã số thuế, sparse unique, nullable
+- `isResident`: Boolean — cư trú (thuế lũy tiến) vs không cư trú (thuế suất phẳng)
+- `dependentsCount`: Number — số người phụ thuộc (giảm trừ gia cảnh)
+- `effectiveDate`: Date
+- `endDate`: Date — null = hiện hành
+- `note`: String
+- `createdBy`: ObjectId ref `users`
+- **Index:** `{ employeeId: 1, effectiveDate: -1 }`
 
 **SalaryStructure** — Versioned base salary
 
@@ -521,32 +538,37 @@
 - `scores`: Object (Mixed) — per-competency, e.g., `{ teamwork: 4, ownership: 5 }`
 - `submittedAt`: Date
 
-**PerformanceCriterion** — Bộ tiêu chí hiệu suất cấu hình được (dùng cho lương 60%)
+**PerformanceCriterion** — Chỉ số con cấu hình được (Admin/HR CRUD). Dùng cho cả Hiệu suất (60%) và Mục tiêu (20%)
 
 - `key`: String — unique, vd `on_time_delivery`
-- `label`: String — tên tiêu chí hiển thị
+- `label`: String — tên chỉ số hiển thị
 - `description`: String
-- `weight`: Number — trọng số (%), tổng các tiêu chí `active` = 100
+- `type`: String — `performance` (→ 60%) | `goal` (→ 20%), indexed
+- `weight`: Number — trọng số (%); tổng các chỉ số `active` **cùng `type`** = 100
 - `order`: Number — thứ tự hiển thị
 - `status`: String — `active` | `archived`
 
-> Seed mặc định 4 tiêu chí, mỗi tiêu chí weight 25.
+> Hiệu suất = TB có trọng số các chỉ số `type=performance`; Mục tiêu = TB có trọng số các chỉ số `type=goal`. Seed mặc định: 4 chỉ số performance (weight 25) + 2 chỉ số goal (weight 50).
 
-**MonthlyEvaluation** — Đánh giá hiệu suất + mục tiêu theo tháng (do admin/HR chấm), gắn với `PayrollPeriod`
+**MonthlyEvaluation** — Đánh giá hiệu suất + mục tiêu theo tháng (HR/QL chấm trực tiếp → NV xem & xác nhận), gắn với `PayrollPeriod`. Upsert theo `{employeeId, payrollPeriodId}` — không cần "khởi tạo" trước.
 
 - `employeeId`: ObjectId ref `employees`, indexed
 - `payrollPeriodId`: ObjectId ref `payrollPeriods`, indexed — gắn theo tháng
-- `criteriaScores`: [{ `criterionId`: ObjectId ref `performanceCriteria`, `score`: Number 0–100 }]
-- `performanceRatio`: Number 0–100 — computed = Σ(score × weight)/Σweight (tỉ lệ hiệu suất, ứng 60% lương)
-- `goalResult`: Number 0–100 — % kết quả đạt được trong tháng (người đánh giá nhập)
-- `goalRatio`: Number 0–100 — snapshot dùng cho lương (mặc định = `goalResult`, ứng 20% lương)
-- `evaluatedBy`: ObjectId ref `users` — admin/HR thực hiện đánh giá
-- `status`: String — `draft` | `submitted` | `approved`
-- `submittedAt`: Date
+- **Quản lý chấm:** `managerScores`: [{ criterionId, score 0–100 }] (chấm TẤT CẢ chỉ số — cả performance + goal) · `managerId`: ObjectId ref `employees` · `managerNote`: String · `managerSubmittedAt`: Date
+- **Điểm cuối (HR chốt):** `criteriaScores`: [{ criterionId, score }] — mặc định = `managerScores`, HR sửa được
+- `performanceRatio`: Number 0–100 — TB có trọng số các điểm thuộc chỉ số `type=performance` (ứng 60% lương)
+- `goalResult` / `goalRatio`: Number 0–100 — TB có trọng số các điểm thuộc chỉ số `type=goal` (ứng 20% lương); cùng giá trị
+- `evaluatedBy`: ObjectId ref `users` — HR chốt
+- `status`: String — `draft` (chấm nháp) | `approved` (đã duyệt, nuôi lương) | `acknowledged` (NV xác nhận)
 - `approvedAt`: Date
+- **Nhận xét (HR/QL):** `strengths` · `improvements` · `developmentPlan`: String
+- **Xác nhận NV:** `acknowledgedAt`: Date · `acknowledgedBy`: ObjectId ref `users` · `disputeNote`: String
 - `note`: String
 
+> Mô hình: **HR/Trưởng phòng chấm — nhân viên chỉ XEM** (không tự đánh giá). `performanceRatio` & `goalRatio` đều là trung bình các chỉ số con tương ứng do Admin/HR CRUD.
+
 **Indexes:** compound unique `{ employeeId: 1, payrollPeriodId: 1 }`
+**Lưu ý payroll:** chỉ trạng thái `approved`/`acknowledged` mới cho chạy lương (chặn bằng `PAY_EVAL_REQUIRED`).
 
 ---
 
