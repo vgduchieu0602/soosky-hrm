@@ -84,4 +84,16 @@ export const attendanceService = {
     });
     return data.data;
   },
+
+  // ---- leave balances (admin/HR) ----
+  async adminBalances(employeeId: string, year?: number): Promise<LeaveBalanceRecord[]> {
+    const { data } = await api.get<Env<LeaveBalanceRecord[]>>(`/admin/leave-balances/${employeeId}`, {
+      params: year ? { year } : undefined,
+    });
+    return data.data ?? [];
+  },
+  async upsertBalance(input: { employeeId: string; leaveType: string; year: number; entitled: number }): Promise<LeaveBalanceRecord> {
+    const { data } = await api.post<Env<LeaveBalanceRecord>>("/admin/leave-balances", input);
+    return data.data;
+  },
 };

@@ -47,7 +47,8 @@ export const contactSchema = z.object({
 });
 
 export const contractSchema = z.object({
-  contractType: z.enum(["probation", "fixed_term", "indefinite", "internship"]),
+  contractType: z.enum(["fixed_term", "indefinite"]),
+  employmentStatus: z.enum(["probation", "official", "internship"]).default("official"),
   contractNumber: z.string().trim().min(1, "Bắt buộc").max(80),
   startDate: z.string().min(1, "Bắt buộc"),
   endDate: z

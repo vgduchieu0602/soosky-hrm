@@ -25,6 +25,9 @@ export interface SalaryPolicy {
   personalDeduction: string | number;
   dependentDeduction: string | number;
   nonResidentTaxRate: number;
+  socialInsuranceSalary?: string | number | null;
+  unionFeeRate?: number;
+  unionFeeEnabled?: boolean;
   salaryComponentWeights: ComponentWeights;
 }
 

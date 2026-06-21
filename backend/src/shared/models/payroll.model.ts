@@ -65,6 +65,10 @@ export interface IPayroll {
   dependentsCount: number;
   taxableIncomeAfterDeduction: Dec;
   tax: Dec;
+  /** Union fee (đoàn phí công đoàn), post-tax deduction. */
+  unionFee: Dec;
+  /** Other post-tax deductions (advance repayment, fines, …). */
+  otherDeductions: Dec;
 
   // Net
   totalDeductions: Dec;
@@ -139,6 +143,8 @@ const payrollSchema = new Schema<IPayroll>(
     dependentsCount: { type: Number, default: 0 },
     taxableIncomeAfterDeduction: dec,
     tax: dec,
+    unionFee: dec,
+    otherDeductions: dec,
 
     totalDeductions: dec,
     netSalary: dec,

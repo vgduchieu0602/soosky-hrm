@@ -38,7 +38,9 @@ export function PayslipDrawer({ p, emp, periodName, busy, onApprove, onRevert, o
     { label: "BHYT (1.5%)", value: parseDecimal(p.healthInsurance) },
     { label: "BHTN (1%)", value: parseDecimal(p.unemploymentInsurance) },
     { label: "Thuế TNCN", value: parseDecimal(p.tax) },
-  ];
+    { label: "Đoàn phí công đoàn", value: parseDecimal(p.unionFee) },
+    { label: "Khấu trừ khác", value: parseDecimal(p.otherDeductions) },
+  ].filter((r) => r.value > 0);
   const totalDeductions = parseDecimal(p.totalDeductions);
   const addons = [
     { label: "Phụ cấp", value: parseDecimal(p.totalAllowances) },

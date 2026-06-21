@@ -66,6 +66,31 @@ async function seedPolicy() {
       employee: { social: 8, health: 1.5, unemployment: 1 },
       employer: { social: 17.5, health: 3, unemployment: 1 },
     },
+    unionFeeEnabled: false,
+    salaryComponentWeights: { attendance: 20, performance: 60, goal: 20 },
+  });
+}
+
+/** Policy reflecting the real company config: fixed BHXH salary 5.5M, employer
+ *  20.5%, union fee 1% of the fixed salary. */
+async function seedCompanyPolicy() {
+  await SalaryPolicyConfig.create({
+    country: 'VN', year: 2026, effectiveFrom: utc('2026-01-01'),
+    baseSalary: dec(2_340_000),
+    regionalMinWage: { zone1: 4_960_000 },
+    insuranceCeilingMultiplier: 20,
+    personalDeduction: dec(11_000_000), dependentDeduction: dec(4_400_000), nonResidentTaxRate: 20,
+    taxBrackets: [
+      { upTo: 5_000_000, rate: 5 }, { upTo: 10_000_000, rate: 10 }, { upTo: 18_000_000, rate: 15 },
+      { upTo: 32_000_000, rate: 20 }, { upTo: 52_000_000, rate: 25 }, { upTo: 80_000_000, rate: 30 }, { upTo: null, rate: 35 },
+    ],
+    insuranceRates: {
+      employee: { social: 8, health: 1.5, unemployment: 1 }, // 10.5%
+      employer: { social: 17, health: 3, unemployment: 0.5 }, // 20.5%
+    },
+    socialInsuranceSalary: dec(5_500_000),
+    unionFeeRate: 1,
+    unionFeeEnabled: true,
     salaryComponentWeights: { attendance: 20, performance: 60, goal: 20 },
   });
 }
@@ -193,6 +218,74 @@ describe('Full chain: attendance + evaluation → payroll', () => {
 
     // Persisted exactly once (idempotent unique index).
     expect(await Payroll.countDocuments({ payrollPeriodId: period._id })).toBe(1);
+  });
+
+  it('official: insurance on fixed 5.5M base (NLĐ 577,500 / DN 1,127,500) + union fee 55,000', async () => {
+    await seedCompanyPolicy();
+    const criteria = await seedCriteria();
+    const employee = await Employee.create({
+      employeeCode: 'EMP-OFFICIAL', departmentId: oid(), positionId: oid(),
+      hireDate: utc('2024-01-01'), employeeType: 'full_time', status: 'active', salaryZone: 'zone1',
+    });
+    const employeeId = String(employee._id);
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'indefinite', contractNumber: 'HD-OFFICIAL',
+      startDate: utc('2024-01-01'), baseSalary: dec(15_000_000), status: 'active',
+    });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    const period = await PayrollPeriod.create({
+      name: '2026-08', startDate: utc('2026-08-01'), endDate: utc('2026-08-31'),
+      payDate: utc('2026-08-31'), standardWorkDays: 22, status: 'open',
+    });
+    for (let d = 1; d <= 22; d += 1) {
+      await Attendance.create({ employeeId, date: utc(`2026-08-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
+    }
+    await MonthlyEvaluation.create({
+      employeeId, payrollPeriodId: period._id,
+      criteriaScores: criteria.map((criterionId) => ({ criterionId, score: 100 })),
+      performanceRatio: 100, goalResult: 100, goalRatio: 100, status: 'approved',
+    });
+
+    const payroll = await runPayrollForEmployee(String(period._id), employeeId);
+    // Insurance is on the fixed 5.5M base, regardless of the 15M salary.
+    expect(num(payroll.insurance)).toBe(577_500); // 10.5% × 5.5M
+    expect(num(payroll.employerSocialInsurance) + num(payroll.employerHealthInsurance) + num(payroll.employerUnemploymentInsurance) + num(payroll.employerOccupationalInsurance)).toBe(1_127_500); // 20.5% × 5.5M
+    expect(num(payroll.unionFee)).toBe(55_000); // 1% × 5.5M
+    // net = gross − insurance − tax − union fee
+    expect(num(payroll.netSalary)).toBe(num(payroll.grossSalary) - 577_500 - num(payroll.tax) - 55_000);
+  });
+
+  it('probation: 85% pay, no insurance, no union fee', async () => {
+    await seedCompanyPolicy();
+    const criteria = await seedCriteria();
+    const employee = await Employee.create({
+      employeeCode: 'EMP-PROB', departmentId: oid(), positionId: oid(),
+      hireDate: utc('2024-01-01'), employeeType: 'full_time', status: 'active', salaryZone: 'zone1',
+    });
+    const employeeId = String(employee._id);
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'fixed_term', employmentStatus: 'probation', contractNumber: 'HD-PROB',
+      startDate: utc('2024-01-01'), baseSalary: dec(20_000_000), status: 'active',
+    });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    const period = await PayrollPeriod.create({
+      name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
+      payDate: utc('2026-09-30'), standardWorkDays: 22, status: 'open',
+    });
+    for (let d = 1; d <= 22; d += 1) {
+      await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
+    }
+    await MonthlyEvaluation.create({
+      employeeId, payrollPeriodId: period._id,
+      criteriaScores: criteria.map((criterionId) => ({ criterionId, score: 100 })),
+      performanceRatio: 100, goalResult: 100, goalRatio: 100, status: 'approved',
+    });
+
+    const payroll = await runPayrollForEmployee(String(period._id), employeeId);
+    // 85% of 20M, full ratios → proRated 17,000,000; no insurance / union fee.
+    expect(num(payroll.proRatedBaseSalary)).toBe(17_000_000);
+    expect(num(payroll.insurance)).toBe(0);
+    expect(num(payroll.unionFee)).toBe(0);
   });
 
   it('refuses to run when the evaluation is not approved', async () => {

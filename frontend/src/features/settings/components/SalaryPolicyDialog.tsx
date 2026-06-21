@@ -93,14 +93,18 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
   const [wA, setWA] = useState(() => target?.salaryComponentWeights.attendance ?? 20);
   const [wP, setWP] = useState(() => target?.salaryComponentWeights.performance ?? 60);
   const [wG, setWG] = useState(() => target?.salaryComponentWeights.goal ?? 20);
-  // Insurance rates (%). Employee total 10.5 · Employer total 21.5.
+  // Insurance rates (%). Employee total 10.5 · Employer total 20.5.
   const [eeSocial, setEeSocial] = useState(8);
   const [eeHealth, setEeHealth] = useState(1.5);
   const [eeUnemp, setEeUnemp] = useState(1);
   const [erSocial, setErSocial] = useState(17);
   const [erHealth, setErHealth] = useState(3);
-  const [erUnemp, setErUnemp] = useState(1);
-  const [erOccup, setErOccup] = useState(0.5);
+  const [erUnemp, setErUnemp] = useState(0.5);
+  const [erOccup, setErOccup] = useState(0);
+  // Fixed BHXH contribution salary (mức đóng BHXH) + union fee.
+  const [socialInsuranceSalary, setSocialInsuranceSalary] = useState(() => num(target?.socialInsuranceSalary ?? undefined, 5_500_000));
+  const [unionFeeEnabled, setUnionFeeEnabled] = useState(() => target?.unionFeeEnabled ?? true);
+  const [unionFeeRate, setUnionFeeRate] = useState(() => target?.unionFeeRate ?? 1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,6 +128,9 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
         employee: { social: eeSocial, health: eeHealth, unemployment: eeUnemp },
         employer: { social: erSocial, health: erHealth, unemployment: erUnemp, occupational: erOccup },
       },
+      socialInsuranceSalary,
+      unionFeeRate,
+      unionFeeEnabled,
       salaryComponentWeights: { attendance: wA, performance: wP, goal: wG },
     };
     try {
@@ -192,7 +199,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
             </div>
           </Section>
 
-          <Section title="Mức đóng bảo hiểm" aside={<span className="flex gap-3">{total(eeTotal === 10.5, `NLĐ ${eeTotal}%`)}{total(erTotal === 21.5, `DN ${erTotal}%`)}</span>}>
+          <Section title="Mức đóng bảo hiểm" aside={<span className="flex gap-3">{total(eeTotal === 10.5, `NLĐ ${eeTotal}%`)}{total(erTotal === 20.5, `DN ${erTotal}%`)}</span>}>
             <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
               <Field label="NLĐ · BHXH"><PercentInput value={eeSocial} onChange={setEeSocial} /></Field>
               <Field label="NLĐ · BHYT"><PercentInput value={eeHealth} onChange={setEeHealth} /></Field>
@@ -202,6 +209,23 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
               <Field label="DN · BHYT"><PercentInput value={erHealth} onChange={setErHealth} /></Field>
               <Field label="DN · BHTN"><PercentInput value={erUnemp} onChange={setErUnemp} /></Field>
               <Field label="DN · TNLĐ-BNN"><PercentInput value={erOccup} onChange={setErOccup} /></Field>
+            </div>
+          </Section>
+
+          <Section title="Mức đóng BHXH cố định & đoàn phí công đoàn">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
+              <Field label="Mức lương đóng BHXH" hint="Cố định toàn công ty (vd 5.500.000)">
+                <MoneyInput value={socialInsuranceSalary} onChange={setSocialInsuranceSalary} />
+              </Field>
+              <Field label="Đoàn phí công đoàn (%)" hint="% của mức đóng BHXH">
+                <PercentInput value={unionFeeRate} onChange={setUnionFeeRate} />
+              </Field>
+              <Field label="Áp dụng đoàn phí">
+                <label className="flex h-9 cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+                  <input type="checkbox" checked={unionFeeEnabled} onChange={(e) => setUnionFeeEnabled(e.target.checked)} className="size-4 accent-primary" />
+                  Trừ đoàn phí vào lương
+                </label>
+              </Field>
             </div>
           </Section>
 

@@ -2,6 +2,23 @@ import type { DecimalLike } from "@/shared/utils/money";
 
 export type PayrollPeriodStatus = "open" | "processing" | "closed" | "paid";
 export type PayrollStatus = "draft" | "approved" | "paid";
+export type SalaryZone = "zone1" | "zone2" | "zone3" | "zone4";
+
+export interface GrossUpInput {
+  net: number;
+  dependentsCount?: number;
+  isResident?: boolean;
+  salaryZone?: SalaryZone;
+}
+
+export interface GrossUpResult {
+  gross: number;
+  net: number;
+  insurance: number;
+  tax: number;
+  employerInsurance: number;
+  employerCost: number;
+}
 
 export interface PayrollPeriod {
   _id: string;
@@ -64,6 +81,8 @@ export interface PayrollRecord {
   dependentsCount: number;
   taxableIncomeAfterDeduction: DecimalLike;
   tax: DecimalLike;
+  unionFee: DecimalLike;
+  otherDeductions: DecimalLike;
 
   totalDeductions: DecimalLike;
   netSalary: DecimalLike;

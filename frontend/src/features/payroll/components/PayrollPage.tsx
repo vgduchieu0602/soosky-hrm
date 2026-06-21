@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Search, Wallet, ChevronDown, Check, ChevronRight, Loader2, BadgeDollarSign,
-  Plus, FilePlus2, Settings2,
+  Plus, FilePlus2, Settings2, Calculator,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { employeeService } from "@features/employee/services/employee.service";
 import { CreatePeriodDialog } from "@features/payroll/components/CreatePeriodDialog";
 import { CompensationDialog, type EmpOption } from "@features/payroll/components/CompensationDialog";
 import { CompensationManagerDialog } from "@features/payroll/components/CompensationManagerDialog";
+import { GrossUpCalculatorDialog } from "@features/payroll/components/GrossUpCalculatorDialog";
 import { PayslipDrawer, type EmpInfo } from "@features/payroll/components/PayslipDrawer";
 import type {
   CreatePeriodInput, PayrollPeriod, PayrollRecord, PayrollStatus,
@@ -114,6 +115,7 @@ export default function Payroll() {
   const [periodDlg, setPeriodDlg] = useState(false);
   const [compDlg, setCompDlg] = useState(false);
   const [manageDlg, setManageDlg] = useState(false);
+  const [grossUpDlg, setGrossUpDlg] = useState(false);
 
   // Load periods once + the employee directory (for name/dept join).
   useEffect(() => {
@@ -241,6 +243,9 @@ export default function Payroll() {
                 </Button>
                 <Button size="sm" variant="outline" disabled={empOptions.length === 0} onClick={() => setManageDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
                   <Settings2 className="size-3.5" strokeWidth={1.9} /> Quản lý cấu phần
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setGrossUpDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
+                  <Calculator className="size-3.5" strokeWidth={1.9} /> NET → GROSS
                 </Button>
                 <Button size="sm" disabled={busy || locked || !periodId}
                   onClick={() => act(() => payrollService.runPeriod(periodId))}
@@ -397,6 +402,7 @@ export default function Payroll() {
           onChanged={() => setReloadKey((n) => n + 1)}
         />
       )}
+      {grossUpDlg && <GrossUpCalculatorDialog open onOpenChange={setGrossUpDlg} />}
 
       {detail && (
         <PayslipDrawer

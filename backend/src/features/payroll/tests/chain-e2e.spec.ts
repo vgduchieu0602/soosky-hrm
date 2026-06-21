@@ -67,6 +67,7 @@ async function seedPolicy() {
       { upTo: 32_000_000, rate: 20 }, { upTo: 52_000_000, rate: 25 }, { upTo: 80_000_000, rate: 30 }, { upTo: null, rate: 35 },
     ],
     insuranceRates: { employee: { social: 8, health: 1.5, unemployment: 1 }, employer: { social: 17.5, health: 3, unemployment: 1 } },
+    unionFeeEnabled: false,
     salaryComponentWeights: { attendance: 20, performance: 60, goal: 20 },
   });
 }

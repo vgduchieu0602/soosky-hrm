@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DOCUMENT_TYPE } from '@shared/models/employee-document.model';
 import { RELATIONSHIP } from '@shared/models/employee-contact.model';
-import { CONTRACT_TYPE, CONTRACT_STATUS } from '@shared/models/employee-contract.model';
+import { CONTRACT_TYPE, CONTRACT_STATUS, EMPLOYMENT_STATUS } from '@shared/models/employee-contract.model';
 import { ASSET_CONDITION } from '@shared/models/employee-asset.model';
 
 export const createDocumentDto = z
@@ -52,6 +52,7 @@ export type UpdateBankAccountDto = z.infer<typeof updateBankAccountDto>;
 export const createContractDto = z
   .object({
     contractType: z.enum(CONTRACT_TYPE),
+    employmentStatus: z.enum(EMPLOYMENT_STATUS).default('official'),
     contractNumber: z.string().min(1).max(80).trim(),
     startDate: z.coerce.date(),
     endDate: z.coerce.date().optional(),

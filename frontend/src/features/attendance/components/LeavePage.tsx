@@ -10,6 +10,7 @@ import { TopBar } from "@features/dashboard/components/TopBar";
 import type { ChipColor } from "@features/dashboard/data";
 import { useAuthStore } from "@core/store/auth.store";
 import { attendanceService } from "@features/attendance/services/attendance.service";
+import { LeaveBalanceDialog } from "@features/attendance/components/LeaveBalanceDialog";
 import type {
   LeaveBalanceRecord,
   LeaveRequestRecord,
@@ -42,6 +43,7 @@ function ManagerLeave() {
   const [reloadKey, setReloadKey] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [rejectFor, setRejectFor] = useState<LeaveRequestRecord | null>(null);
+  const [balDlg, setBalDlg] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -62,6 +64,12 @@ function ManagerLeave() {
 
   return (
     <Shell crumb="Nghỉ phép" title="Duyệt đơn nghỉ" subtitle="Phê duyệt đơn và theo dõi lịch sử.">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => setBalDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
+          <Plus className="size-3.5" strokeWidth={2} /> Hạn mức phép
+        </Button>
+      </div>
+      {balDlg && <LeaveBalanceDialog open onOpenChange={setBalDlg} />}
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 border-b p-4">
           <h3 className="text-[14px] font-semibold text-foreground">Đơn chờ duyệt</h3>

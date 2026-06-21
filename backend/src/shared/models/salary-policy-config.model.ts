@@ -22,6 +22,12 @@ export interface ISalaryPolicyConfig {
   nonResidentTaxRate: number;
   taxBrackets?: Record<string, unknown>[];
   insuranceRates?: Record<string, unknown>;
+  /** Fixed company-wide salary the compulsory insurance is contributed on
+   *  (mức lương đóng BHXH), e.g. 5,500,000 — not the employee's actual salary. */
+  socialInsuranceSalary?: mongoose.Types.Decimal128;
+  /** Union fee (đoàn phí công đoàn) as a percent of socialInsuranceSalary. */
+  unionFeeRate: number;
+  unionFeeEnabled: boolean;
   /** Weights for the 20/60/20 effective base salary formula. */
   salaryComponentWeights: ISalaryComponentWeights;
   createdBy?: Types.ObjectId | null;
@@ -54,6 +60,9 @@ const salaryPolicyConfigSchema = new Schema<ISalaryPolicyConfig>(
     nonResidentTaxRate: { type: Number, default: 20 },
     taxBrackets: { type: [Schema.Types.Mixed], default: [] },
     insuranceRates: { type: Schema.Types.Mixed },
+    socialInsuranceSalary: { type: Schema.Types.Decimal128, default: null },
+    unionFeeRate: { type: Number, default: 1 },
+    unionFeeEnabled: { type: Boolean, default: true },
     salaryComponentWeights: {
       type: salaryComponentWeightsSchema,
       default: () => ({ attendance: 20, performance: 60, goal: 20 }),

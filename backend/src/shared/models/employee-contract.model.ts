@@ -3,8 +3,14 @@ import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
 const DB_NAME = 'employeeContract';
 const COLLECTION_NAME = 'employeeContracts';
 
-export const CONTRACT_TYPE = ['probation', 'fixed_term', 'indefinite', 'internship'] as const;
+// Loại HĐLĐ — only the two statutory types (Bộ luật Lao động 2019, Điều 20).
+export const CONTRACT_TYPE = ['fixed_term', 'indefinite'] as const;
 export type ContractType = (typeof CONTRACT_TYPE)[number];
+
+// Tình trạng làm việc — drives payroll: probation/internship → 85% pay, no
+// compulsory insurance; official → full salary + insurance.
+export const EMPLOYMENT_STATUS = ['probation', 'official', 'internship'] as const;
+export type EmploymentStatus = (typeof EMPLOYMENT_STATUS)[number];
 
 export const CONTRACT_STATUS = ['active', 'expired', 'terminated'] as const;
 export type ContractStatus = (typeof CONTRACT_STATUS)[number];
@@ -12,6 +18,7 @@ export type ContractStatus = (typeof CONTRACT_STATUS)[number];
 export interface IEmployeeContract {
   employeeId: Types.ObjectId;
   contractType: ContractType;
+  employmentStatus: EmploymentStatus;
   contractNumber: string;
   startDate: Date;
   endDate?: Date | null;
@@ -29,6 +36,7 @@ const employeeContractSchema = new Schema<IEmployeeContract>(
   {
     employeeId: { type: Schema.Types.ObjectId, ref: 'employees', required: true, index: true },
     contractType: { type: String, enum: CONTRACT_TYPE, required: true },
+    employmentStatus: { type: String, enum: EMPLOYMENT_STATUS, default: 'official' },
     contractNumber: { type: String, required: true, unique: true, trim: true },
     startDate: { type: Date, required: true },
     endDate: { type: Date, default: null },

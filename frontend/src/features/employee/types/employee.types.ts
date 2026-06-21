@@ -8,7 +8,8 @@ export type Gender = "male" | "female" | "other" | "undisclosed";
 export type MaritalStatus = "single" | "married" | "divorced" | "widowed";
 export type DocumentType =
   | "id_card" | "passport" | "degree" | "certificate" | "visa" | "other";
-export type ContractType = "probation" | "fixed_term" | "indefinite" | "internship";
+export type ContractType = "fixed_term" | "indefinite";
+export type EmploymentStatus = "probation" | "official" | "internship";
 export type ContractStatus = "active" | "expired" | "terminated";
 export type Relationship = "spouse" | "parent" | "sibling" | "other";
 export type AssetCondition = "new" | "good" | "fair" | "damaged";
@@ -204,6 +205,7 @@ export interface NewDocumentInput {
 }
 export interface NewContractInput {
   contractType: ContractType;
+  employmentStatus: EmploymentStatus;
   contractNumber: string;
   startDate: string;
   endDate?: string;
@@ -253,6 +255,7 @@ export interface EmployeeDocumentRecord {
 export interface EmployeeContractRecord {
   _id: string;
   contractType: ContractType;
+  employmentStatus?: EmploymentStatus;
   contractNumber: string;
   startDate: string;
   endDate?: string | null;

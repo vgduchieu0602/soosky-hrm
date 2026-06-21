@@ -20,3 +20,13 @@ export const rejectLeaveDto = z
   .object({ reason: z.string().min(1).max(255) })
   .strict();
 export type RejectLeaveDto = z.infer<typeof rejectLeaveDto>;
+
+export const upsertLeaveBalanceDto = z
+  .object({
+    employeeId: z.string().length(24),
+    leaveType: z.enum(LEAVE_TYPE),
+    year: z.coerce.number().int().min(2000).max(2100),
+    entitled: z.coerce.number().min(0),
+  })
+  .strict();
+export type UpsertLeaveBalanceDto = z.infer<typeof upsertLeaveBalanceDto>;

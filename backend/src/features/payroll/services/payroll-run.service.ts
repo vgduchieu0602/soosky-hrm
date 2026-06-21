@@ -16,6 +16,7 @@ import mongoose from 'mongoose';
 
 import { Allowance } from '@shared/models/allowance.model';
 import { Bonus } from '@shared/models/bonus.model';
+import { Deduction } from '@shared/models/deduction.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
 import { Employee } from '@shared/models/employee.model';
@@ -37,6 +38,9 @@ import {
 import { aggregatePeriodAttendance } from './attendance-aggregate.service';
 
 const log = logger.child({ feature: 'payroll', module: 'run' });
+
+/** Probation / internship contracts are paid this fraction of the agreed salary. */
+const PROBATION_PAY_RATE = 0.85;
 
 /** 409 conflict with a payroll-scoped error code. */
 const conflict = (message: string, code = 'PAY_409') => new HttpError(409, message, code);
@@ -68,6 +72,13 @@ export interface PayrollRunContext {
   baseSalary: number;
   totalTaxableAllowances: number;
   totalNonTaxableAllowances: number;
+  /** Fixed company salary the insurance is contributed on (0 = no insurance, e.g. probation). */
+  insuranceBaseSalary: number;
+  insuranceBaseAllowances: number;
+  /** Union fee (đoàn phí) — fixed post-tax deduction. */
+  unionFee: number;
+  /** Other post-tax deductions (recurring + one-off for the period). */
+  deductions: { type: 'fixed' | 'percentage'; amount: number }[];
   overtimePay: number;
   totalBonuses: number;
 
@@ -84,7 +95,9 @@ export interface PayrollRunContext {
 
 /** Map resolved inputs onto a Payroll document (money as Decimal128). Pure. */
 export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
-  const attendanceRatio = computeAttendanceRatio(ctx.actualWorkDays, ctx.standardWorkDays);
+  // Cap at 1: working more days than the period standard must not inflate the
+  // 20% attendance component beyond full.
+  const attendanceRatio = Math.min(1, computeAttendanceRatio(ctx.actualWorkDays, ctx.standardWorkDays));
 
   const r = computePayroll({
     baseSalary: ctx.baseSalary,
@@ -94,6 +107,10 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     weights: ctx.weights,
     totalTaxableAllowances: ctx.totalTaxableAllowances,
     totalNonTaxableAllowances: ctx.totalNonTaxableAllowances,
+    insuranceBaseSalary: ctx.insuranceBaseSalary,
+    insuranceBaseAllowances: ctx.insuranceBaseAllowances,
+    unionFee: ctx.unionFee,
+    deductions: ctx.deductions,
     overtimePay: ctx.overtimePay,
     totalBonuses: ctx.totalBonuses,
     socialHealthCeiling: ctx.socialHealthCeiling,
@@ -153,6 +170,8 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     dependentsCount: r.dependentsCount,
     taxableIncomeAfterDeduction: dec(r.taxableIncomeAfterDeduction),
     tax: dec(r.tax),
+    unionFee: dec(r.unionFee),
+    otherDeductions: dec(r.otherDeductions),
 
     totalDeductions: dec(r.totalDeductions),
     netSalary: dec(r.netSalary),
@@ -168,17 +187,23 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
 // ---------------------------------------------------------------------------
 
 function sumAllowances(
-  rows: { type: string; amount: mongoose.Types.Decimal128; isTaxable: boolean }[],
+  rows: { type: string; amount: mongoose.Types.Decimal128; isTaxable: boolean; isInsuranceBase?: boolean }[],
   baseSalary: number,
-): { taxable: number; nonTaxable: number } {
+): { taxable: number; nonTaxable: number; insuranceBase: number } {
   let taxable = 0;
   let nonTaxable = 0;
+  let insuranceBase = 0;
   for (const a of rows) {
     const value = a.type === 'percentage' ? (baseSalary * toNum(a.amount)) / 100 : toNum(a.amount);
     if (a.isTaxable) taxable += value;
     else nonTaxable += value;
+    if (a.isInsuranceBase) insuranceBase += value;
   }
-  return { taxable: Math.round(taxable), nonTaxable: Math.round(nonTaxable) };
+  return {
+    taxable: Math.round(taxable),
+    nonTaxable: Math.round(nonTaxable),
+    insuranceBase: Math.round(insuranceBase),
+  };
 }
 
 export interface RunOptions {
@@ -234,6 +259,22 @@ async function resolveContext(
   // Attendance summary over the period.
   const summary = await aggregatePeriodAttendance(employeeId, period.startDate, period.endDate);
 
+  // Probation / internship contracts: paid 85% of the agreed salary, NOT
+  // subject to compulsory insurance or union fee. Official contracts contribute
+  // insurance on a FIXED company-wide salary (mức đóng BHXH), continuously while
+  // employed (no ≥14-day exemption — that is handled via báo giảm / status).
+  // Tình trạng (not loại HĐLĐ) decides insurance + 85% pay.
+  const isProbation =
+    contract.employmentStatus === 'probation' || contract.employmentStatus === 'internship';
+  const effectiveBase = isProbation ? Math.round(baseSalary * PROBATION_PAY_RATE) : baseSalary;
+
+  const fixedInsuranceSalary = toNum(policy.socialInsuranceSalary) || baseSalary;
+  const insuranceBaseSalary = isProbation ? 0 : fixedInsuranceSalary;
+  const unionFee =
+    !isProbation && policy.unionFeeEnabled
+      ? Math.round((fixedInsuranceSalary * (policy.unionFeeRate ?? 0)) / 100)
+      : 0;
+
   // Tax profile in effect.
   const taxProfile = await EmployeeTaxProfile.findOne({
     employeeId,
@@ -253,6 +294,20 @@ async function resolveContext(
   const bonusRows = await Bonus.find({ employeeId, payrollPeriodId: period._id }).lean();
   const totalBonuses = Math.round(bonusRows.reduce((s, b) => s + toNum(b.amount), 0));
 
+  // Post-tax deductions: one-off for this period + active recurring ones.
+  const deductionRows = await Deduction.find({
+    employeeId,
+    effectiveDate: { $lte: period.endDate },
+    $and: [
+      { $or: [{ payrollPeriodId: null }, { payrollPeriodId: period._id }] },
+      { $or: [{ endDate: null }, { endDate: { $gte: period.startDate } }] },
+    ],
+  }).lean();
+  const deductions = deductionRows.map((d) => ({
+    type: d.type as 'fixed' | 'percentage',
+    amount: toNum(d.amount),
+  }));
+
   return {
     payrollPeriodId: period._id as mongoose.Types.ObjectId,
     employeeId: empId,
@@ -269,9 +324,13 @@ async function resolveContext(
     goalRatio: evaluation?.goalRatio ?? 0,
     weights: policy.salaryComponentWeights,
 
-    baseSalary,
+    baseSalary: effectiveBase,
     totalTaxableAllowances: allowances.taxable,
     totalNonTaxableAllowances: allowances.nonTaxable,
+    insuranceBaseSalary,
+    insuranceBaseAllowances: 0,
+    unionFee,
+    deductions,
     // OT is disabled by company policy (companyConfig.overtimeEnabled = false):
     // the OT engine (computeOvertimePay) exists but pay stays 0. To enable,
     // source OT hours per employee and call computeOvertimePay here.

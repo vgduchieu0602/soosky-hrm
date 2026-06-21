@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { leaveService } from '@features/attendance/services/leave.service';
-import type { RejectLeaveDto } from '@features/attendance/dto/leave.dto';
+import type { RejectLeaveDto, UpsertLeaveBalanceDto } from '@features/attendance/dto/leave.dto';
 
 function userId(req: Request): string {
   if (!req.user) throw new Error('IAM_002');
@@ -67,7 +67,15 @@ export const leaveController = {
   async adminBalances(req: Request, res: Response, next: NextFunction) {
     try {
       const { employeeId } = req.params as { employeeId: string };
-      res.json({ data: await leaveService.adminBalances(employeeId) });
+      const year = req.query.year ? Number(req.query.year) : undefined;
+      res.json({ data: await leaveService.adminBalances(employeeId, year) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async upsertBalance(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await leaveService.upsertBalance(req.body as UpsertLeaveBalanceDto, userId(req)) });
     } catch (e) {
       next(e);
     }

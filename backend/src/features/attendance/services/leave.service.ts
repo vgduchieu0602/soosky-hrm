@@ -13,7 +13,7 @@ import {
   isWeekend,
   mmddKey,
 } from '@features/attendance/services/attendance-calc';
-import type { SubmitLeaveDto } from '@features/attendance/dto/leave.dto';
+import type { SubmitLeaveDto, UpsertLeaveBalanceDto } from '@features/attendance/dto/leave.dto';
 
 const log = logger.child({ feature: 'attendance', module: 'leave' });
 
@@ -69,12 +69,23 @@ async function assertBalanceAvailable(
   days: number,
   session?: ClientSession,
 ) {
+  // Unpaid leave has no quota — always allowed.
+  if (leaveType === 'unpaid') return;
+
   const year = vnDateKey(startDate).getUTCFullYear();
   const q = LeaveBalance.findOne({ employeeId, leaveType, year });
   const balance = await (session ? q.session(session) : q).lean();
-  // entitled === 0 means unlimited (e.g. unpaid); no balance row → not yet
-  // configured, treat as unlimited and let HR initialise quotas (G4).
-  if (balance && balance.entitled > 0 && balance.used + days > balance.entitled) {
+
+  // Paid leave must have a configured quota — no record (or entitled ≤ 0) means
+  // HR hasn't set it yet, so block instead of allowing unlimited leave.
+  if (!balance || balance.entitled <= 0) {
+    throw new HttpError(
+      409,
+      `Chưa cấu hình hạn mức phép "${leaveType}" cho năm ${year}. Liên hệ HR để thiết lập.`,
+      'LV_005',
+    );
+  }
+  if (balance.used + days > balance.entitled) {
     const remaining = balance.entitled - balance.used;
     throw new HttpError(409, `Vượt quỹ phép còn lại (${remaining} ngày)`, 'LV_004');
   }
@@ -293,11 +304,29 @@ export const leaveService = {
     return LeaveBalance.find({ employeeId: employee._id, year }).lean();
   },
 
-  async adminBalances(employeeId: string) {
+  async adminBalances(employeeId: string, year?: number) {
     if (!Types.ObjectId.isValid(employeeId)) {
       throw new HttpError(400, 'employeeId không hợp lệ', 'EMP_001');
     }
-    const year = new Date().getUTCFullYear();
-    return LeaveBalance.find({ employeeId: new Types.ObjectId(employeeId), year }).lean();
+    const y = year ?? new Date().getUTCFullYear();
+    return LeaveBalance.find({ employeeId: new Types.ObjectId(employeeId), year: y }).lean();
+  },
+
+  /** HR sets/updates a leave quota (entitled days). `used` is preserved. */
+  async upsertBalance(input: UpsertLeaveBalanceDto, auditUserId: string) {
+    const employeeId = new Types.ObjectId(input.employeeId);
+    const updated = await LeaveBalance.findOneAndUpdate(
+      { employeeId, leaveType: input.leaveType, year: input.year },
+      { $set: { entitled: input.entitled }, $setOnInsert: { used: 0 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'leaveBalance',
+      action: 'update',
+      resourceId: updated!._id.toString(),
+      changes: input as Record<string, unknown>,
+    });
+    return updated!.toJSON();
   },
 };

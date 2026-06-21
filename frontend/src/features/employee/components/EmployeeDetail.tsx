@@ -16,7 +16,7 @@ import { employeeService } from "@features/employee/services/employee.service";
 import { iamService } from "@features/iam/services/iam.service";
 import { EmployeeEditModal } from "@features/employee/components/EmployeeEditModal";
 import {
-  CONTRACT_TYPE, COND, DOC_TYPE, EMP_STATUS, EMP_TYPE, GENDER, HIST_EVENT,
+  CONTRACT_TYPE, EMPLOYMENT_STATUS, COND, DOC_TYPE, EMP_STATUS, EMP_TYPE, GENDER, HIST_EVENT,
   MARITAL, REL, ROLE, SALARY_ZONE_LABEL, STATUS_ACTIVE, STATUS_INACTIVE,
   formatDate, formatMoney, fullNameOf, parseDecimal,
 } from "@features/employee/constants";
@@ -126,7 +126,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
         </div>
 
         {/* tabs */}
-        <div role="tablist" aria-label="Hồ sơ nhân viên" className="flex shrink-0 gap-1 overflow-x-auto border-b bg-card px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div role="tablist" aria-label="Hồ sơ nhân viên" className="flex shrink-0 flex-wrap gap-1 border-b bg-card px-3 py-2">
           {TABS.map(({ id, label, Icon }) => {
             const active = tab === id;
             return (
@@ -813,7 +813,7 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeContractRecord>(() => employeeService.contracts(employeeId), `${employeeId}:${rk}`);
-  const emptyForm = { contractType: "probation", contractNumber: "", startDate: "", endDate: "", baseSalary: "", fileUrl: "" };
+  const emptyForm = { contractType: "fixed_term", employmentStatus: "official", contractNumber: "", startDate: "", endDate: "", baseSalary: "", fileUrl: "" };
   const [f, setF] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -822,6 +822,7 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
     setEditingId(c._id);
     setF({
       contractType: c.contractType,
+      employmentStatus: c.employmentStatus ?? "official",
       contractNumber: c.contractNumber,
       startDate: c.startDate ? c.startDate.slice(0, 10) : "",
       endDate: c.endDate ? c.endDate.slice(0, 10) : "",
@@ -841,6 +842,7 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
     setBusy(true);
     const payload = {
       contractType: f.contractType as EmployeeContractRecord["contractType"],
+      employmentStatus: f.employmentStatus as NonNullable<EmployeeContractRecord["employmentStatus"]>,
       contractNumber: f.contractNumber.trim(),
       startDate: f.startDate,
       endDate: f.endDate || undefined,
@@ -860,9 +862,14 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
     <Panel title="Hợp đồng lao động" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
-          <LabeledInput label="Loại HĐ">
+          <LabeledInput label="Loại HĐLĐ">
             <select className={inputCls} value={f.contractType} onChange={(e) => setF({ ...f, contractType: e.target.value })}>
               {Object.entries(CONTRACT_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </LabeledInput>
+          <LabeledInput label="Tình trạng">
+            <select className={inputCls} value={f.employmentStatus} onChange={(e) => setF({ ...f, employmentStatus: e.target.value })}>
+              {Object.entries(EMPLOYMENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </LabeledInput>
           <LabeledInput label="Số HĐ"><input className={cn(inputCls, "font-mono")} value={f.contractNumber} onChange={(e) => setF({ ...f, contractNumber: e.target.value })} /></LabeledInput>
@@ -888,6 +895,16 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[13px] font-semibold text-foreground">{c.contractNumber}</span>
                   <div className="flex items-center gap-1.5">
+                    {(() => {
+                      const status = c.employmentStatus ?? "official";
+                      const noInsurance = status === "probation" || status === "internship";
+                      return (
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <Badge variant={(noInsurance ? "amber" : "blue") as any} title={noInsurance ? `${EMPLOYMENT_STATUS[status]}: nhận 85% lương, không đóng BHXH` : "Chính thức: đóng BHXH đầy đủ"}>
+                          {noInsurance ? `${EMPLOYMENT_STATUS[status]} · 85%, miễn BH` : "Chính thức · đóng BH"}
+                        </Badge>
+                      );
+                    })()}
                     <Badge variant={c.status === "active" ? "emerald" : "slate"}>{c.status === "active" ? "Hiệu lực" : "Hết hiệu lực"}</Badge>
                     {canManage && (
                       <Button variant="ghost" size="icon" onClick={() => startEdit(c)} className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
@@ -895,7 +912,8 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
-                  <Field label="Loại" value={CONTRACT_TYPE[c.contractType] ?? c.contractType} />
+                  <Field label="Loại HĐLĐ" value={CONTRACT_TYPE[c.contractType] ?? c.contractType} />
+                  <Field label="Tình trạng" value={EMPLOYMENT_STATUS[c.employmentStatus ?? "official"]} />
                   <Field label="Lương cơ bản" value={`${formatMoney(c.baseSalary)} ₫`} />
                   <Field label="Bắt đầu" value={formatDate(c.startDate)} />
                   <Field label="Kết thúc" value={c.endDate ? formatDate(c.endDate) : "Không thời hạn"} />

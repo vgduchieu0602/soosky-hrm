@@ -7,10 +7,48 @@ import {
   computePayroll,
   computePerformanceRatio,
   computeProgressiveTax,
+  grossUpFromNet,
   hourlyRate,
   DEFAULT_COMPONENT_WEIGHTS,
   VN_INSURANCE_RATES,
 } from './salary.util';
+
+const VN_GROSSUP_PARAMS = {
+  socialHealthCeiling: 46_800_000,
+  unemploymentCeiling: 99_200_000,
+  personalDeduction: 11_000_000,
+  dependentDeduction: 4_400_000,
+  dependentsCount: 0,
+  isResident: true,
+};
+
+describe('grossUpFromNet', () => {
+  it('grosses up net 6,000,000 → 6,703,911 (no PIT at this level)', () => {
+    const r = grossUpFromNet(6_000_000, VN_GROSSUP_PARAMS);
+    expect(r.gross).toBe(6_703_911);
+    expect(r.net).toBe(6_000_000);
+    expect(r.insurance).toBe(703_911); // 10.5% of gross
+    expect(r.tax).toBe(0); // gross - insurance = 6m < 11m personal deduction
+  });
+
+  it('round-trips within rounding tolerance even with PIT', () => {
+    const r = grossUpFromNet(25_000_000, VN_GROSSUP_PARAMS);
+    expect(Math.abs(r.net - 25_000_000)).toBeLessThanOrEqual(2);
+    expect(r.gross).toBeGreaterThan(25_000_000);
+    expect(r.tax).toBeGreaterThan(0);
+  });
+
+  it('returns zero for non-positive net', () => {
+    expect(grossUpFromNet(0, VN_GROSSUP_PARAMS).gross).toBe(0);
+  });
+
+  it('fixed BHXH base 5.5M, union fee excluded → net 6,000,000 grosses to 6,577,500', () => {
+    const r = grossUpFromNet(6_000_000, { ...VN_GROSSUP_PARAMS, insuranceBaseSalary: 5_500_000 });
+    expect(r.insurance).toBe(577_500); // 10.5% × 5.5M, independent of gross
+    expect(r.tax).toBe(0);
+    expect(r.gross).toBe(6_577_500); // net + BHXH only (union fee not part of gross↔net)
+  });
+});
 
 describe('computePerformanceRatio', () => {
   it('averages 4 equal-weight criteria', () => {
@@ -218,23 +256,24 @@ describe('computePayroll — E1 parallel-run case', () => {
     expect(result.grossSalary).toBe(32_730_000);
   });
 
-  it('deducts employee insurance', () => {
-    expect(result.insurance).toBe(3_436_650);
+  it('deducts employee insurance (base = pro-rated salary; allowances not flagged isInsuranceBase)', () => {
+    // insurance base = 30,000,000 (no insuranceBaseAllowances) × 10.5%
+    expect(result.insurance).toBe(3_150_000);
   });
 
   it('computes taxable income net of insurance and non-taxable allowance', () => {
-    // 32,730,000 - 3,436,650 - 730,000
-    expect(result.taxableIncome).toBe(28_563_350);
+    // 32,730,000 - 3,150,000 - 730,000
+    expect(result.taxableIncome).toBe(28_850_000);
     // - 11,000,000 personal - 4,400,000 (1 dependent)
-    expect(result.taxableIncomeAfterDeduction).toBe(13_163_350);
+    expect(result.taxableIncomeAfterDeduction).toBe(13_450_000);
     expect(result.dependentDeduction).toBe(4_400_000);
   });
 
   it('computes progressive tax and net salary', () => {
-    // 250k + 500k + 3,163,350@15% (474,502.5 → 474,503)
-    expect(result.tax).toBe(1_224_503);
-    expect(result.totalDeductions).toBe(4_661_153);
-    expect(result.netSalary).toBe(28_068_847);
+    // 250k + 500k + 3,450,000@15% (517,500)
+    expect(result.tax).toBe(1_267_500);
+    expect(result.totalDeductions).toBe(4_417_500);
+    expect(result.netSalary).toBe(28_312_500);
   });
 
   it('keeps net = gross - insurance - tax', () => {

@@ -287,6 +287,14 @@ export interface ComputePayrollInput {
   // additive gross components
   totalTaxableAllowances?: number;
   totalNonTaxableAllowances?: number;
+  /** Compulsory-insurance base salary (lương đóng BHXH) — the FIXED contract
+   *  salary, NOT pro-rated by attendance/performance. Defaults to the pro-rated
+   *  base when omitted (back-compat). Pass 0 to exempt a month entirely. */
+  insuranceBaseSalary?: number;
+  /** Portion of allowances flagged `isInsuranceBase` — added to the insurance
+   *  base alongside the salary. Bonuses/OT/other allowances are NOT subject to
+   *  compulsory insurance. */
+  insuranceBaseAllowances?: number;
   overtimePay?: number;
   totalBonuses?: number;
   // insurance ceilings (already multiplied by the multiplier)
@@ -302,6 +310,11 @@ export interface ComputePayrollInput {
   isResident?: boolean;
   /** Flat PIT rate for non-residents (percent). Default 20. */
   nonResidentTaxRate?: number;
+  /** Union fee (đoàn phí công đoàn) — a fixed post-tax deduction. Default 0. */
+  unionFee?: number;
+  /** Other post-tax deductions (advance repayment, fines, …). `percentage` is
+   *  a percent of gross; `fixed` is a VND amount. */
+  deductions?: { type: 'fixed' | 'percentage'; amount: number }[];
 }
 
 export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResult {
@@ -312,6 +325,8 @@ export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResu
   overtimePay: number;
   totalBonuses: number;
   grossSalary: number;
+  /** Salary amount actually subject to compulsory insurance (pre-cap). */
+  insurableSalary: number;
   // tax
   taxableIncome: number;
   personalDeduction: number;
@@ -319,6 +334,9 @@ export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResu
   dependentsCount: number;
   taxableIncomeAfterDeduction: number;
   tax: number;
+  unionFee: number;
+  /** Other post-tax deductions total. */
+  otherDeductions: number;
   // net
   totalDeductions: number;
   netSalary: number;
@@ -347,8 +365,17 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
   const grossSalary =
     effective.proRatedBaseSalary + totalAllowances + overtimePay + totalBonuses;
 
+  // Compulsory-insurance base = the FIXED contract salary (insuranceBaseSalary,
+  // falling back to the pro-rated salary for back-compat) + only the allowances
+  // flagged `isInsuranceBase`. Bonuses/OT/ordinary allowances are excluded;
+  // computeInsurance then caps it by the ceiling. Pass insuranceBaseSalary=0 to
+  // exempt the month (≥14 unpaid days).
+  const insurableSalary =
+    (input.insuranceBaseSalary ?? effective.proRatedBaseSalary) +
+    (input.insuranceBaseAllowances ?? 0);
+
   const insurance = computeInsurance({
-    grossSalary,
+    grossSalary: insurableSalary,
     socialHealthCeiling: input.socialHealthCeiling,
     unemploymentCeiling: input.unemploymentCeiling,
     rates: input.insuranceRates,
@@ -382,12 +409,21 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     tax = Math.round((taxableIncomeAfterDeduction * rate) / 100);
   }
 
-  const totalDeductions = insurance.insurance + tax;
-  const netSalary = grossSalary - insurance.insurance - tax;
+  const unionFee = input.unionFee ?? 0;
+  const otherDeductions = Math.round(
+    (input.deductions ?? []).reduce(
+      (sum, d) => sum + (d.type === 'percentage' ? (grossSalary * d.amount) / 100 : d.amount),
+      0,
+    ),
+  );
+  const totalDeductions = insurance.insurance + tax + unionFee + otherDeductions;
+  const netSalary = grossSalary - insurance.insurance - tax - unionFee - otherDeductions;
 
   return {
     ...effective,
     ...insurance,
+    insurableSalary,
+    unionFee,
     baseSalary: input.baseSalary,
     totalTaxableAllowances,
     totalNonTaxableAllowances,
@@ -401,7 +437,100 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     dependentsCount,
     taxableIncomeAfterDeduction,
     tax,
+    otherDeductions,
     totalDeductions,
     netSalary,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// NET → GROSS gross-up. Given a target take-home (net) salary, find the gross
+// monthly salary such that net = gross − employee insurance − PIT. Reuses
+// `computePayroll` (full ratios, gross = insurance base, no allowances) so the
+// insurance caps / progressive brackets / residency rules stay consistent.
+// ---------------------------------------------------------------------------
+
+export interface GrossUpParams {
+  socialHealthCeiling: number;
+  unemploymentCeiling: number;
+  personalDeduction: number;
+  dependentDeduction: number;
+  dependentsCount?: number;
+  isResident?: boolean;
+  nonResidentTaxRate?: number;
+  taxBrackets?: TaxBracket[];
+  insuranceRates?: InsuranceRates;
+  /** Fixed company-wide insurance contribution salary (mức đóng BHXH). */
+  insuranceBaseSalary?: number;
+  /** Fixed union fee deducted post-tax. */
+  unionFee?: number;
+}
+
+export interface GrossUpResult {
+  gross: number;
+  net: number;
+  insurance: number;
+  tax: number;
+  employerInsurance: number;
+  /** Total monthly cost to the employer = gross + employer insurance. */
+  employerCost: number;
+}
+
+/** Run the payroll engine treating `gross` as a pure monthly salary. */
+function netAtGross(gross: number, params: GrossUpParams): ComputePayrollResult {
+  return computePayroll({
+    baseSalary: gross,
+    attendanceRatio: 1,
+    performanceRatio: 100,
+    goalRatio: 100,
+    // Insurance is contributed on the fixed company salary (mức đóng BHXH),
+    // independent of the gross being solved for; falls back to gross if unset.
+    insuranceBaseSalary: params.insuranceBaseSalary ?? gross,
+    unionFee: params.unionFee,
+    socialHealthCeiling: params.socialHealthCeiling,
+    unemploymentCeiling: params.unemploymentCeiling,
+    personalDeduction: params.personalDeduction,
+    dependentDeduction: params.dependentDeduction,
+    dependentsCount: params.dependentsCount,
+    isResident: params.isResident,
+    nonResidentTaxRate: params.nonResidentTaxRate,
+    taxBrackets: params.taxBrackets,
+    insuranceRates: params.insuranceRates,
+  });
+}
+
+/**
+ * Invert the payroll computation: find the gross salary whose net equals
+ * `targetNet`. Net is monotonic increasing in gross, so a binary search
+ * converges; the result is rounded to whole VND.
+ */
+export function grossUpFromNet(targetNet: number, params: GrossUpParams): GrossUpResult {
+  if (targetNet <= 0) {
+    return { gross: 0, net: 0, insurance: 0, tax: 0, employerInsurance: 0, employerCost: 0 };
+  }
+
+  let lo = targetNet; // gross is always ≥ net
+  let hi = targetNet * 3 + 1_000_000; // generous upper bound even at the 35% bracket
+  for (let i = 0; i < 60 && hi - lo > 1; i += 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (netAtGross(mid, params).netSalary < targetNet) lo = mid;
+    else hi = mid;
+  }
+
+  const gross = hi;
+  const r = netAtGross(gross, params);
+  const employerInsurance =
+    r.employerSocialInsurance +
+    r.employerHealthInsurance +
+    r.employerUnemploymentInsurance +
+    r.employerOccupationalInsurance;
+
+  return {
+    gross,
+    net: r.netSalary,
+    insurance: r.insurance,
+    tax: r.tax,
+    employerInsurance,
+    employerCost: gross + employerInsurance,
   };
 }

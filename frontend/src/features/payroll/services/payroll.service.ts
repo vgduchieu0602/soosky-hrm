@@ -5,6 +5,8 @@ import type {
   Bonus,
   CreatePeriodInput,
   Deduction,
+  GrossUpInput,
+  GrossUpResult,
   Paginated,
   PayrollPeriod,
   PayrollRecord,
@@ -53,6 +55,12 @@ export const payrollService = {
   },
   async runEmployee(id: string, employeeId: string): Promise<PayrollRecord> {
     const { data } = await api.post<Env<PayrollRecord>>(`/payroll/periods/${id}/run/${employeeId}`);
+    return data.data;
+  },
+
+  // ---- NET → GROSS calculator ----
+  async calculateGrossUp(input: GrossUpInput): Promise<GrossUpResult> {
+    const { data } = await api.post<Env<GrossUpResult>>("/payroll/gross-up", input);
     return data.data;
   },
 

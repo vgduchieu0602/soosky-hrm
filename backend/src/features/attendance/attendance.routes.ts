@@ -18,7 +18,7 @@ import {
   adjustAttendanceDto,
   bulkUpsertAttendanceDto,
 } from '@features/attendance/dto/attendance.dto';
-import { submitLeaveDto, rejectLeaveDto } from '@features/attendance/dto/leave.dto';
+import { submitLeaveDto, rejectLeaveDto, upsertLeaveBalanceDto } from '@features/attendance/dto/leave.dto';
 
 const router = Router();
 const hrOrAdmin = requireRoles('admin', 'hr_manager');
@@ -63,5 +63,6 @@ router.get('/admin/leave-requests', authenticate, hrOrAdmin, leaveController.adm
 router.post('/admin/leave-requests/:id/approve', authenticate, hrOrAdmin, leaveController.approve);
 router.post('/admin/leave-requests/:id/reject', authenticate, hrOrAdmin, validate(rejectLeaveDto, 'body'), leaveController.reject);
 router.get('/admin/leave-balances/:employeeId', authenticate, hrOrAdmin, leaveController.adminBalances);
+router.post('/admin/leave-balances', authenticate, hrOrAdmin, validate(upsertLeaveBalanceDto, 'body'), leaveController.upsertBalance);
 
 export default router;

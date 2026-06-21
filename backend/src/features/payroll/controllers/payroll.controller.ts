@@ -7,6 +7,7 @@ import {
   markPeriodPaid,
   revertPayrollToDraft,
 } from '@features/payroll/services/payroll-approval.service';
+import type { GrossUpDto } from '@features/payroll/dto/gross-up.dto';
 
 function userId(req: Request): string {
   if (!req.user) throw new Error('IAM_002');
@@ -50,6 +51,15 @@ export const payrollController = {
     try {
       const { periodId } = req.params as { periodId: string };
       res.json({ data: await payrollService.totals(periodId) });
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /** POST /payroll/gross-up — NET → GROSS calculator. */
+  async grossUp(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await payrollService.grossUp(req.body as GrossUpDto) });
     } catch (e) {
       next(e);
     }

@@ -20,6 +20,7 @@ import {
   updateDeductionDto,
   upsertTaxProfileDto,
 } from '@features/payroll/dto/compensation.dto';
+import { grossUpDto } from '@features/payroll/dto/gross-up.dto';
 
 const router = Router();
 const hrOrAdmin = requireRoles('admin', 'hr_manager');
@@ -64,6 +65,9 @@ router.get('/payroll/employees/:employeeId/deductions', authenticate, hrOrAdmin,
 router.post('/payroll/deductions', authenticate, hrOrAdmin, validate(createDeductionDto, 'body'), compensationController.createDeduction);
 router.patch('/payroll/deductions/:id', authenticate, hrOrAdmin, validate(updateDeductionDto, 'body'), compensationController.updateDeduction);
 router.delete('/payroll/deductions/:id', authenticate, hrOrAdmin, compensationController.removeDeduction);
+
+// ---- NET → GROSS calculator ----
+router.post('/payroll/gross-up', authenticate, hrOrAdmin, validate(grossUpDto, 'body'), payrollController.grossUp);
 
 // ---- Tax profiles ----
 router.get('/payroll/employees/:employeeId/tax-profiles', authenticate, hrOrAdmin, compensationController.listTaxProfiles);

@@ -40,6 +40,9 @@ export const createSalaryPolicyDto = z
     regionalMinWage: z.record(z.string(), z.coerce.number().nonnegative()).optional(),
     taxBrackets: z.array(z.object({ upTo: z.number().nullable(), rate: z.number() })).optional(),
     insuranceRates: z.record(z.string(), z.record(z.string(), z.coerce.number())).optional(),
+    socialInsuranceSalary: z.coerce.number().nonnegative().optional(),
+    unionFeeRate: z.coerce.number().min(0).max(100).optional(),
+    unionFeeEnabled: z.coerce.boolean().optional(),
   })
   .strict();
 export type CreateSalaryPolicyDto = z.infer<typeof createSalaryPolicyDto>;
@@ -56,6 +59,9 @@ export const updateSalaryPolicyDto = z
     regionalMinWage: z.record(z.string(), z.coerce.number().nonnegative()).optional(),
     taxBrackets: z.array(z.object({ upTo: z.number().nullable(), rate: z.number() })).optional(),
     insuranceRates: z.record(z.string(), z.record(z.string(), z.coerce.number())).optional(),
+    socialInsuranceSalary: z.coerce.number().nonnegative().optional(),
+    unionFeeRate: z.coerce.number().min(0).max(100).optional(),
+    unionFeeEnabled: z.coerce.boolean().optional(),
   })
   .strict();
 export type UpdateSalaryPolicyDto = z.infer<typeof updateSalaryPolicyDto>;

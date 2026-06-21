@@ -2,6 +2,7 @@
 // Vietnamese labels for the enums defined in employee.types.ts.
 
 import type {
+  EmploymentStatus,
   AssetCondition,
   ContractType,
   DepartmentRef,
@@ -71,9 +72,13 @@ export const DOC_TYPE: Record<DocumentType, string> = {
 };
 
 export const CONTRACT_TYPE: Record<ContractType, string> = {
-  probation: "Thử việc",
   fixed_term: "Có thời hạn",
   indefinite: "Không thời hạn",
+};
+
+export const EMPLOYMENT_STATUS: Record<EmploymentStatus, string> = {
+  probation: "Thử việc",
+  official: "Chính thức",
   internship: "Thực tập",
 };
 

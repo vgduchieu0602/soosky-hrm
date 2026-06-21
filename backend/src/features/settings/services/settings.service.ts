@@ -83,6 +83,11 @@ export const salaryPolicyService = {
       ...(input.regionalMinWage && { regionalMinWage: input.regionalMinWage }),
       ...(input.taxBrackets && { taxBrackets: input.taxBrackets }),
       ...(input.insuranceRates && { insuranceRates: input.insuranceRates }),
+      ...(input.socialInsuranceSalary !== undefined && {
+        socialInsuranceSalary: dec(input.socialInsuranceSalary),
+      }),
+      ...(input.unionFeeRate !== undefined && { unionFeeRate: input.unionFeeRate }),
+      ...(input.unionFeeEnabled !== undefined && { unionFeeEnabled: input.unionFeeEnabled }),
       createdBy: new Types.ObjectId(auditUserId),
     });
     await auditService.record({
@@ -109,6 +114,10 @@ export const salaryPolicyService = {
     if (input.regionalMinWage) patch.regionalMinWage = input.regionalMinWage;
     if (input.taxBrackets) patch.taxBrackets = input.taxBrackets;
     if (input.insuranceRates) patch.insuranceRates = input.insuranceRates;
+    if (input.socialInsuranceSalary !== undefined)
+      patch.socialInsuranceSalary = dec(input.socialInsuranceSalary);
+    if (input.unionFeeRate !== undefined) patch.unionFeeRate = input.unionFeeRate;
+    if (input.unionFeeEnabled !== undefined) patch.unionFeeEnabled = input.unionFeeEnabled;
 
     const updated = await SalaryPolicyConfig.findByIdAndUpdate(id, patch, { new: true });
     if (!updated) throw new HttpError(404, 'Policy not found', 'SET_002');
