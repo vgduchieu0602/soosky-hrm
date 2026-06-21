@@ -6,6 +6,8 @@ export interface AdminUser {
   email: string;
   status: UserStatus;
   employeeId?: string | null;
+  employeeName?: string | null;
+  employeeCode?: string | null;
   mustChangePassword?: boolean;
   lastLoginAt?: string | null;
   created_at?: string;

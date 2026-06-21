@@ -65,10 +65,10 @@ export const roleService = {
     const role = await Role.findById(roleId);
     if (!role) throw new HttpError(404, 'Role not found', 'IAM_007');
 
-    if (role.isSystem) {
-      throw new HttpError(403, 'Cannot modify system roles', 'IAM_008');
-    }
-
+    // System roles (admin/hr_manager/employee) may have their description and
+    // permissions edited, but their NAME is protected — grant-login and the
+    // requireRoles guards reference those names by string. Deletion stays blocked
+    // (handled in `remove`).
     if (input.description !== undefined) {
       role.description = input.description;
     }

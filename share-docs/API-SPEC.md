@@ -1,631 +1,262 @@
 # Soosky HRM — API Specification
 
-> **Stack:** Node.js · Express · TypeScript · Mongoose · MongoDB
-> **Related:** [DATABASE.md](./DATABASE.md) · [ARCHITECTURE.md](./ARCHITECTURE.md) · [CONVENTIONS.md](./CONVENTIONS.md)
+> **Auto-documented from the actual route/controller/DTO source as of 2026-06-21.**
+> Canonical reference for all REST endpoints. Schemas (`DATABASE.md`) and flows (`USE-CASE.md`) live alongside this file.
 
 ---
 
-## 1. Overview
+## Overview
 
 - **Base URL:** `/api/v1`
-- **Versioning:** URL path (`/api/v1/...`, `/api/v2/...`)
-- **Content-Type:** `application/json` (JSON body); `multipart/form-data` for file uploads
-- **Charset:** UTF-8
-- **Dates:** ISO 8601 UTC (`2026-05-19T08:30:00Z`)
-- **IDs:** MongoDB ObjectId as 24-char hex string
-- **Money:** stringified Decimal128 (e.g., `"15000000.00"`) to preserve precision
+- **Protocol:** HTTPS (HTTP in dev)
+- **Auth:** JWT Bearer access token in `Authorization` header; refresh token in httpOnly cookie
+- **Format:** JSON envelope (see below)
 
----
+### Authentication model
 
-## 2. Authentication
+| Token | TTL | Storage | Notes |
+|-------|-----|---------|-------|
+| Access token | 15 min | in-memory (FE Zustand) | `Authorization: Bearer <token>` |
+| Refresh token | 7 days | httpOnly cookie `refreshToken` | rotated on every `/auth/refresh`; hash stored in `sessions` |
 
-- **Method:** JWT Bearer token
-- **Header:** `Authorization: Bearer <accessToken>`
-- **Token flow:**
-  - **Access token** — short-lived (15 min), sent in `Authorization` header
-  - **Refresh token** — long-lived (7 days), stored in **httpOnly cookie** `rt`, rotated on every use
-  - Refresh token is hashed and stored in `sessions` collection — supports multi-device & revocation
-- **No public registration.** Accounts are provisioned by HR via `POST /admin/employees/:id/grant-login` — employee receives a temp password via email and must change it on first login (`mustChangePassword`).
-- **Public routes:** `POST /auth/login`, `POST /auth/refresh`, `POST /auth/forgot-password`, `POST /auth/reset-password`, health checks.
-- **Auth errors:**
-  - `401 Unauthorized` — missing / invalid / expired access token
-  - `403 Forbidden` — valid token but lacking role or permission
+- Algorithm HS256; issuer/audience `soosky-hrm` / `soosky-hrm-client`.
+- JWT claims: `{ userId, roles[], permissions[], mustChangePassword?, sessionId? }`.
 
----
+### Response envelopes
 
-## 3. Request Conventions
-
-### Pagination (query)
-
-- `page` — number, default `1`
-- `limit` — number, default `20`, max `100`
-- Example: `GET /employees?page=2&limit=50`
-
-### Sorting
-
-- `sort` — field name, `-` prefix for descending
-- Example: `GET /employees?sort=-createdAt`
-
-### Filtering
-
-- Single value: `?status=active`
-- Multiple values: `?status=active,on_leave`
-- Range: `?hiredFrom=2024-01-01&hiredTo=2024-12-31`
-- Text search: `?q=Nguyen`
-- Reference filter: `?departmentId=64f...`
-- Example: `GET /employees?departmentId=64f...&status=active&q=Nguyen`
-
-### Body
-
-- JSON, **camelCase** field names (matches Mongoose schema fields)
-- Strict types — fail with `422` if unknown fields or wrong type
-
-### File upload
-
-- `Content-Type: multipart/form-data`
-- Field name: `file` (single) / `files` (multiple)
-- Max size: **10 MB** per file for documents/contracts; **2 MB** for avatars
-- Allowed types:
-  - Avatars: `image/jpeg`, `image/png`, `image/webp`
-  - Documents: `application/pdf`, `image/jpeg`, `image/png`
-  - Payslips: generated server-side (`application/pdf`)
-
----
-
-## 4. Response Format
-
-**Success — single item**
-
+**Success**
 ```json
-{
-  "success": true,
-  "data": { "...": "..." },
-  "message": "Optional success message"
-}
+{ "success": true, "data": <T>, "message"?: "...",
+  "meta"?: { "page": 1, "limit": 20, "total": 0, "totalPages": 0 } }
 ```
-
-**Success — list with pagination**
-
-```json
-{
-  "success": true,
-  "data": [{ "...": "..." }],
-  "meta": { "page": 1, "limit": 20, "total": 124, "totalPages": 7 }
-}
-```
-
 **Error**
-
 ```json
-{
-  "success": false,
-  "error": {
-    "code": "EMP_003",
-    "message": "Employee already has a linked user account",
-    "details": { "employeeId": "64f...", "userId": "64a..." }
-  }
-}
+{ "success": false, "error": { "code": "FEATURE_NNN", "message": "...", "details"?: {} } }
 ```
+
+### Roles & guards
+
+- Roles: `admin`, `hr_manager`, `employee`.
+- Middleware chain: `authenticate` (valid JWT) → `requireRoles(...)` / `hrOrAdmin` (role gate) → `validate(dto)` (Zod). Public routes opt out of `authenticate`.
 
 ---
 
-## 5. Error Codes
+## IAM — Auth, Users, Roles, Permissions, Audit
 
-**Format:** `[FEATURE]_[NUMBER]`
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| POST | `/auth/login` | public | `{ identifier, password }` | Login (email or username) |
+| POST | `/auth/refresh` | public (cookie) | — | Rotate tokens via refresh cookie |
+| POST | `/auth/logout` | auth | — | Revoke current session |
+| PATCH | `/auth/change-password` | auth | `{ currentPassword, newPassword }` | Change own password |
+| GET | `/auth/me` | auth | — | Current user profile |
+| GET | `/auth/set-password` | public | `?token=` | Validate a setup/reset token |
+| POST | `/auth/set-password` | public | `{ token, password }` | Set password via emailed link |
+| POST | `/users` | auth | `{ username, email, password, employeeId? }` | Create user |
+| GET | `/users` | auth | `?status=&search=` | List users |
+| GET | `/users/:id` | auth | — | Get user |
+| PATCH | `/users/:id` | auth | `{ status? }` | Update user (enable/disable) |
+| DELETE | `/users/:id` | auth | — | Delete user |
+| POST | `/roles` | admin | `{ name, description?, permissionIds[]? }` | Create role |
+| GET | `/roles` | auth | — | List roles |
+| GET | `/roles/:id` | auth | — | Get role (+ permissionIds) |
+| PATCH | `/roles/:id` | admin | `{ description?, permissionIds[]? }` | Update role |
+| DELETE | `/roles/:id` | admin | — | Delete role (system roles blocked) |
+| POST | `/permissions` | auth | `{ key, resource, action, description? }` | Create permission |
+| GET | `/permissions` | auth | — | List permissions |
+| GET | `/permissions/:id` | auth | — | Get permission |
+| PATCH | `/permissions/:id` | auth | — | Update permission |
+| DELETE | `/permissions/:id` | auth | — | Delete permission |
+| GET | `/admin/audit-logs` | admin | `?resource=&limit=` | List audit logs |
 
-| Prefix                | Feature            |
-| --------------------- | ------------------ |
-| `IAM_001`–`IAM_099`   | Identity & Access  |
-| `ORG_001`–`ORG_099`   | Organization       |
-| `EMP_001`–`EMP_099`   | Employee           |
-| `ATT_001`–`ATT_099`   | Attendance & Leave |
-| `PAY_001`–`PAY_099`   | Payroll            |
-| `PERF_001`–`PERF_099` | Performance        |
-| `SYS_001`–`SYS_099`   | System             |
-
-**Common error codes**
-
-| Code       | HTTP | Description                                          |
-| ---------- | ---- | ---------------------------------------------------- |
-| `IAM_001`  | 401  | Invalid credentials                                  |
-| `IAM_002`  | 401  | Access token expired                                 |
-| `IAM_003`  | 401  | Refresh token invalid or revoked                     |
-| `IAM_004`  | 403  | Insufficient role / permission                       |
-| `IAM_005`  | 423  | Account locked (too many failed attempts)            |
-| `IAM_006`  | 409  | Email or username already in use                     |
-| `IAM_007`  | 400  | Must change temporary password before continuing     |
-| `ORG_001`  | 404  | Department not found                                 |
-| `ORG_002`  | 409  | Cannot delete department with active employees       |
-| `ORG_003`  | 400  | Circular parent department reference                 |
-| `EMP_001`  | 404  | Employee not found                                   |
-| `EMP_002`  | 409  | Employee code already exists                         |
-| `EMP_003`  | 409  | Employee already has a linked user account           |
-| `EMP_004`  | 400  | Cannot terminate already-terminated employee         |
-| `ATT_001`  | 404  | Attendance record not found                          |
-| `ATT_002`  | 409  | Already checked in today                             |
-| `ATT_003`  | 400  | Check-out before check-in                            |
-| `ATT_004`  | 400  | Insufficient leave balance                           |
-| `ATT_005`  | 409  | Overlapping leave request already pending/approved   |
-| `PAY_001`  | 404  | Payroll period not found                             |
-| `PAY_002`  | 409  | Period is closed; no further modifications allowed   |
-| `PAY_003`  | 400  | Salary structure missing for employee in this period |
-| `PAY_004`  | 409  | Payroll already computed for this period             |
-| `PERF_001` | 404  | Appraisal cycle not found                            |
-| `PERF_002` | 400  | Review submitted after deadline                      |
-| `PERF_003` | 409  | Review already submitted                             |
-| `SYS_001`  | 500  | Internal server error                                |
-| `SYS_002`  | 422  | Validation error (see `details`)                     |
-| `SYS_003`  | 429  | Too many requests                                    |
-
-**HTTP status usage:** `200` GET/PATCH · `201` POST · `204` DELETE · `400` bad request · `401` unauthorized · `403` forbidden · `404` not found · `409` conflict · `422` validation · `429` rate-limited · `500` server error.
+**DTO highlights** — `login`: `identifier` 1–120, `password` ≤200. `createUser`: `username` 3–120, `email` lowercase, `password` 8–200, `employeeId` 24-char. `changePassword`: `newPassword` 8–72. `setPassword`: `token` ≥10, `password` 8–72. `permission.action` ∈ `create|read|update|delete|approve`.
 
 ---
 
-## 6. Endpoints by Feature
+## Organization — Departments & Positions
 
-### 6.1 IAM — Authentication & Identity
-
-| Method | Path                    | Description                              | Auth        |
-| ------ | ----------------------- | ---------------------------------------- | ----------- |
-| POST   | `/auth/login`           | Login with email + password              | No          |
-| POST   | `/auth/refresh`         | Rotate access token using refresh cookie | No (cookie) |
-| POST   | `/auth/logout`          | Revoke current session                   | Yes         |
-| POST   | `/auth/logout-all`      | Revoke all sessions for current user     | Yes         |
-| GET    | `/auth/me`              | Current user + employee profile          | Yes         |
-| PATCH  | `/auth/change-password` | Change own password                      | Yes         |
-| POST   | `/auth/forgot-password` | Send reset link to personal email        | No          |
-| POST   | `/auth/reset-password`  | Reset password with token                | No          |
-| GET    | `/auth/sessions`        | List own active sessions                 | Yes         |
-| DELETE | `/auth/sessions/:id`    | Revoke a specific session                | Yes         |
-
-**Admin sub-routes:**
-
-| Method | Path                             | Description                                     | Auth  |
-| ------ | -------------------------------- | ----------------------------------------------- | ----- |
-| GET    | `/admin/users`                   | List users (filter by status, role)             | Admin |
-| GET    | `/admin/users/:id`               | User detail                                     | Admin |
-| PATCH  | `/admin/users/:id`               | Update status (`disable`/`enable`/`unlock`)     | Admin |
-| GET    | `/admin/roles`                   | List roles                                      | Admin |
-| POST   | `/admin/roles`                   | Create custom role                              | Admin |
-| PATCH  | `/admin/roles/:id`               | Update role                                     | Admin |
-| DELETE | `/admin/roles/:id`               | Delete role (non-system only)                   | Admin |
-| GET    | `/admin/permissions`             | List permissions                                | Admin |
-| PUT    | `/admin/roles/:id/permissions`   | Replace role's permission set                   | Admin |
-| POST   | `/admin/users/:id/roles`         | Assign role to user                             | Admin |
-| DELETE | `/admin/users/:id/roles/:roleId` | Revoke role from user                           | Admin |
-| GET    | `/admin/audit-logs`              | Query audit logs (filter by user/resource/date) | Admin |
-
-### 6.2 Organization
-
-| Method | Path                     | Description                              | Auth       |
-| ------ | ------------------------ | ---------------------------------------- | ---------- |
-| GET    | `/departments`           | List departments (flat or `?tree=true`)  | Yes        |
-| GET    | `/departments/:id`       | Department detail + member count         | Yes        |
-| POST   | `/admin/departments`     | Create department                        | HR / Admin |
-| PATCH  | `/admin/departments/:id` | Update (name, manager, parent)           | HR / Admin |
-| DELETE | `/admin/departments/:id` | Archive department (no active employees) | HR / Admin |
-| GET    | `/positions`             | List positions (filter by department)    | Yes        |
-| GET    | `/positions/:id`         | Position detail                          | Yes        |
-| POST   | `/admin/positions`       | Create position                          | HR / Admin |
-| PATCH  | `/admin/positions/:id`   | Update position                          | HR / Admin |
-| DELETE | `/admin/positions/:id`   | Archive position                         | HR / Admin |
-
-### 6.3 Employee
-
-| Method | Path                                          | Description                               | Auth          |
-| ------ | --------------------------------------------- | ----------------------------------------- | ------------- |
-| GET    | `/employees`                                  | List employees (filter, search, paginate) | Yes           |
-| GET    | `/employees/stats`                            | Aggregate counts by status                | Yes           |
-| GET    | `/employees/export`                           | Export filtered list as CSV (`text/csv`)  | Yes           |
-| GET    | `/employees/:id`                              | Employee detail (core + profile summary)  | Yes           |
-| GET    | `/employees/me`                               | Own employee record                       | Yes           |
-| POST   | `/admin/employees`                            | Create employee + profile (no login yet)  | HR / Admin    |
-| PATCH  | `/admin/employees/:id`                        | Update org info (dept, position, manager, status) | HR / Admin    |
-| POST   | `/admin/employees/:id/grant-login`            | **Provision user account** (atomic)       | HR / Admin    |
-| POST   | `/admin/employees/:id/terminate`              | Mark as terminated; revoke sessions       | HR / Admin    |
-| GET    | `/employees/:id/account`                      | Linked login account summary              | Yes (self/HR) |
-| POST   | `/admin/employees/:id/reset-password`         | Issue new temp password + email it        | HR / Admin    |
-| POST   | `/admin/employees/:id/resend-invite`          | Re-send activation invite                 | HR / Admin    |
-| PATCH  | `/admin/employees/:id/account`                | Enable/disable login; change role         | HR / Admin    |
-| GET    | `/employees/:id/profile`                      | Profile (PII)                             | Yes (self/HR) |
-| PATCH  | `/employees/:id/profile`                      | Update profile                            | Yes (self/HR) |
-| GET    | `/employees/:id/documents`                    | List documents                            | Yes (self/HR) |
-| POST   | `/employees/:id/documents`                    | Upload document                           | Yes (self/HR) |
-| DELETE | `/employees/:id/documents/:docId`             | Delete document                           | HR / Admin    |
-| GET    | `/employees/:id/contacts`                     | List emergency contacts                   | Yes (self/HR) |
-| POST   | `/employees/:id/contacts`                     | Add contact                               | Yes (self/HR) |
-| PATCH  | `/employees/:id/contacts/:contactId`          | Update contact                            | Yes (self/HR) |
-| DELETE | `/employees/:id/contacts/:contactId`          | Remove contact                            | Yes (self/HR) |
-| GET    | `/employees/:id/bank-accounts`                | List bank accounts                        | Yes (self/HR) |
-| POST   | `/employees/:id/bank-accounts`                | Add bank account                          | Yes (self/HR) |
-| PATCH  | `/employees/:id/bank-accounts/:accountId`     | Update / set primary                      | Yes (self/HR) |
-| GET    | `/employees/:id/contracts`                    | List contracts (versioned)                | Yes (self/HR) |
-| POST   | `/admin/employees/:id/contracts`              | Add new contract                          | HR / Admin    |
-| PATCH  | `/admin/employees/:id/contracts/:contractId`  | Update contract                           | HR / Admin    |
-| GET    | `/employees/:id/history`                      | HR event timeline                         | Yes (self/HR) |
-| GET    | `/employees/:id/assets`                       | List assigned assets                      | Yes (self/HR) |
-| POST   | `/admin/employees/:id/assets`                 | Assign asset                              | HR / Admin    |
-| PATCH  | `/admin/employees/:id/assets/:assetId/return` | Mark asset returned                       | HR / Admin    |
-
-### 6.4 Attendance & Leave
-
-| Method | Path                                | Description                               | Auth         |
-| ------ | ----------------------------------- | ----------------------------------------- | ------------ |
-| POST   | `/attendances/check-in`             | Punch in                                  | Yes          |
-| POST   | `/attendances/check-out`            | Punch out                                 | Yes          |
-| GET    | `/attendances/me`                   | Own attendance records (filter by month)  | Yes          |
-| GET    | `/admin/attendances`                | All attendances (filter by employee/date) | HR / Manager |
-| PATCH  | `/admin/attendances/:id`            | Manual correction                         | HR           |
-| GET    | `/shifts`                           | List shifts                               | Yes          |
-| POST   | `/admin/shifts`                     | Create shift                              | HR / Admin   |
-| PATCH  | `/admin/shifts/:id`                 | Update shift                              | HR / Admin   |
-| GET    | `/leave-requests/me`                | Own leave requests                        | Yes          |
-| POST   | `/leave-requests`                   | Submit leave request                      | Yes          |
-| PATCH  | `/leave-requests/:id`               | Cancel own pending request                | Yes          |
-| GET    | `/leave-requests/pending-approval`  | Requests awaiting current user's approval | Manager      |
-| POST   | `/leave-requests/:id/approve`       | Approve                                   | Manager / HR |
-| POST   | `/leave-requests/:id/reject`        | Reject (with reason)                      | Manager / HR |
-| GET    | `/leave-balances/me`                | Own balances for the year                 | Yes          |
-| GET    | `/admin/leave-balances/:employeeId` | Any employee's balances                   | HR           |
-| GET    | `/holidays`                         | List holidays for a year/country          | Yes          |
-| POST   | `/admin/holidays`                   | Create holiday                            | HR / Admin   |
-| PATCH  | `/admin/holidays/:id`               | Update holiday                            | HR / Admin   |
-| DELETE | `/admin/holidays/:id`               | Delete holiday                            | HR / Admin   |
-
-### 6.5 Payroll
-
-> **Đã triển khai** (prefix `/api/v1`). Tất cả endpoint dưới yêu cầu role `admin`/`hr_manager`, trừ `mark-paid` chỉ `admin`. Tiền trả về dạng chuỗi Decimal128.
-
-**Kỳ lương & chạy tính (Period & Run)**
-
-| Method | Path                                        | Description                                       | Auth       |
-| ------ | ------------------------------------------- | ------------------------------------------------- | ---------- |
-| GET    | `/payroll/periods`                          | List periods                                      | HR / Admin |
-| GET    | `/payroll/periods/:id`                      | Period detail                                     | HR / Admin |
-| POST   | `/payroll/periods`                          | Create period (auto `standardWorkDays`)           | HR / Admin |
-| PATCH  | `/payroll/periods/:id`                      | Update period (chặn nếu đã khóa)                  | HR / Admin |
-| POST   | `/payroll/periods/:id/close`                | Khóa kỳ (lock run/edit)                           | HR / Admin |
-| POST   | `/payroll/periods/:id/run`                  | **Chạy lương toàn kỳ** (body `requireApprovedEvaluation?`) | HR / Admin |
-| POST   | `/payroll/periods/:id/run/:employeeId`      | Chạy lương 1 nhân viên                            | HR / Admin |
-
-**Bảng lương đã tính (Payrolls)**
-
-| Method | Path                                   | Description                                   | Auth       |
-| ------ | -------------------------------------- | --------------------------------------------- | ---------- |
-| GET    | `/payroll/payrolls`                    | List (filter `payrollPeriodId`/`employeeId`/`status`, phân trang) | HR / Admin |
-| GET    | `/payroll/payrolls/:id`                | Payroll detail                                | HR / Admin |
-| GET    | `/payroll/periods/:periodId/totals`    | Tổng quỹ gross/net theo status (cho BOD)      | HR / Admin |
-
-**Workflow duyệt → thanh toán**
-
-| Method | Path                                   | Description                                   | Auth       |
-| ------ | -------------------------------------- | --------------------------------------------- | ---------- |
-| POST   | `/payroll/periods/:id/approve`         | Duyệt (body `employeeId?` để duyệt 1 NV)      | HR / Admin |
-| POST   | `/payroll/payrolls/:id/revert`         | Mở lại bản đã duyệt về `draft`                | HR / Admin |
-| POST   | `/payroll/periods/:id/mark-paid`       | Đánh dấu thanh toán & khóa kỳ                 | **Admin**  |
-
-**Nhập liệu cấu phần lương (per employee)**
-
-| Method | Path                                            | Description                  | Auth       |
-| ------ | ----------------------------------------------- | ---------------------------- | ---------- |
-| GET    | `/payroll/employees/:employeeId/allowances`     | Phụ cấp của NV               | HR / Admin |
-| POST   | `/payroll/allowances`                           | Thêm phụ cấp                 | HR / Admin |
-| PATCH  | `/payroll/allowances/:id`                       | Sửa phụ cấp                  | HR / Admin |
-| DELETE | `/payroll/allowances/:id`                       | Xóa phụ cấp                  | HR / Admin |
-| GET    | `/payroll/employees/:employeeId/bonuses`        | Thưởng của NV                | HR / Admin |
-| POST   | `/payroll/bonuses`                              | Thêm thưởng (theo kỳ)        | HR / Admin |
-| PATCH  | `/payroll/bonuses/:id`                          | Sửa thưởng                   | HR / Admin |
-| DELETE | `/payroll/bonuses/:id`                          | Xóa thưởng                   | HR / Admin |
-| GET    | `/payroll/employees/:employeeId/deductions`     | Khấu trừ của NV              | HR / Admin |
-| POST   | `/payroll/deductions`                           | Thêm khấu trừ                | HR / Admin |
-| PATCH  | `/payroll/deductions/:id`                       | Sửa khấu trừ                 | HR / Admin |
-| DELETE | `/payroll/deductions/:id`                       | Xóa khấu trừ                 | HR / Admin |
-| GET    | `/payroll/employees/:employeeId/tax-profiles`   | Lịch sử hồ sơ thuế NV        | HR / Admin |
-| POST   | `/payroll/tax-profiles`                         | Thêm hồ sơ thuế (versioned)  | HR / Admin |
-
-> **Chưa triển khai (pha sau):** salary-structures, payslips (`/payslips/me`, `/payslips/:id`), export ngân hàng. Salary policy config quản lý ở `settings` (`GET /settings/salary-policies`, `POST/PATCH /admin/settings/salary-policies`).
-
-### 6.6 Performance
-
-> **Đã triển khai — Monthly Evaluation (HR/QL chấm trực tiếp, NV xem).** Prefix `/api/v1`. Không cần "khởi tạo": HR mở list NV → chấm → `finalize=false` (nháp) hoặc `true` (duyệt). `performanceRatio` = TB chỉ số `type=performance`; `goalRatio` = TB chỉ số `type=goal` (đều `Σ(score×weight)/Σweight`). Payroll chỉ chạy khi evaluation `approved`/`acknowledged`.
-
-| Method | Path                                          | Description                                  | Auth        |
-| ------ | --------------------------------------------- | -------------------------------------------- | ----------- |
-| GET    | `/performance/evaluations?payrollPeriodId=`   | List đánh giá theo kỳ                        | HR / Admin  |
-| GET    | `/performance/evaluations/me`                 | Đánh giá của chính tôi (xem)                 | Yes         |
-| GET    | `/performance/evaluations/:id`                | Chi tiết                                     | Yes         |
-| POST   | `/performance/evaluations`                    | **Chấm trực tiếp** (upsert): `{employeeId, payrollPeriodId, criteriaScores[], strengths?, finalize?}` → `draft`/`approved` | HR / Admin |
-| POST   | `/performance/evaluations/:id/acknowledge`    | NV xác nhận (kèm `disputeNote?`) → `acknowledged` | Yes (NV) |
-| POST   | `/performance/evaluations/:id/reopen`         | Mở lại `approved` → `draft`                  | HR / Admin  |
-
-Chỉ số (performance 60% + goal 20%) quản lý ở `settings`: `GET /settings/performance-criteria`, `POST/PATCH/DELETE /admin/settings/performance-criteria` (kèm `type`).
-
-> **Chưa triển khai (pha sau)** — appraisal cycle tách rời, goals, KPIs, multi-source feedback:
-
-| Method | Path                                   | Description                        | Auth                  |
-| ------ | -------------------------------------- | ---------------------------------- | --------------------- |
-| GET    | `/appraisal-cycles`                    | List cycles                        | Yes                   |
-| GET    | `/appraisal-cycles/:id`                | Cycle detail                       | Yes                   |
-| POST   | `/admin/appraisal-cycles`              | Create cycle                       | HR / Admin            |
-| PATCH  | `/admin/appraisal-cycles/:id`          | Update / change status             | HR / Admin            |
-| GET    | `/goals/me?cycleId=...`                | Own goals for cycle                | Yes                   |
-| POST   | `/goals`                               | Create goal                        | Yes                   |
-| PATCH  | `/goals/:id`                           | Update progress / details          | Yes (owner/manager)   |
-| DELETE | `/goals/:id`                           | Delete own goal                    | Yes                   |
-| GET    | `/kpis/me?cycleId=...`                 | Own KPIs                           | Yes                   |
-| POST   | `/admin/employees/:id/kpis`            | Manager assigns KPI                | Manager / HR          |
-| PATCH  | `/kpis/:id`                            | Update achieved value              | Yes (owner/manager)   |
-| GET    | `/performance-reviews/me`              | Reviews **of** me                  | Yes                   |
-| GET    | `/performance-reviews/assigned`        | Reviews I must complete            | Manager               |
-| POST   | `/performance-reviews`                 | Create review draft                | Manager / HR          |
-| PATCH  | `/performance-reviews/:id`             | Update draft                       | Manager               |
-| POST   | `/performance-reviews/:id/submit`      | Submit final review                | Manager               |
-| POST   | `/performance-reviews/:id/acknowledge` | Employee acknowledges              | Yes (subject)         |
-| GET    | `/performance-reviews/:id/feedbacks`   | List feedbacks                     | Yes (subject/manager) |
-| POST   | `/performance-reviews/:id/feedbacks`   | Add self / peer / manager feedback | Yes                   |
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| GET | `/departments` | auth | — | List departments (tree/flat) |
+| GET | `/departments/:id` | auth | — | Get department |
+| GET | `/departments/:id/history` | auth | — | Department change history |
+| POST | `/admin/departments` | hr/admin | `{ name, code, parentDepartmentId?, managerId?, costCenter?, location?, email?, description? }` | Create |
+| PATCH | `/admin/departments/:id` | hr/admin | create fields (optional) + `status?` | Update |
+| PATCH | `/admin/departments/:id/head` | hr/admin | `{ managerId }` | Assign/clear head |
+| PATCH | `/admin/departments/:id/move` | hr/admin | `{ parentDepartmentId }` | Reparent |
+| POST | `/admin/departments/:id/transfer-employees` | hr/admin | `{ targetDepartmentId, employeeIds[]? }` | Bulk transfer (omit ids = all) |
+| POST | `/admin/departments/:id/merge` | hr/admin | `{ targetDepartmentId }` | Merge then archive |
+| DELETE | `/admin/departments/:id` | hr/admin | — | Archive (soft delete) |
+| GET | `/positions` | auth | — | List positions |
+| GET | `/positions/:id` | auth | — | Get position |
+| POST | `/admin/positions` | hr/admin | `{ title, code, departmentId, level?, description? }` | Create |
+| PATCH | `/admin/positions/:id` | hr/admin | `{ title?, departmentId?, level?, description? }` | Update |
+| DELETE | `/admin/positions/:id` | hr/admin | — | Delete |
 
 ---
 
-## 7. Endpoint Details (Workflow-Critical)
+## Employee — Core, Profile, Sub-resources, Account
 
-### 7.1 `POST /auth/login`
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| GET | `/employees` | auth | `?page=&limit=&search=&departmentId=&status=` | List (paginated) |
+| GET | `/employees/stats` | auth | — | Headcount stats |
+| GET | `/employees/export` | auth | — | CSV export |
+| GET | `/employees/me` | auth | — | Own employee record |
+| GET | `/employees/:id` | auth | — | Get employee |
+| GET | `/employees/:id/account` | auth | — | Linked account summary (`hasAccount`) |
+| GET | `/employees/:id/profile` | auth | — | Profile |
+| PATCH | `/employees/:id/profile` | auth | profile fields | Update profile (self/HR) |
+| GET | `/employees/:id/documents` | auth | — | List documents |
+| GET | `/employees/:id/contacts` | auth | — | List contacts |
+| GET | `/employees/:id/bank-accounts` | auth | — | List bank accounts |
+| GET | `/employees/:id/contracts` | auth | — | List contracts |
+| GET | `/employees/:id/assets` | auth | — | List assets |
+| GET | `/employees/:id/history` | auth | — | Change-history timeline |
+| POST | `/employees/:id/documents` | auth | `{ documentType, documentNumber, fileUrl?, issuedDate?, expiryDate?, issuedBy? }` | Add document |
+| POST | `/employees/:id/contacts` | auth | `{ name, relationship, phone?, email?, address?, isPrimary? }` | Add contact |
+| PATCH | `/employees/:id/contacts/:contactId` | auth | contact fields | Update contact |
+| DELETE | `/employees/:id/contacts/:contactId` | auth | — | Delete contact |
+| POST | `/employees/:id/bank-accounts` | auth | `{ bankName, branch?, accountNumber, accountHolder, isPrimary? }` | Add bank account |
+| PATCH | `/employees/:id/bank-accounts/:accountId` | auth | bank fields | Update bank account |
+| POST | `/admin/employees` | hr/admin | `{ employeeCode, departmentId, positionId, hireDate, employeeType, salaryZone?, profile{...} }` | Create employee |
+| PATCH | `/admin/employees/:id` | hr/admin | `{ departmentId?, positionId?, managerId?, employeeType?, status?, salaryZone? }` | Update employee |
+| POST | `/admin/employees/:id/grant-login` | hr/admin | `{ username?, sendEmail? }` | Provision account (atomic) + invite |
+| POST | `/admin/employees/:id/terminate` | hr/admin | `{ terminationDate?, reason? }` | Terminate (soft delete) |
+| DELETE | `/admin/employees/:id` | hr/admin | — | Hard delete (cascade) |
+| POST | `/admin/employees/:id/reset-password` | hr/admin | — | Send password-reset link |
+| POST | `/admin/employees/:id/resend-invite` | hr/admin | — | Resend setup invite |
+| PATCH | `/admin/employees/:id/account` | hr/admin | `{ status?, role? }` | Update linked account |
+| PATCH | `/admin/employees/:id/documents/:docId` | hr/admin | document fields | Update document |
+| DELETE | `/admin/employees/:id/documents/:docId` | hr/admin | — | Delete document |
+| POST | `/admin/employees/:id/contracts` | hr/admin | `{ contractType, contractNumber, startDate, endDate?, baseSalary, currency?, fileUrl?, status? }` | Add contract |
+| PATCH | `/admin/employees/:id/contracts/:contractId` | hr/admin | contract fields | Update contract |
+| POST | `/admin/employees/:id/assets` | hr/admin | `{ assetName, assetCode, assignedDate, condition?, note? }` | Assign asset |
+| PATCH | `/admin/employees/:id/assets/:assetId/return` | hr/admin | `{ returnedDate?, condition?, note? }` | Mark returned |
+| PATCH | `/admin/employees/:id/assets/:assetId` | hr/admin | asset fields | Update asset |
+| DELETE | `/admin/employees/:id/assets/:assetId` | hr/admin | — | Delete asset |
 
-```json
-// Request
-{ "email": "hieu.vd@soosky.co", "password": "P@ssw0rd!" }
-```
-
-```json
-// 200 OK
-{
-  "success": true,
-  "data": {
-    "accessToken": "eyJhbGciOi...",
-    "user": {
-      "id": "64f0a1...",
-      "email": "hieu.vd@soosky.co",
-      "roles": ["hr_manager"],
-      "mustChangePassword": false,
-      "employee": {
-        "id": "64f0b2...",
-        "employeeCode": "EMP-0001",
-        "fullName": "Vương Đức Hiếu",
-        "department": "Engineering"
-      }
-    }
-  }
-}
-```
-
-- `rt` cookie set: `httpOnly`, `Secure`, `SameSite=Strict`, 7-day TTL
-- **Errors:** `IAM_001` (401) invalid credentials · `IAM_005` (423) account locked after N failures · `IAM_007` (400) `mustChangePassword=true` — client must call `/auth/change-password` before other endpoints.
-
-### 7.2 `POST /admin/employees` — Create employee (no login yet)
-
-```json
-// Request
-{
-  "employeeCode": "EMP-0042",
-  "departmentId": "64f0c0...",
-  "positionId": "64f0c1...",
-  "managerId": "64f0a1...",
-  "hireDate": "2026-06-01",
-  "employeeType": "full_time",
-  "profile": {
-    "firstName": "Lan",
-    "lastName": "Nguyen Thi",
-    "dateOfBirth": "1998-04-15",
-    "gender": "female",
-    "nationality": "VN",
-    "personalEmail": "lan.nt@gmail.com",
-    "phone": "+84901234567"
-  }
-}
-```
-
-```json
-// 201 Created
-{
-  "success": true,
-  "data": {
-    "id": "64f0d0...",
-    "employeeCode": "EMP-0042",
-    "userId": null,
-    "status": "onboarding"
-  },
-  "message": "Employee created. Run grant-login to provision account."
-}
-```
-
-- **Atomic:** creates `employees` + `employeeProfiles` in one transaction.
-- **Errors:** `EMP_002` (409) duplicate `employeeCode` · `ORG_001` (404) department / position not found.
-
-### 7.3 `POST /admin/employees/:id/grant-login` — Provision account
-
-```json
-// Request (optional override)
-{ "username": "lan.nt", "sendEmail": true }
-```
-
-```json
-// 200 OK
-{
-  "success": true,
-  "data": {
-    "userId": "64f0e0...",
-    "username": "lan.nt",
-    "tempPasswordSentTo": "lan.nt@gmail.com"
-  },
-  "message": "Login credentials sent to personal email"
-}
-```
-
-**Business logic** (single Mongoose `session.withTransaction`):
-
-1. Generate random temp password → bcrypt hash.
-2. Insert `users` (`employeeId`, `mustChangePassword=true`).
-3. Update `employees.userId`.
-4. Insert `userRoles` with role `employee`.
-5. Insert `auditLogs` (`action=create`, `resource=user`).
-6. Emit `employee.granted-login` event → email worker sends temp password.
-
-- **Errors:** `EMP_001` (404) · `EMP_003` (409) already has user · `IAM_006` (409) username/email taken.
-
-### 7.4 `POST /leave-requests` — Submit leave
-
-```json
-// Request
-{
-  "leaveType": "annual",
-  "startDate": "2026-06-10",
-  "endDate": "2026-06-12",
-  "reason": "Personal trip"
-}
-```
-
-```json
-// 201 Created
-{
-  "success": true,
-  "data": {
-    "id": "64f1a0...",
-    "leaveType": "annual",
-    "startDate": "2026-06-10",
-    "endDate": "2026-06-12",
-    "days": 3,
-    "status": "pending",
-    "approverId": "64f0a1...",
-    "balanceAfter": { "entitled": 12, "used": 9, "remaining": 3 }
-  }
-}
-```
-
-- `days` computed server-side (excludes weekends + holidays).
-- **Errors:** `ATT_004` (400) insufficient balance · `ATT_005` (409) overlapping request.
-
-### 7.5 `POST /leave-requests/:id/approve` — Approve
-
-```json
-// 200 OK — atomic: updates request + decrements leaveBalance + logs employeeHistory
-{
-  "success": true,
-  "data": {
-    "id": "64f1a0...",
-    "status": "approved",
-    "approvedAt": "2026-05-19T10:00:00Z"
-  }
-}
-```
-
-- Only `approverId` (manager) or HR may call.
-- **Errors:** `IAM_004` (403) not assigned approver.
-
-### 7.6 `POST /admin/payroll-periods/:id/compute` — Compute payrolls
-
-```json
-// Request — optional scope
-{ "employeeIds": null, "dryRun": false }
-```
-
-```json
-// 200 OK
-{
-  "success": true,
-  "data": {
-    "periodId": "64f2a0...",
-    "computed": 124,
-    "skipped": 2,
-    "errors": [
-      {
-        "employeeId": "64f0d0...",
-        "code": "PAY_003",
-        "message": "Missing salary structure"
-      }
-    ]
-  }
-}
-```
-
-**Business logic** (per employee, transactional):
-
-1. Resolve active `salaryStructure`, `allowances`, applicable `bonuses`, `deductions`.
-2. Pull `attendances` + `leaveRequests` for the period → compute `workDays`, `leaveDays`.
-3. Compute `gross = base + allowances + bonuses`.
-4. Resolve `taxConfigs` / `insuranceConfigs` by `country + year` → compute `tax`, `insurance`.
-5. `net = gross − tax − insurance − deductions`.
-6. Upsert `payrolls` (`status=draft`).
-7. Log `auditLogs`.
-
-- **Errors:** `PAY_002` (409) period already closed · `PAY_003` (400) missing salary structure · `PAY_004` (409) already computed (use `recompute=true` query param).
-
-### 7.7 `POST /performance-reviews/:id/submit` — Submit review
-
-```json
-// Request
-{
-  "overallScore": 87,
-  "rating": "exceeds",
-  "summary": "Consistently delivers above expectations on backend ownership.",
-  "feedbacks": [
-    {
-      "feedbackType": "manager",
-      "comments": "...",
-      "scores": { "ownership": 5, "teamwork": 4 }
-    }
-  ]
-}
-```
-
-```json
-// 200 OK
-{
-  "success": true,
-  "data": {
-    "id": "64f3a0...",
-    "status": "submitted",
-    "submittedAt": "2026-05-19T12:00:00Z"
-  }
-}
-```
-
-- **Errors:** `PERF_002` (400) past `reviewDeadline` · `PERF_003` (409) already submitted.
+**`profile` (create) fields:** `firstName`, `middleName?`, `lastName`, `dateOfBirth?`, `gender?`, `nationality?`, `maritalStatus?`, `email?` (personal — required to grant login), `workEmail?`, `phone?`, `address?`. Update profile additionally accepts `avatarUrl?`, `avatarId?`.
 
 ---
 
-## 8. Implementation Notes
+## Attendance & Leave
 
-### Documentation
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| GET | `/shifts` | auth | — | List shifts |
+| POST | `/admin/shifts` | hr/admin | `{ name, type?, startTime, endTime, breakMinutes?, workingDays[]? }` | Create shift |
+| PATCH | `/admin/shifts/:id` | hr/admin | shift fields + `status?` | Update shift |
+| DELETE | `/admin/shifts/:id` | hr/admin | — | Delete shift |
+| GET | `/holidays` | auth | — | List holidays |
+| POST | `/admin/holidays` | hr/admin | `{ name, date, isRecurring?, country?, description? }` | Create holiday |
+| PATCH | `/admin/holidays/:id` | hr/admin | holiday fields | Update holiday |
+| DELETE | `/admin/holidays/:id` | hr/admin | — | Delete holiday |
+| GET | `/attendance-symbols` | auth | — | List symbols |
+| POST | `/admin/attendance-symbols` | hr/admin | `{ code, label, paidStatus?, affectsPayroll?, leaveType?, color? }` | Create symbol |
+| PATCH | `/admin/attendance-symbols/:id` | hr/admin | symbol fields | Update symbol |
+| GET | `/attendances/me` | auth | — | Own records (current month) |
+| POST | `/attendances/check-in` | auth | — | Self check-in |
+| POST | `/attendances/check-out` | auth | — | Self check-out |
+| GET | `/admin/attendances` | hr/admin | `?month=&departmentId=` | Full attendance grid |
+| POST | `/admin/attendances` | hr/admin | `{ employeeId, date, shiftId, checkIn?, checkOut?, status?, note? }` | Upsert record |
+| POST | `/admin/attendances/bulk` | hr/admin | `{ rows: [...] }` (≤500) | Bulk upsert |
+| PATCH | `/admin/attendances/:id` | hr/admin | `{ shiftId?, checkIn?, checkOut?, status?, note?, reason? }` | Adjust record |
+| DELETE | `/admin/attendances/:id` | hr/admin | — | Delete record |
+| POST | `/leave-requests` | auth | `{ leaveType, startDate, endDate, halfDaySession?, reason? }` | Submit leave |
+| GET | `/leave-requests/me` | auth | — | Own leave requests |
+| PATCH | `/leave-requests/:id/cancel` | auth | — | Cancel own request |
+| GET | `/leave-balances/me` | auth | — | Own balances |
+| GET | `/admin/leave-requests` | hr/admin | — | All requests (review) |
+| POST | `/admin/leave-requests/:id/approve` | hr/admin | — | Approve → sync attendance + balance |
+| POST | `/admin/leave-requests/:id/reject` | hr/admin | `{ reason }` | Reject |
+| GET | `/admin/leave-balances/:employeeId` | hr/admin | — | Employee balances |
 
-- Generate OpenAPI 3 spec from Zod DTOs via `zod-to-openapi`.
-- Serve at `GET /api/v1/docs` (Swagger UI), gated to non-production by default.
-- Each route file declares `tags`, `summary`, `description`, and example payloads alongside the Zod schema.
+---
 
-### Validation
+## Payroll & Compensation
 
-- Zod schemas live in `features/<feature>/dto/*.dto.ts`.
-- `validate(zodSchema, 'body' | 'query' | 'params')` middleware parses & coerces; on failure returns `422` with `SYS_002` and a `details` array of `{ path, message }`.
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| GET | `/payroll/periods` | hr/admin | — | List periods |
+| GET | `/payroll/periods/:id` | hr/admin | — | Get period |
+| POST | `/payroll/periods` | hr/admin | `{ name(YYYY-MM), startDate, endDate, payDate, standardWorkDays? }` | Create period |
+| PATCH | `/payroll/periods/:id` | hr/admin | period fields | Update period |
+| POST | `/payroll/periods/:id/close` | hr/admin | — | Close period |
+| POST | `/payroll/periods/:id/run` | hr/admin | `{ requireApprovedEvaluation? }` | Compute all employees |
+| POST | `/payroll/periods/:id/run/:employeeId` | hr/admin | — | Compute one employee |
+| GET | `/payroll/periods/:periodId/totals` | hr/admin | — | Period totals |
+| GET | `/payroll/payrolls` | hr/admin | — | List payrolls |
+| GET | `/payroll/payrolls/me` | auth | — | Own payslips (approved/paid) |
+| GET | `/payroll/payrolls/:id` | hr/admin | — | Payroll detail (gross→net) |
+| POST | `/payroll/periods/:id/approve` | hr/admin | `{ employeeId? }` | Approve (all or one) |
+| POST | `/payroll/payrolls/:id/revert` | hr/admin | — | Revert approved → draft |
+| POST | `/payroll/periods/:id/mark-paid` | admin | — | Mark period paid |
+| GET | `/payroll/employees/:employeeId/allowances` | hr/admin | — | List allowances |
+| POST | `/payroll/allowances` | hr/admin | `{ employeeId, name, category?, type, amount, isTaxable, isInsuranceBase?, effectiveDate, endDate?, note? }` | Create allowance |
+| PATCH | `/payroll/allowances/:id` | hr/admin | allowance fields | Update |
+| DELETE | `/payroll/allowances/:id` | hr/admin | — | Delete |
+| GET | `/payroll/employees/:employeeId/bonuses` | hr/admin | — | List bonuses |
+| POST | `/payroll/bonuses` | hr/admin | `{ employeeId, payrollPeriodId, name, amount, isTaxable?, reason? }` | Create bonus |
+| PATCH | `/payroll/bonuses/:id` | hr/admin | bonus fields | Update |
+| DELETE | `/payroll/bonuses/:id` | hr/admin | — | Delete |
+| GET | `/payroll/employees/:employeeId/deductions` | hr/admin | — | List deductions |
+| POST | `/payroll/deductions` | hr/admin | `{ employeeId, payrollPeriodId?, name, type, amount, reason?, effectiveDate, endDate? }` | Create deduction |
+| PATCH | `/payroll/deductions/:id` | hr/admin | deduction fields | Update |
+| DELETE | `/payroll/deductions/:id` | hr/admin | — | Delete |
+| GET | `/payroll/employees/:employeeId/tax-profiles` | hr/admin | — | List tax profiles |
+| POST | `/payroll/tax-profiles` | hr/admin | `{ employeeId, taxCode?, isResident?, dependentsCount, effectiveDate, endDate?, note? }` | Upsert tax profile |
 
-### Authentication & Authorization
+---
 
-- `authenticate` middleware verifies access token → attaches `req.user: AuthPayload`.
-- `requireRoles('admin', 'hr_manager')` and `requirePermission('payroll:approve')` middlewares.
-- Per-route ownership check: `requireSelfOrHr` allows the subject employee or any HR user.
+## Performance / Evaluation
 
-### Rate limiting
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| GET | `/performance/evaluations/me` | auth | — | Own evaluations |
+| POST | `/performance/evaluations/:id/acknowledge` | auth | `{ disputeNote? }` | Employee acknowledges |
+| GET | `/performance/evaluations` | hr/admin | — | List all evaluations |
+| GET | `/performance/evaluations/:id` | auth | — | Get evaluation |
+| POST | `/performance/evaluations` | hr/admin | `{ employeeId, payrollPeriodId, criteriaScores[{criterionId,score}], strengths?, improvements?, developmentPlan?, finalize? }` | Direct-evaluate (draft/approve) |
+| POST | `/performance/evaluations/:id/reopen` | hr/admin | — | Reopen approved → draft |
+| GET | `/settings/performance-criteria` | auth | — | List criteria |
+| POST | `/admin/settings/performance-criteria` | hr/admin | `{ label, description?, type?, weight?, order?, key? }` | Create criterion |
+| PATCH | `/admin/settings/performance-criteria/:id` | hr/admin | criterion fields + `status?` | Update criterion |
+| DELETE | `/admin/settings/performance-criteria/:id` | hr/admin | — | Archive criterion |
 
-- `express-rate-limit` on `/auth/login`, `/auth/forgot-password`, `/auth/reset-password` — **5 attempts per 15 min per IP**.
-- Returns `429` with `SYS_003`.
+`criteriaScores[].score` ∈ 0–100. `type` ∈ `performance | goal`.
 
-### File uploads
+---
 
-- `multer` with S3-compatible storage backend.
-- Validate MIME + size before persist.
-- Return signed URL (`fileUrl`) with limited TTL for private documents (contracts, payslips).
+## Settings
 
-### Idempotency
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| GET | `/settings/company` | auth | — | Company config |
+| PATCH | `/admin/settings/company` | admin | `{ companyName?, logoUrl?, timezone?, standardWorkDays?, graceLateMinutes?, graceEarlyMinutes?, contactEmail?, address? }` | Update company config |
+| GET | `/settings/salary-policies` | hr/admin | — | List salary policies |
+| POST | `/admin/settings/salary-policies` | admin | salary-policy fields | Create policy |
+| PATCH | `/admin/settings/salary-policies/:id` | admin | salary-policy fields | Update policy |
 
-- Mutating admin endpoints (`compute`, `mark-paid`, `grant-login`) accept an optional `Idempotency-Key` header — duplicate calls within 24h return the original response.
+**Salary-policy body:** `{ country, year, effectiveFrom, baseSalary, insuranceCeilingMultiplier?, personalDeduction?, dependentDeduction?, nonResidentTaxRate?, regionalMinWage?, taxBrackets[{upTo,rate}]?, insuranceRates{ employee{social,health,unemployment}, employer{social,health,unemployment,occupational} }?, salaryComponentWeights{attendance,performance,goal} (sum=100) }`.
 
-### Audit
+---
 
-- Every mutating endpoint writes to `auditLogs` via the `audit` middleware — captures `userId`, `resource`, `action`, `resourceId`, and a `{ before, after }` diff.
+## Storage (uploads)
+
+| Method | Path | Auth | Body | Purpose |
+|--------|------|------|------|---------|
+| POST | `/uploads/presign` | auth | `{ scope, fileName, contentType, ownerId? }` | Presigned upload URL (S3) |
+| GET | `/uploads/sign` | auth | `?key=` | Presigned download URL |
+
+`scope` ∈ `avatars | employee-documents | contracts | payslips | other`.
+
+---
+
+## Conventions
+
+- **Error codes:** `[FEATURE]_[NUMBER]` — `AUTH_*`, `IAM_*`, `EMP_*`, `ORG_*`, `ATT_*`, `LEAVE_*`, `PAY_*`, `PERF_*`, `SET_*`, `STOR_*`.
+- **Pagination:** list endpoints return `meta { page, limit, total, totalPages }` where applicable.
+- **Soft delete:** employees → `status:'terminated'`; departments/shifts/criteria → `status:'archived'`.
+- **Transactions:** grant-login, payroll run, leave approval are atomic (Mongoose sessions → replica set required).
+- **Audit:** every mutation writes an `auditLogs` entry (`userId, resource, action, resourceId, changes`).

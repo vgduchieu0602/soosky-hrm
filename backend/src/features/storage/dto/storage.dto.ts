@@ -10,6 +10,8 @@ export const presignUploadDto = z
     contentType: z.string().min(1).max(160).trim(),
     // Optional owner (e.g. employeeId) used to namespace the object key.
     ownerId: z.string().max(64).optional(),
+    // Declared file size in bytes — validated against the per-scope cap.
+    size: z.coerce.number().int().positive().optional(),
   })
   .strict();
 export type PresignUploadDto = z.infer<typeof presignUploadDto>;

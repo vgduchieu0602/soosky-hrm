@@ -48,11 +48,13 @@ async function loadUserForEmployee(employeeId: string) {
 }
 
 async function roleNameOf(userId: Types.ObjectId): Promise<string> {
-  const ur = await UserRole.findOne({ userId }).populate<{ roleId: { name: string } }>(
-    'roleId',
-    'name',
-  );
-  return ur?.roleId?.name ?? 'employee';
+  // NOTE: do NOT use .populate('roleId') here — UserRole.roleId declares
+  // ref:'roles' but the Role model registers as 'role', so populate throws
+  // MissingSchemaError. Resolve with two explicit lean queries instead.
+  const ur = await UserRole.findOne({ userId }).select('roleId').lean();
+  if (!ur?.roleId) return 'employee';
+  const role = await Role.findById(ur.roleId).select('name').lean();
+  return role?.name ?? 'employee';
 }
 
 export const employeeAccountService = {

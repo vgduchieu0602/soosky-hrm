@@ -38,6 +38,22 @@ export const STORAGE_SCOPES = {
 } as const;
 export type StorageScope = keyof typeof STORAGE_SCOPES;
 
+const MB = 1024 * 1024;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const DOC_TYPES = [
+  'application/pdf',
+  'application/msword', // .doc
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  ...IMAGE_TYPES,
+];
+
+/** Per-scope upload constraints: allowed MIME types + max size in bytes. */
+export const SCOPE_RULES: Record<StorageScope, { types: string[]; maxBytes: number }> = {
+  avatar: { types: IMAGE_TYPES, maxBytes: 5 * MB },
+  document: { types: DOC_TYPES, maxBytes: 10 * MB },
+  contract: { types: DOC_TYPES, maxBytes: 10 * MB },
+};
+
 /** Slugify a filename to ASCII so the object key stays URL-safe; keep the extension. */
 function safeKeyName(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase().slice(0, 12);
@@ -85,8 +101,27 @@ export const storageService = {
     fileName: string;
     contentType: string;
     ownerId?: string;
+    size?: number;
   }): Promise<{ key: string; uploadUrl: string; expiresIn: number }> {
     this.assertConfigured();
+
+    // Enforce per-scope file-type whitelist and size cap.
+    const rule = SCOPE_RULES[params.scope];
+    if (!rule.types.includes(params.contentType)) {
+      throw new HttpError(
+        422,
+        'Loại tệp không được hỗ trợ. Chỉ chấp nhận PDF, Word hoặc ảnh.',
+        'STORAGE_002',
+      );
+    }
+    if (params.size != null && params.size > rule.maxBytes) {
+      throw new HttpError(
+        413,
+        `Tệp vượt quá giới hạn ${Math.round(rule.maxBytes / MB)}MB.`,
+        'STORAGE_003',
+      );
+    }
+
     const key = this.buildKey(params.scope, params.fileName, params.ownerId);
     const cmd = new PutObjectCommand({
       Bucket: env.S3_BUCKET,

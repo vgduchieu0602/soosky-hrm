@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type PipelineStage } from 'mongoose';
 import { HttpError } from '@shared/errors/http-error';
 import { hashPassword } from '@shared/utils/hash.util';
 import { logger } from '@core/logger/logger';
@@ -66,15 +66,41 @@ export const userService = {
   },
 
   async list(filter?: { status?: string; search?: string }) {
-    const query: Record<string, unknown> = {};
-    if (filter?.status) query.status = filter.status;
+    const match: Record<string, unknown> = {};
+    if (filter?.status) match.status = filter.status;
+
+    const fullName = {
+      $trim: {
+        input: {
+          $concat: [
+            { $ifNull: ['$_profile.lastName', ''] }, ' ',
+            { $ifNull: ['$_profile.middleName', ''] }, ' ',
+            { $ifNull: ['$_profile.firstName', ''] },
+          ],
+        },
+      },
+    };
+
+    const pipeline: PipelineStage[] = [
+      { $match: match },
+      { $project: { password: 0 } },
+      { $lookup: { from: 'employees', localField: 'employeeId', foreignField: '_id', as: '_emp' } },
+      { $unwind: { path: '$_emp', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'employeeProfiles', localField: '_emp._id', foreignField: 'employeeId', as: '_profile' } },
+      { $unwind: { path: '$_profile', preserveNullAndEmptyArrays: true } },
+      { $addFields: { employeeCode: '$_emp.employeeCode', employeeName: fullName } },
+    ];
+
+    // Search spans username, email, employee name and employee code.
     if (filter?.search) {
-      query.$or = [
-        { username: { $regex: filter.search, $options: 'i' } },
-        { email: { $regex: filter.search, $options: 'i' } },
-      ];
+      const rx = { $regex: filter.search, $options: 'i' };
+      pipeline.push({
+        $match: { $or: [{ username: rx }, { email: rx }, { employeeName: rx }, { employeeCode: rx }] },
+      });
     }
-    return User.find(query).select('-password').lean();
+
+    pipeline.push({ $project: { _emp: 0, _profile: 0 } }, { $sort: { created_at: -1 } });
+    return User.aggregate(pipeline);
   },
 
   async update(userId: string, input: UpdateUserInput, auditUserId: string) {

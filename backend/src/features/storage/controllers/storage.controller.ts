@@ -13,6 +13,7 @@ export const storageController = {
         fileName: body.fileName,
         contentType: body.contentType,
         ownerId: body.ownerId,
+        size: body.size,
       });
       res.json({ data: result });
     } catch (err) {

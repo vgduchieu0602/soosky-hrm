@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { AlertCircle } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
 import type { SalaryPolicy } from "@features/settings/types/settings.types";
@@ -23,10 +23,12 @@ const VN_TAX_BRACKETS = [
   { upTo: 5_000_000, rate: 5 }, { upTo: 10_000_000, rate: 10 }, { upTo: 18_000_000, rate: 15 },
   { upTo: 32_000_000, rate: 20 }, { upTo: 52_000_000, rate: 25 }, { upTo: 80_000_000, rate: 30 }, { upTo: null, rate: 35 },
 ];
-/** Money input: shows grouped digits (1.234.567) + ₫ suffix, emits a number. */
-function MoneyInput({ id, value, onChange }: {
-  id?: string; value: number; onChange: (n: number) => void;
-}) {
+
+const fieldCls =
+  "h-9 w-full rounded-lg border border-input bg-card px-2.5 text-[13px] tabular-nums transition-colors focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
+
+/** Money input: grouped digits (1.234.567) + ₫ suffix, emits a number. */
+function MoneyInput({ id, value, onChange }: { id?: string; value: number; onChange: (n: number) => void }) {
   return (
     <div className="relative">
       <input
@@ -34,7 +36,7 @@ function MoneyInput({ id, value, onChange }: {
         inputMode="numeric"
         value={fmt(value)}
         onChange={(e) => onChange(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
-        className="h-9 w-full rounded-lg border border-input bg-card pl-2.5 pr-7 text-right text-[13px] font-medium tabular-nums focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20"
+        className={cn(fieldCls, "pr-7 text-right font-medium")}
       />
       <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground">₫</span>
     </div>
@@ -44,24 +46,30 @@ function MoneyInput({ id, value, onChange }: {
 function PercentInput({ id, value, onChange }: { id?: string; value: number; onChange: (n: number) => void }) {
   return (
     <div className="relative">
-      <Input id={id} type="number" min={0} max={100} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} className="h-9 pr-7 text-right text-[13px] tabular-nums" />
+      <input id={id} type="number" min={0} max={100} step="0.5" value={value}
+        onChange={(e) => onChange(Number(e.target.value))} className={cn(fieldCls, "pr-7 text-right")} />
       <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground">%</span>
     </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{children}</div>;
+/** Minimal section: a quiet label row with hairline divider, then content. */
+function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between border-b pb-2">
+        <h4 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
 }
 
-/** Fixed-width labelled field block — keeps the form tidy & horizontal. */
-function FieldBlock({ label, hint, width = "w-[180px]", children }: {
-  label: string; hint?: string; width?: string; children: React.ReactNode;
-}) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", width)}>
-      <Label>{label}</Label>
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[12px] font-medium text-foreground">{label}</label>
       {children}
       {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
     </div>
@@ -131,124 +139,100 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
     }
   }
 
-  const zones: { label: string; value: number; set: (n: number) => void; hint: string }[] = [
-    { label: "Vùng I", value: zone1, set: setZone1, hint: "Nội thành HN, HCM…" },
-    { label: "Vùng II", value: zone2, set: setZone2, hint: "Ngoại thành, TP lớn" },
-    { label: "Vùng III", value: zone3, set: setZone3, hint: "Thành phố tỉnh" },
-    { label: "Vùng IV", value: zone4, set: setZone4, hint: "Còn lại" },
+  const zones: { label: string; value: number; set: (n: number) => void }[] = [
+    { label: "Vùng I", value: zone1, set: setZone1 },
+    { label: "Vùng II", value: zone2, set: setZone2 },
+    { label: "Vùng III", value: zone3, set: setZone3 },
+    { label: "Vùng IV", value: zone4, set: setZone4 },
   ];
+
+  const total = (ok: boolean, label: string) => (
+    <span className={cn("text-[12px] font-semibold tabular-nums", ok ? "text-emerald-600" : "text-amber-600")}>{label}</span>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[860px]">
+      <DialogContent className="sm:max-w-[760px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Sửa chính sách lương" : "Tạo chính sách lương (VN)"}</DialogTitle>
-          <DialogDescription>Tham số BHXH/thuế/trần & trọng số 20/60/20 dùng để tính lương.</DialogDescription>
+          <DialogDescription>Tham số BHXH · thuế TNCN · trần đóng và trọng số 20/60/20 dùng để tính lương.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex max-h-[68vh] flex-col gap-5 overflow-y-auto px-0.5 pb-1">
-          {/* Kỳ áp dụng + mức lương & giảm trừ */}
-          <section className="flex flex-col gap-3">
-            <SectionTitle>Kỳ áp dụng & mức lương</SectionTitle>
-            <div className="flex flex-wrap gap-4">
-              <FieldBlock label="Năm áp dụng" width="w-[120px]">
+        <form onSubmit={handleSubmit} className="flex max-h-[66vh] flex-col gap-7 overflow-y-auto px-0.5 py-1">
+          <Section title="Kỳ áp dụng & mức lương">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
+              <Field label="Năm áp dụng">
                 <Input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="h-9 text-[13px]" />
-              </FieldBlock>
-              <FieldBlock label="Hiệu lực từ" width="w-[160px]">
+              </Field>
+              <Field label="Hiệu lực từ">
                 <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="h-9 text-[13px]" />
-              </FieldBlock>
-              <FieldBlock label="Mức lương cơ sở tính BHXH" hint="Trần BHXH/BHYT = ×20" width="w-[220px]">
+              </Field>
+              <Field label="Lương cơ sở tính BHXH" hint="Trần BHXH/BHYT = ×20">
                 <MoneyInput value={baseSalary} onChange={setBaseSalary} />
-              </FieldBlock>
-              <FieldBlock label="Giảm trừ bản thân" width="w-[180px]">
+              </Field>
+              <Field label="Giảm trừ bản thân">
                 <MoneyInput value={personalDeduction} onChange={setPersonalDeduction} />
-              </FieldBlock>
-              <FieldBlock label="Giảm trừ / người phụ thuộc" width="w-[180px]">
+              </Field>
+              <Field label="Giảm trừ / người phụ thuộc">
                 <MoneyInput value={dependentDeduction} onChange={setDependentDeduction} />
-              </FieldBlock>
+              </Field>
             </div>
-          </section>
+          </Section>
 
-          {/* Thuế TNCN */}
-          <section className="flex flex-col gap-3">
-            <SectionTitle>Loại thuế TNCN</SectionTitle>
-            <div className="flex flex-wrap items-start gap-4">
-              <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2">
-                <span className="text-[12.5px] font-medium text-foreground">Cư trú</span>
-                <span className="text-[12px] text-muted-foreground">Biểu thuế lũy tiến 7 bậc</span>
-              </div>
-              <FieldBlock label="Không cư trú (thuế suất phẳng)" width="w-[200px]">
+          <Section title="Thuế thu nhập cá nhân">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
+              <Field label="Người cư trú">
+                <div className="flex h-9 items-center rounded-lg border border-dashed bg-muted/30 px-2.5 text-[12.5px] text-muted-foreground">
+                  Lũy tiến 7 bậc (5%→35%)
+                </div>
+              </Field>
+              <Field label="Không cư trú" hint="Thuế suất phẳng">
                 <PercentInput value={nonResidentTaxRate} onChange={setNonResidentTaxRate} />
-              </FieldBlock>
+              </Field>
             </div>
-          </section>
+          </Section>
 
-          {/* Mức đóng bảo hiểm */}
-          <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <SectionTitle>Mức đóng bảo hiểm</SectionTitle>
-              <span className="text-[12px] text-muted-foreground">
-                NLĐ <b className={cn("tabular-nums", eeTotal === 10.5 ? "text-emerald-600" : "text-amber-600")}>{eeTotal}%</b>
-                {" · "}DN <b className={cn("tabular-nums", erTotal === 21.5 ? "text-emerald-600" : "text-amber-600")}>{erTotal}%</b>
-              </span>
+          <Section title="Mức đóng bảo hiểm" aside={<span className="flex gap-3">{total(eeTotal === 10.5, `NLĐ ${eeTotal}%`)}{total(erTotal === 21.5, `DN ${erTotal}%`)}</span>}>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+              <Field label="NLĐ · BHXH"><PercentInput value={eeSocial} onChange={setEeSocial} /></Field>
+              <Field label="NLĐ · BHYT"><PercentInput value={eeHealth} onChange={setEeHealth} /></Field>
+              <Field label="NLĐ · BHTN"><PercentInput value={eeUnemp} onChange={setEeUnemp} /></Field>
+              <div className="hidden sm:block" />
+              <Field label="DN · BHXH"><PercentInput value={erSocial} onChange={setErSocial} /></Field>
+              <Field label="DN · BHYT"><PercentInput value={erHealth} onChange={setErHealth} /></Field>
+              <Field label="DN · BHTN"><PercentInput value={erUnemp} onChange={setErUnemp} /></Field>
+              <Field label="DN · TNLĐ-BNN"><PercentInput value={erOccup} onChange={setErOccup} /></Field>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-foreground">Người lao động (NLĐ)</span>
-              <div className="flex flex-wrap gap-4">
-                <FieldBlock label="BHXH" width="w-[100px]"><PercentInput value={eeSocial} onChange={setEeSocial} /></FieldBlock>
-                <FieldBlock label="BHYT" width="w-[100px]"><PercentInput value={eeHealth} onChange={setEeHealth} /></FieldBlock>
-                <FieldBlock label="BHTN" width="w-[100px]"><PercentInput value={eeUnemp} onChange={setEeUnemp} /></FieldBlock>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-foreground">Doanh nghiệp (DN)</span>
-              <div className="flex flex-wrap gap-4">
-                <FieldBlock label="BHXH" width="w-[100px]"><PercentInput value={erSocial} onChange={setErSocial} /></FieldBlock>
-                <FieldBlock label="BHYT" width="w-[100px]"><PercentInput value={erHealth} onChange={setErHealth} /></FieldBlock>
-                <FieldBlock label="BHTN" width="w-[100px]"><PercentInput value={erUnemp} onChange={setErUnemp} /></FieldBlock>
-                <FieldBlock label="TNLĐ-BNN" width="w-[100px]"><PercentInput value={erOccup} onChange={setErOccup} /></FieldBlock>
-              </div>
-            </div>
-          </section>
+          </Section>
 
-          {/* Lương tối thiểu vùng */}
-          <section className="flex flex-col gap-3">
-            <SectionTitle>Lương tối thiểu vùng (BHTN ×20)</SectionTitle>
-            <div className="flex flex-wrap gap-4">
+          <Section title="Lương tối thiểu vùng">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
               {zones.map((z) => (
-                <FieldBlock key={z.label} label={z.label} hint={z.hint} width="w-[180px]">
+                <Field key={z.label} label={z.label}>
                   <MoneyInput value={z.value} onChange={z.set} />
-                </FieldBlock>
+                </Field>
               ))}
             </div>
-          </section>
+          </Section>
 
-          {/* Trọng số 20/60/20 */}
-          <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <SectionTitle>Trọng số cấu phần lương</SectionTitle>
-              <span className={cn("text-[12px] font-semibold tabular-nums", weightOk ? "text-emerald-600" : "text-amber-600")}>
-                Tổng {weightSum}%{!weightOk && " (phải = 100%)"}
-              </span>
+          <Section title="Trọng số cấu phần lương" aside={total(weightOk, `Tổng ${weightSum}%`)}>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+              <Field label="Ngày công"><PercentInput value={wA} onChange={setWA} /></Field>
+              <Field label="Hiệu suất"><PercentInput value={wP} onChange={setWP} /></Field>
+              <Field label="Mục tiêu"><PercentInput value={wG} onChange={setWG} /></Field>
             </div>
-            <div className="flex flex-wrap gap-4">
-              {[
-                { label: "Ngày công", v: wA, set: setWA },
-                { label: "Hiệu suất", v: wP, set: setWP },
-                { label: "Mục tiêu", v: wG, set: setWG },
-              ].map((w) => (
-                <FieldBlock key={w.label} label={w.label} width="w-[120px]">
-                  <PercentInput value={w.v} onChange={w.set} />
-                </FieldBlock>
-              ))}
-            </div>
-          </section>
+            {!weightOk && <p className="text-[11.5px] text-amber-600">Tổng đang là {weightSum}% — cần điều chỉnh về đúng 100% trước khi lưu.</p>}
+          </Section>
 
-          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
+          {error && (
+            <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive" role="alert">
+              <AlertCircle className="size-4 shrink-0" /> {error}
+            </p>
+          )}
 
-          <DialogFooter className="border-t pt-4">
+          <DialogFooter className="sticky bottom-0 -mx-0.5 border-t bg-background/95 px-0.5 pt-3 backdrop-blur">
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
-            <Button type="submit" size="sm" disabled={submitting || !weightOk}>{submitting ? "Đang lưu…" : "Lưu chính sách"}</Button>
+            <Button type="submit" size="sm" disabled={submitting || !weightOk}>{submitting ? "Đang lưu…" : isEdit ? "Lưu thay đổi" : "Tạo chính sách"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

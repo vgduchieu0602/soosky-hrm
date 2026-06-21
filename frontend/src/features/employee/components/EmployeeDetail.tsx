@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
-import { uploadFile, signDownload, type UploadScope } from "@/shared/utils/upload";
+import { uploadFile, signDownload, UPLOAD_RULES, type UploadScope } from "@/shared/utils/upload";
 import { employeeService } from "@features/employee/services/employee.service";
+import { iamService } from "@features/iam/services/iam.service";
 import { EmployeeEditModal } from "@features/employee/components/EmployeeEditModal";
 import {
   CONTRACT_TYPE, COND, DOC_TYPE, EMP_STATUS, EMP_TYPE, GENDER, HIST_EVENT,
@@ -84,11 +85,12 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
       <div className="absolute inset-0 bg-secondary-900/40 backdrop-blur-[2px]" style={{ animation: "fadeIn .2s ease" }} onClick={onClose} />
       <div className="relative flex h-full w-[560px] max-w-[92vw] flex-col bg-background shadow-2xl" style={{ animation: "slideOver .28s cubic-bezier(.2,.8,.2,1)" }}>
         {/* header */}
-        <div className="relative shrink-0 px-6 pb-5 pt-6 text-white" style={{ background: "linear-gradient(135deg,#1B3A74,#163985 55%,#11295C)" }}>
-          <button type="button" onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white">
+        <div className="relative shrink-0 overflow-hidden px-6 pb-5 pt-6 text-white" style={{ background: "linear-gradient(135deg,#1B3A74,#163985 55%,#11295C)" }}>
+          <div className="grid-bg pointer-events-none absolute inset-0 opacity-70" aria-hidden />
+          <button type="button" onClick={onClose} aria-label="Đóng" className="absolute right-4 top-4 z-10 flex size-8 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white">
             <X className="size-4" />
           </button>
-          <div className="flex items-center gap-4">
+          <div className="relative z-10 flex items-center gap-4">
             <AvatarUploader
               employeeId={view.id}
               avatarKey={profile?.avatarUrl}
@@ -104,7 +106,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
               </div>
             </div>
           </div>
-          <div className="mt-4">
+          <div className="relative z-10 mt-4">
             {canManage ? (
               <StatusSelect value={view.status} onChange={onStatusChanged} />
             ) : (
@@ -113,7 +115,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
             )}
           </div>
           {canManage && (
-            <div className="mt-5 flex gap-2">
+            <div className="relative z-10 mt-5 flex gap-2">
               <Button size="sm" onClick={() => setEditing(true)} className="h-8 gap-1.5 rounded-lg bg-white/15 text-[12.5px] text-white hover:bg-white/25"><Pencil className="size-3.5" /> Chỉnh sửa</Button>
               {view.personalEmail && (
                 <a href={`mailto:${view.personalEmail}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-[12.5px] text-white transition hover:bg-white/25"><Mail className="size-3.5" /> Gửi email</a>
@@ -124,14 +126,17 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
         </div>
 
         {/* tabs */}
-        <div className="flex shrink-0 gap-1 overflow-x-auto border-b bg-card px-4">
-          {TABS.map(({ id, label, Icon }) => (
-            <button key={id} type="button" onClick={() => setTab(id)}
-              className={cn("flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[13px] font-medium transition-colors",
-                tab === id ? "border-primary-500 text-primary-600" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              <Icon className="size-4" strokeWidth={1.8} /> {label}
-            </button>
-          ))}
+        <div role="tablist" aria-label="Hồ sơ nhân viên" className="flex shrink-0 gap-1 overflow-x-auto border-b bg-card px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {TABS.map(({ id, label, Icon }) => {
+            const active = tab === id;
+            return (
+              <button key={id} type="button" role="tab" aria-selected={active} onClick={() => setTab(id)}
+                className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  active ? "bg-primary-50 text-primary-700" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <Icon className="size-4" strokeWidth={active ? 2.2 : 1.8} /> {label}
+              </button>
+            );
+          })}
         </div>
 
         {/* body */}
@@ -226,18 +231,28 @@ function StatusSelect({ value, onChange }: { value: EmployeeStatus; onChange: (s
 
 // ===================== shared primitives =====================
 function Field({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
+  const empty = !value;
   return (
-    <div>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-[13.5px] text-foreground", mono && "font-mono")}>{value || "—"}</div>
+    <div className="min-w-0">
+      <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">{label}</div>
+      <div className={cn("mt-1 truncate text-[14px] leading-snug", empty ? "text-muted-foreground/50" : "text-foreground", mono && "font-mono")} title={value || undefined}>
+        {value || "—"}
+      </div>
     </div>
   );
 }
-function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, icon: Icon, tone = "cyan", action, children }: { title: string; icon?: LucideIcon; tone?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-[14px] font-semibold text-foreground">{title}</h3>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          {Icon && (
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg" style={CHIP(tone)} aria-hidden>
+              <Icon className="size-4" strokeWidth={2} />
+            </span>
+          )}
+          <h3 className="text-[14px] font-semibold tracking-tight text-foreground">{title}</h3>
+        </div>
         {action}
       </div>
       {children}
@@ -270,17 +285,17 @@ function FileUploadField({
   onClear: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
     if (!file) return;
     setBusy(true);
-    setFailed(false);
+    setErr(null);
     uploadFile(file, scope, ownerId)
       .then((key) => onUploaded(key))
-      .catch(() => setFailed(true))
+      .catch((ex) => setErr(ex?.response?.data?.error?.message ?? ex?.message ?? "Tải tệp thất bại, thử lại."))
       .finally(() => setBusy(false));
   }
 
@@ -299,10 +314,11 @@ function FileUploadField({
         <label className={cn(inputCls, "cursor-pointer items-center gap-1.5 text-muted-foreground", busy && "opacity-60")}>
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Paperclip className="size-3.5" />}
           <span className="truncate">{busy ? "Đang tải lên…" : "Chọn tệp để tải lên"}</span>
-          <input type="file" className="hidden" disabled={busy} onChange={pick} />
+          <input type="file" accept={UPLOAD_RULES[scope].accept} className="hidden" disabled={busy} onChange={pick} />
         </label>
       )}
-      {failed && <div className="mt-1 text-[11px] text-rose-600">Tải tệp thất bại, thử lại.</div>}
+      {!value && !busy && !err && <div className="mt-1 text-[11px] text-muted-foreground">PDF, Word hoặc ảnh · tối đa {Math.round(UPLOAD_RULES[scope].maxBytes / (1024 * 1024))}MB</div>}
+      {err && <div className="mt-1 text-[11px] text-rose-600">{err}</div>}
     </div>
   );
 }
@@ -400,7 +416,7 @@ function ProfileTab({ view, profile }: { view: EmployeeView; profile: EmployeePr
   const dob = formatDate(profile?.dateOfBirth ?? view.dateOfBirth);
   return (
     <div className="flex flex-col gap-5">
-      <Panel title="Thông tin cá nhân">
+      <Panel title="Thông tin cá nhân" icon={IdCard} tone="cyan">
         <div className="grid grid-cols-2 gap-x-5 gap-y-4">
           <Field label="Họ và tên" value={fullNameOf(profile?.firstName ?? view.firstName, profile?.lastName ?? view.lastName, profile?.middleName ?? view.middleName) || view.fullName} />
           <Field label="Ngày sinh" value={dob} />
@@ -413,7 +429,7 @@ function ProfileTab({ view, profile }: { view: EmployeeView; profile: EmployeePr
           <div className="col-span-2"><Field label="Địa chỉ" value={profile?.address ?? view.address} /></div>
         </div>
       </Panel>
-      <Panel title="Thông tin công việc">
+      <Panel title="Thông tin công việc" icon={Briefcase} tone="indigo">
         <div className="grid grid-cols-2 gap-x-5 gap-y-4">
           <Field label="Mã nhân viên" value={view.code} mono />
           <Field label="Mã vân tay" value={view.fingerprintId} mono />
@@ -431,6 +447,14 @@ function ProfileTab({ view, profile }: { view: EmployeeView; profile: EmployeePr
 }
 
 // ===================== Account =====================
+// The only roles assignable to an employee account, with their display labels.
+const SYS_ROLE_LABEL: Record<string, string> = {
+  admin: "System Administrator",
+  hr_manager: "HR Manager",
+  employee: "Employee",
+};
+const FALLBACK_SYS_ROLES = Object.entries(SYS_ROLE_LABEL).map(([name, label]) => ({ name, label }));
+
 function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canManage: boolean; onGranted: () => void }) {
   const [account, setAccount] = useState<AccountView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -440,6 +464,7 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
   const [error, setError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [sendInvite, setSendInvite] = useState(true);
+  const [roles, setRoles] = useState<{ name: string; label: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -449,6 +474,21 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
       .catch(() => { if (!cancelled) { setAccount(null); setLoading(false); } });
     return () => { cancelled = true; };
   }, [view.id, reloadKey]);
+
+  // Assignable roles for an employee account are the three core system roles.
+  useEffect(() => {
+    let cancelled = false;
+    iamService.listRoles()
+      .then((rs) => {
+        if (cancelled) return;
+        const picked = rs
+          .filter((r) => r.name in SYS_ROLE_LABEL)
+          .map((r) => ({ name: r.name, label: SYS_ROLE_LABEL[r.name] }));
+        setRoles(picked.length ? picked : FALLBACK_SYS_ROLES);
+      })
+      .catch(() => { if (!cancelled) setRoles(FALLBACK_SYS_ROLES); });
+    return () => { cancelled = true; };
+  }, []);
 
   function run(p: Promise<unknown>, ok: string) {
     setBusy(true); setMsg(null); setError(null);
@@ -515,7 +555,7 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
       <Panel title="Tài khoản hệ thống" action={<Badge variant={disabled ? "slate" : "emerald"}>{disabled ? "Đã vô hiệu hoá" : "Đang hoạt động"}</Badge>}>
         <div className="grid grid-cols-2 gap-x-5 gap-y-4">
           <Field label="Tên đăng nhập" value={account.username} mono />
-          <Field label="Vai trò" value={ROLE[account.role] ?? account.role} />
+          <Field label="Vai trò" value={roles.find((r) => r.name === account.role)?.label ?? ROLE[account.role] ?? account.role} />
           <Field label="Email" value={account.email} />
           <Field label="Đăng nhập gần nhất" value={account.lastLoginAt ? formatDate(account.lastLoginAt) : "Chưa đăng nhập"} />
           <Field label="Đổi mật khẩu lần đầu" value={account.mustChangePassword ? "Bắt buộc" : "Không"} />
@@ -528,16 +568,20 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
           {msg && <p className="mb-2 text-[12.5px] text-emerald-600">{msg}</p>}
           <div className="mb-4">
             <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Vai trò</div>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.keys(ROLE).map((r) => (
-                <button key={r} type="button" disabled={busy || account.role === r}
-                  onClick={() => run(employeeService.updateAccount(view.id, { role: r }), `Đã đổi vai trò sang ${ROLE[r]}.`)}
-                  className={cn("flex items-center justify-between rounded-lg border px-3 py-2 text-[12.5px] font-medium transition disabled:opacity-100",
-                    account.role === r ? "border-primary-500 bg-primary-50 text-primary-700" : "text-foreground hover:bg-muted")}>
-                  {ROLE[r]}{account.role === r && <Check className="size-3.5" strokeWidth={2.4} />}
-                </button>
-              ))}
-            </div>
+            {roles.length === 0 ? (
+              <p className="text-[12.5px] text-muted-foreground">Đang tải danh sách vai trò…</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {roles.map((r) => (
+                  <button key={r.name} type="button" disabled={busy || account.role === r.name}
+                    onClick={() => run(employeeService.updateAccount(view.id, { role: r.name }), `Đã đổi vai trò sang ${r.label}.`)}
+                    className={cn("flex items-center justify-between rounded-lg border px-3 py-2 text-[12.5px] font-medium transition disabled:opacity-100",
+                      account.role === r.name ? "border-primary-500 bg-primary-50 text-primary-700" : "text-foreground hover:bg-muted")}>
+                    {r.label}{account.role === r.name && <Check className="size-3.5" strokeWidth={2.4} />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Button variant="outline" disabled={busy} onClick={() => run(employeeService.resetPassword(view.id), "Đã gửi liên kết đặt lại mật khẩu tới email.")} className="justify-start gap-2.5 rounded-xl">

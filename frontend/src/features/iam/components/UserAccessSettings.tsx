@@ -64,10 +64,16 @@ export function UsersSettings({ canManage }: Props) {
             const st = STATUS_LABEL[u.status] ?? STATUS_LABEL.disabled;
             return (
               <div key={u._id} className="flex items-center gap-3 rounded-xl border p-3">
-                <Avatar className="size-9 text-[12px]"><AvatarFallback>{u.username.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                <Avatar className="size-9 text-[12px]"><AvatarFallback>{(u.employeeName || u.username).slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-semibold text-foreground">{u.username}</div>
-                  <div className="truncate text-[12px] text-muted-foreground">{u.email}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[13.5px] font-semibold text-foreground">{u.employeeName || u.username}</span>
+                    {u.employeeCode && <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground">{u.employeeCode}</span>}
+                    {!u.employeeId && <span className="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-600">Không gắn NV</span>}
+                  </div>
+                  <div className="truncate text-[12px] text-muted-foreground">
+                    {u.email}{u.employeeName && <span className="text-muted-foreground/70"> · @{u.username}</span>}
+                  </div>
                 </div>
                 {u.lastLoginAt && <span className="hidden text-[11.5px] text-muted-foreground sm:block">Đăng nhập: {u.lastLoginAt.slice(0, 10)}</span>}
                 {u.status === "locked" && <Lock className="size-3.5 text-rose-500" />}
@@ -132,14 +138,12 @@ export function RolesSettings() {
               </div>
               {r.description && <div className="text-[12px] text-muted-foreground">{r.description}</div>}
             </div>
+            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary-600" onClick={() => setEditing(r)} title="Sửa quyền"><Pencil className="size-4" /></Button>
             {!r.isSystem && (
-              <>
-                <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary-600" onClick={() => setEditing(r)} title="Sửa quyền"><Pencil className="size-4" /></Button>
-                <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-rose-600" title="Xoá vai trò"
-                  onClick={() => { if (confirm(`Xoá vai trò "${r.name}"?`)) iamService.deleteRole(r._id).then(() => setRk((k) => k + 1)).catch(() => {}); }}>
-                  <Trash2 className="size-4" />
-                </Button>
-              </>
+              <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-rose-600" title="Xoá vai trò"
+                onClick={() => { if (confirm(`Xoá vai trò "${r.name}"?`)) iamService.deleteRole(r._id).then(() => setRk((k) => k + 1)).catch(() => {}); }}>
+                <Trash2 className="size-4" />
+              </Button>
             )}
           </div>
         ))}
