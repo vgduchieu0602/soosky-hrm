@@ -10,6 +10,7 @@ import type {
   EmployeeProfile,
   EmployeeRecord,
   EmployeeStats,
+  ExpiryReminders,
   GrantLoginInput,
   GrantLoginResult,
   ListEmployeesParams,
@@ -61,6 +62,13 @@ export const employeeService = {
   async stats(): Promise<EmployeeStats> {
     const { data } = await api.get<ApiEnvelope<EmployeeStats>>("/employees/stats");
     return data.data;
+  },
+
+  async reminders(withinDays = 30): Promise<ExpiryReminders> {
+    const { data } = await api.get<ApiEnvelope<ExpiryReminders>>(
+      `/employees/reminders?withinDays=${withinDays}`,
+    );
+    return data.data ?? { probation: [], contract: [] };
   },
 
   async getById(id: string): Promise<EmployeeRecord> {

@@ -41,6 +41,7 @@ const hrOrAdmin = requireRoles('admin', 'hr_manager');
 // ---------- Read endpoints (authenticated user) ----------
 router.get('/employees', authenticate, employeeController.list);
 router.get('/employees/stats', authenticate, employeeController.stats);
+router.get('/employees/reminders', authenticate, hrOrAdmin, employeeController.reminders);
 router.get('/employees/export', authenticate, employeeController.exportCsv);
 router.get('/employees/me', authenticate, employeeController.getMe);
 router.get('/employees/:id', authenticate, employeeController.getById);
