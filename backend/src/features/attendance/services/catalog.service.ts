@@ -74,4 +74,10 @@ export const symbolService = {
     await auditService.record({ userId, resource: 'attendanceSymbol', action: 'update', resourceId: id, changes: input });
     return updated.toJSON();
   },
+  async remove(id: string, userId: string) {
+    const deleted = await AttendanceSymbol.findByIdAndDelete(oid(id));
+    if (!deleted) throw new HttpError(404, 'Symbol not found', 'ATT_003');
+    await auditService.record({ userId, resource: 'attendanceSymbol', action: 'delete', resourceId: id });
+    return { id };
+  },
 };

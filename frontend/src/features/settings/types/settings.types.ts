@@ -28,6 +28,12 @@ export interface SalaryPolicy {
   socialInsuranceSalary?: string | number | null;
   unionFeeRate?: number;
   unionFeeEnabled?: boolean;
+  regionalMinWage?: Record<string, number>;
+  taxBrackets?: Array<{ upTo: number | null; rate: number }>;
+  insuranceRates?: {
+    employee?: { social?: number; health?: number; unemployment?: number };
+    employer?: { social?: number; health?: number; unemployment?: number; occupational?: number };
+  };
   salaryComponentWeights: ComponentWeights;
 }
 

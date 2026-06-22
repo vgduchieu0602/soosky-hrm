@@ -10,9 +10,14 @@ import type { PerformanceCriterion, SalaryPolicy } from "@features/settings/type
 const inputCls =
   "flex h-9 w-full rounded-lg border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20";
 
-interface Props { canManage: boolean }
+interface Props {
+  /** HR or admin — may manage performance/goal criteria. */
+  canManage: boolean;
+  /** Admin only — may create/edit the salary policy (BE gates these as adminOnly). */
+  canManagePolicy: boolean;
+}
 
-export function SalaryPerformanceSettings({ canManage }: Props) {
+export function SalaryPerformanceSettings({ canManage, canManagePolicy }: Props) {
   const [policies, setPolicies] = useState<SalaryPolicy[]>([]);
   const [criteria, setCriteria] = useState<PerformanceCriterion[]>([]);
   const [rk, setRk] = useState(0);
@@ -36,7 +41,7 @@ export function SalaryPerformanceSettings({ canManage }: Props) {
         tone="cyan"
         title="Cấu hình lương"
         description={`Lương cơ bản chia 3 cấu phần: ngày công · hiệu suất · mục tiêu.${latest ? ` Lương cơ sở ${Number(latest.baseSalary).toLocaleString("vi-VN")}đ.` : ""}`}
-        action={canManage && (
+        action={canManagePolicy && (
           <Button variant="outline" size="sm" onClick={() => setPolicyDlg(true)} className="h-8 gap-1.5 rounded-lg text-[12.5px]">
             {latest ? <><Pencil className="size-3.5" /> Sửa chính sách</> : <><Plus className="size-3.5" /> Tạo chính sách</>}
           </Button>
@@ -51,7 +56,7 @@ export function SalaryPerformanceSettings({ canManage }: Props) {
             <WeightCard label="Mục tiêu" value={latest.salaryComponentWeights.goal} tone="emerald" />
           </div>
         ) : (
-          <p className="text-[13px] text-muted-foreground">Chưa có chính sách lương. {canManage ? "Bấm “Tạo chính sách” để khởi tạo." : ""}</p>
+          <p className="text-[13px] text-muted-foreground">Chưa có chính sách lương. {canManagePolicy ? "Bấm “Tạo chính sách” để khởi tạo." : "Liên hệ quản trị viên để khởi tạo."}</p>
         )}
       </SettingsSection>
 
