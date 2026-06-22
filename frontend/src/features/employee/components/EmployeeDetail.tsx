@@ -463,7 +463,9 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState(view.personalEmail ?? "");
   const [sendInvite, setSendInvite] = useState(true);
+  const [regrant, setRegrant] = useState(false);
   const [roles, setRoles] = useState<{ name: string; label: string }[]>([]);
 
   useEffect(() => {
@@ -497,11 +499,22 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
       .finally(() => setBusy(false));
   }
 
-  function grant() {
+  function grant(reprovision = false) {
     setBusy(true); setMsg(null); setError(null);
     employeeService
-      .grantLogin(view.id, { username: username.trim() || undefined, sendEmail: sendInvite })
-      .then(() => { onGranted(); setReloadKey((k) => k + 1); setMsg("Đã cấp tài khoản & gửi lời mời."); })
+      .grantLogin(view.id, {
+        username: username.trim() || undefined,
+        email: email.trim() || undefined,
+        sendEmail: sendInvite,
+      })
+      .then(() => {
+        onGranted();
+        setReloadKey((k) => k + 1);
+        setRegrant(false);
+        setMsg(reprovision
+          ? "Đã cấp lại tài khoản với mật khẩu mới & gửi lời mời."
+          : "Đã cấp tài khoản & gửi lời mời.");
+      })
       .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể cấp tài khoản."))
       .finally(() => setBusy(false));
   }
@@ -525,12 +538,14 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
         {canManage && (
           <Panel title="Cấp tài khoản">
             <div className="flex flex-col gap-4">
-              <div>
-                <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Tên đăng nhập (email cá nhân)</div>
-                <div className="mt-1.5 flex h-10 items-center rounded-lg border bg-muted/40 px-3 font-mono text-[13px] text-foreground">{view.personalEmail || "Chưa có email cá nhân trên hồ sơ"}</div>
-              </div>
+              <LabeledInput label="Email cá nhân (dùng để gửi lời mời)">
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vd: lan.nguyen@gmail.com" className={cn(inputCls, "h-10")} />
+                {!view.personalEmail && (
+                  <p className="mt-1 text-[11.5px] text-amber-600">Hồ sơ chưa có email cá nhân — nhập email tại đây để lưu vào hồ sơ và gửi lời mời.</p>
+                )}
+              </LabeledInput>
               <LabeledInput label="Tên đăng nhập tuỳ chọn (không bắt buộc)">
-                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="vd: lan.nt" className={cn(inputCls, "h-10 font-mono")} />
+                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Mặc định lấy từ email" className={cn(inputCls, "h-10 font-mono")} />
               </LabeledInput>
               <label className="flex items-center gap-2.5 rounded-lg border bg-muted/30 p-3 text-[13px]">
                 <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} className="size-4 accent-primary-500" />
@@ -539,7 +554,7 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
               </label>
               {error && <p className="text-[12.5px] text-destructive">{error}</p>}
               {msg && <p className="text-[12.5px] text-emerald-600">{msg}</p>}
-              <Button onClick={grant} disabled={busy || !view.personalEmail} className="gap-2 rounded-xl">
+              <Button onClick={() => grant()} disabled={busy || !email.trim()} className="gap-2 rounded-xl">
                 <Key className="size-4" strokeWidth={1.8} /> {busy ? "Đang cấp…" : "Cấp tài khoản & gửi lời mời"}
               </Button>
             </div>
@@ -590,6 +605,30 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
             <Button variant="outline" disabled={busy} onClick={() => run(employeeService.resendInvite(view.id), "Đã gửi lại email kích hoạt tài khoản.")} className="justify-start gap-2.5 rounded-xl">
               <Send className="size-4" strokeWidth={1.8} /> Gửi lại email lời mời
             </Button>
+            <Button variant="outline" disabled={busy}
+              onClick={() => { setRegrant((v) => !v); setEmail(account.email); setUsername(account.username); setMsg(null); setError(null); }}
+              className="justify-start gap-2.5 rounded-xl">
+              <Key className="size-4" strokeWidth={1.8} /> Cấp lại tài khoản & gửi lời mời
+            </Button>
+            {regrant && (
+              <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-3.5">
+                <LabeledInput label="Email cá nhân">
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={cn(inputCls, "h-10")} />
+                </LabeledInput>
+                <LabeledInput label="Tên đăng nhập">
+                  <input value={username} onChange={(e) => setUsername(e.target.value)} className={cn(inputCls, "h-10 font-mono")} />
+                </LabeledInput>
+                <label className="flex items-center gap-2.5 text-[12.5px]">
+                  <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} className="size-4 accent-primary-500" />
+                  <span className="flex-1 text-foreground">Gửi lại email lời mời kích hoạt</span>
+                </label>
+                <p className="text-[11.5px] text-muted-foreground">Cập nhật email/tên đăng nhập (nếu đổi), tạo lại mật khẩu tự sinh mới và gửi lại lời mời.</p>
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setRegrant(false)} className="rounded-lg">Huỷ</Button>
+                  <Button size="sm" disabled={busy || !email.trim()} onClick={() => grant(true)} className="rounded-lg">{busy ? "Đang xử lý…" : "Xác nhận cấp lại"}</Button>
+                </div>
+              </div>
+            )}
             {disabled ? (
               <Button disabled={busy} onClick={() => run(employeeService.updateAccount(view.id, { status: "active" }), "Đã kích hoạt lại tài khoản.")} className="justify-start gap-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600">
                 <Power className="size-4" strokeWidth={1.8} /> Kích hoạt lại tài khoản

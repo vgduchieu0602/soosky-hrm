@@ -306,6 +306,7 @@ export interface UpdateAccountInput {
 
 export interface GrantLoginInput {
   username?: string;
+  email?: string;
   sendEmail: boolean;
 }
 export interface GrantLoginResult {
