@@ -292,7 +292,7 @@ export default function EmployeesPage() {
                 </Button>
                 {canManage && (
                   <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="h-9 gap-2 rounded-full text-[13px]">
-                    <Upload className="size-3.5" strokeWidth={1.9} /> Nhập CSV
+                    <Upload className="size-3.5" strokeWidth={1.9} /> Nhập Excel
                   </Button>
                 )}
                 {canManage && (

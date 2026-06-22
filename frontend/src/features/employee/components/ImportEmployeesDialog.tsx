@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import { Download, FileUp, CheckCircle2, AlertCircle } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -16,25 +17,20 @@ interface Props {
 
 const REQUIRED = ["employeeCode", "firstName", "lastName", "departmentCode", "positionCode", "employeeType", "hireDate"];
 
-/** Minimal RFC-4180-ish CSV parser: handles quoted fields, commas, CRLF. */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i += 1; } else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') inQuotes = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
-    else if (c !== "\r") field += c;
-  }
-  if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
-  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+const HEADER = [
+  "employeeCode", "firstName", "middleName", "lastName", "departmentCode",
+  "positionCode", "employeeType", "hireDate", "email", "phone", "gender", "salaryZone",
+];
+
+/** Parse a .csv or .xlsx ArrayBuffer into a matrix of trimmed string cells. */
+function readMatrix(buf: ArrayBuffer): string[][] {
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  const matrix = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: "" });
+  return matrix
+    .map((r) => (r as unknown[]).map((c) => String(c ?? "").trim()))
+    .filter((r) => r.some((c) => c !== ""));
 }
 
 function rowsToObjects(matrix: string[][]): { rows: ImportEmployeeRow[]; error: string | null } {
@@ -65,12 +61,15 @@ function rowsToObjects(matrix: string[][]): { rows: ImportEmployeeRow[]; error: 
 }
 
 function downloadTemplate() {
-  const sample = `employeeCode,firstName,middleName,lastName,departmentCode,positionCode,employeeType,hireDate,email,phone,gender,salaryZone
-NV001,An,Văn,Nguyễn,KT,NV,full_time,2026-01-15,an.nv@gmail.com,0901234567,male,zone1`;
-  const url = URL.createObjectURL(new Blob([sample], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url; a.download = "mau-import-nhan-vien.csv"; a.click();
-  URL.revokeObjectURL(url);
+  const sample = [
+    HEADER,
+    ["NV001", "An", "Văn", "Nguyễn", "KT", "NV", "full_time", "2026-01-15", "an.nv@gmail.com", "0901234567", "male", "zone1"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sample);
+  ws["!cols"] = HEADER.map((h) => ({ wch: Math.max(12, h.length + 2) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "NhanVien");
+  XLSX.writeFile(wb, "mau-import-nhan-vien.xlsx");
 }
 
 export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
@@ -86,10 +85,14 @@ export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
     setResult(null); setParseError(null); setRows([]); setFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
-      const { rows: parsed, error } = rowsToObjects(parseCsv(String(reader.result ?? "")));
-      if (error) setParseError(error); else setRows(parsed);
+      try {
+        const { rows: parsed, error } = rowsToObjects(readMatrix(reader.result as ArrayBuffer));
+        if (error) setParseError(error); else setRows(parsed);
+      } catch {
+        setParseError("Không đọc được tệp. Hãy dùng định dạng .csv hoặc .xlsx.");
+      }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   }
 
   function submit() {
@@ -107,7 +110,7 @@ export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>Nhập nhân viên từ CSV</DialogTitle>
+          <DialogTitle>Nhập nhân viên từ Excel / CSV</DialogTitle>
           <DialogDescription>
             Mỗi dòng là một nhân viên. Cột bắt buộc: {REQUIRED.join(", ")}. Phòng ban &amp; chức vụ tham chiếu theo <b>mã</b>.
           </DialogDescription>
@@ -116,11 +119,11 @@ export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2 rounded-lg">
-              <Download className="size-3.5" /> Tải mẫu CSV
+              <Download className="size-3.5" /> Tải mẫu Excel
             </Button>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px] font-medium hover:bg-muted">
-              <FileUp className="size-3.5" /> {fileName || "Chọn tệp .csv"}
-              <input type="file" accept=".csv,text/csv" onChange={onFile} className="hidden" />
+              <FileUp className="size-3.5" /> {fileName || "Chọn tệp .xlsx / .csv"}
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={onFile} className="hidden" />
             </label>
           </div>
 
