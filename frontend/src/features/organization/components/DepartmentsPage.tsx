@@ -155,7 +155,8 @@ export default function DepartmentsPage() {
     };
   }, [selectedDeptId, historyReload]);
 
-  const positions = posState.deptId === selectedDeptId ? posState.items : [];
+  const positions =
+    posState.deptId === selectedDeptId ? posState.items.filter((p) => p.status !== "archived") : [];
 
   // --- Department handlers --------------------------------------------------
   function openCreate(parentId: string | null = null) {
@@ -251,7 +252,7 @@ export default function DepartmentsPage() {
 
   async function handlePositionDelete() {
     if (!posDeleteTarget) return;
-    await organizationService.deletePosition(posDeleteTarget._id);
+    await organizationService.archivePosition(posDeleteTarget._id);
     setPosReload((n) => n + 1);
   }
 

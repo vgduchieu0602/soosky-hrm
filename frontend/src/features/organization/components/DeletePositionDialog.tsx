@@ -33,7 +33,7 @@ export function DeletePositionDialog({ open, onOpenChange, target, onConfirm }: 
     } catch (err) {
       const message =
         (err as { response?: { data?: { error?: { message?: string } } } })
-          ?.response?.data?.error?.message ?? "Không thể xoá chức vụ. Vui lòng thử lại.";
+          ?.response?.data?.error?.message ?? "Không thể lưu trữ chức vụ. Vui lòng thử lại.";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -45,15 +45,15 @@ export function DeletePositionDialog({ open, onOpenChange, target, onConfirm }: 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-start gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
               <AlertTriangle className="size-4.5" strokeWidth={2} />
             </span>
             <div>
-              <DialogTitle>Xoá chức vụ</DialogTitle>
+              <DialogTitle>Lưu trữ chức vụ</DialogTitle>
               <DialogDescription className="mt-1">
-                Bạn có chắc muốn xoá chức vụ{" "}
-                <span className="font-semibold text-foreground">{target?.title}</span>? Hành
-                động này không thể hoàn tác.
+                Lưu trữ chức vụ{" "}
+                <span className="font-semibold text-foreground">{target?.title}</span>? Chức vụ sẽ
+                ẩn khỏi danh sách chọn nhưng vẫn giữ cho các hồ sơ nhân viên đã gán.
               </DialogDescription>
             </div>
           </div>
@@ -69,8 +69,8 @@ export function DeletePositionDialog({ open, onOpenChange, target, onConfirm }: 
           <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>
             Hủy
           </Button>
-          <Button type="button" variant="destructive" size="sm" onClick={handleConfirm} disabled={submitting}>
-            {submitting ? "Đang xoá…" : "Xoá chức vụ"}
+          <Button type="button" size="sm" onClick={handleConfirm} disabled={submitting}>
+            {submitting ? "Đang lưu trữ…" : "Lưu trữ"}
           </Button>
         </DialogFooter>
       </DialogContent>

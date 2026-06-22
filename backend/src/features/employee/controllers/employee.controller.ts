@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { employeeService } from '@features/employee/services/employee.service';
 import { accountProvisioningService } from '@features/employee/services/account-provisioning.service';
 import { employeeAccountService } from '@features/employee/services/employee-account.service';
+import type { BulkTerminateEmployeesDto } from '@features/employee/dto/sub-resource.dto';
 
 function requireUser(req: Request) {
   if (!req.user) throw new Error('IAM_002');
@@ -82,6 +83,17 @@ export const employeeController = {
       const user = requireUser(req);
       const { id } = req.params as { id: string };
       const result = await employeeService.terminate(id, req.body, user.userId);
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async terminateMany(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { employeeIds, ...rest } = req.body as BulkTerminateEmployeesDto;
+      const result = await employeeService.terminateMany(employeeIds, rest, user.userId);
       res.json({ data: result });
     } catch (err) {
       next(err);

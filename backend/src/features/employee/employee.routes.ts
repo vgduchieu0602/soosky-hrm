@@ -31,6 +31,7 @@ import {
   updateAssetDto,
   returnAssetDto,
   terminateEmployeeDto,
+  bulkTerminateEmployeesDto,
 } from '@features/employee/dto/sub-resource.dto';
 
 const router = Router();
@@ -115,6 +116,13 @@ router.post(
   hrOrAdmin,
   validate(grantLoginDto, 'body'),
   employeeController.grantLogin,
+);
+router.post(
+  '/admin/employees/bulk/terminate',
+  authenticate,
+  hrOrAdmin,
+  validate(bulkTerminateEmployeesDto, 'body'),
+  employeeController.terminateMany,
 );
 router.post(
   '/admin/employees/:id/terminate',

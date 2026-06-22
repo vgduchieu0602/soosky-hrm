@@ -2,11 +2,12 @@ import { Types } from 'mongoose';
 import { Position, type IPosition } from '@shared/models/position.model';
 
 export const positionRepository = {
-  list(filter: { departmentId?: string }) {
+  list(filter: { departmentId?: string; status?: string }) {
     const match: Record<string, unknown> = {};
     if (filter.departmentId && Types.ObjectId.isValid(filter.departmentId)) {
       match.departmentId = new Types.ObjectId(filter.departmentId);
     }
+    if (filter.status) match.status = filter.status;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return Position.find(match as any)
       .sort({ level: -1, title: 1 })

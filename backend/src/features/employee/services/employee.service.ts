@@ -277,6 +277,27 @@ export const employeeService = {
   },
 
   /**
+   * Bulk off-boarding: terminate many employees with one date/reason.
+   * Each id is processed independently — already-terminated or missing ids are
+   * skipped and reported, never aborting the rest.
+   */
+  async terminateMany(ids: string[], input: TerminateEmployeeDto, auditUserId: string) {
+    const unique = [...new Set(ids)];
+    let terminated = 0;
+    const skipped: { id: string; reason: string }[] = [];
+    for (const id of unique) {
+      try {
+        await this.terminate(id, input, auditUserId);
+        terminated += 1;
+      } catch (e) {
+        skipped.push({ id, reason: e instanceof HttpError ? e.message : 'error' });
+      }
+    }
+    log.info({ requested: unique.length, terminated, skipped: skipped.length }, 'employees bulk-terminated');
+    return { terminated, skipped };
+  },
+
+  /**
    * Hard-delete an employee and all owned records (profile, contacts, documents,
    * bank accounts, contracts, assets, history). If a login account is linked, it
    * is removed too (along with its role assignments). Use `terminate` for the

@@ -19,6 +19,7 @@ export const updatePositionDto = z
     departmentId: objectId.optional(),
     level: z.coerce.number().int().min(1).max(10).optional(),
     description: z.string().max(500).optional(),
+    status: z.enum(['active', 'archived']).optional(),
   })
   .strict();
 export type UpdatePositionDto = z.infer<typeof updatePositionDto>;

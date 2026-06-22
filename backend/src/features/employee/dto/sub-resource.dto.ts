@@ -101,3 +101,12 @@ export const terminateEmployeeDto = z
   })
   .strict();
 export type TerminateEmployeeDto = z.infer<typeof terminateEmployeeDto>;
+
+export const bulkTerminateEmployeesDto = z
+  .object({
+    employeeIds: z.array(z.string().length(24)).min(1).max(500),
+    terminationDate: z.coerce.date().default(() => new Date()),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+export type BulkTerminateEmployeesDto = z.infer<typeof bulkTerminateEmployeesDto>;

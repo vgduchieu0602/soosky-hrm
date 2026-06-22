@@ -11,7 +11,8 @@ export const positionController = {
     try {
       requireUser(req);
       const departmentId = req.query.departmentId as string | undefined;
-      res.json({ data: await positionService.list({ departmentId }) });
+      const status = req.query.status as string | undefined;
+      res.json({ data: await positionService.list({ departmentId, status }) });
     } catch (err) { next(err); }
   },
   async getById(req: Request, res: Response, next: NextFunction) {
@@ -34,11 +35,11 @@ export const positionController = {
       res.json({ data: await positionService.update(id, req.body, user.userId) });
     } catch (err) { next(err); }
   },
-  async remove(req: Request, res: Response, next: NextFunction) {
+  async archive(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
       const { id } = req.params as { id: string };
-      res.json({ data: await positionService.remove(id, user.userId) });
+      res.json({ data: await positionService.archive(id, user.userId) });
     } catch (err) { next(err); }
   },
 };

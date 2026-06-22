@@ -139,7 +139,8 @@ export const organizationService = {
     return data.data;
   },
 
-  async deletePosition(id: string): Promise<void> {
+  /** Archive (soft): DELETE marks the position archived, keeping it referenced. */
+  async archivePosition(id: string): Promise<void> {
     await api.delete(`/admin/positions/${id}`);
   },
 };

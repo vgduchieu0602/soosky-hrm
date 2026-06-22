@@ -110,6 +110,17 @@ export const employeeService = {
     return data.data;
   },
 
+  async terminateMany(
+    employeeIds: string[],
+    input: TerminateInput = {},
+  ): Promise<{ terminated: number; skipped: { id: string; reason: string }[] }> {
+    const { data } = await api.post<ApiEnvelope<{ terminated: number; skipped: { id: string; reason: string }[] }>>(
+      `/admin/employees/bulk/terminate`,
+      { employeeIds, ...input },
+    );
+    return data.data;
+  },
+
   // Hard delete (cascade) — admin & HR only.
   async remove(id: string): Promise<void> {
     await api.delete(`/admin/employees/${id}`);

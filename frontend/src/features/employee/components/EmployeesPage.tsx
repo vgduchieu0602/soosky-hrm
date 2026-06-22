@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, UserPlus, Download, ChevronRight, ChevronLeft, ChevronDown, Check,
-  Users, UserCheck, CalendarDays, RefreshCw, type LucideIcon,
+  Users, UserCheck, CalendarDays, RefreshCw, UserX, X, type LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { organizationService } from "@features/organization/services/organizatio
 import { employeeService } from "@features/employee/services/employee.service";
 import { EmployeeDetail } from "@features/employee/components/EmployeeDetail";
 import { CreateEmployeeModal } from "@features/employee/components/CreateEmployeeModal";
+import { BulkTerminateDialog } from "@features/employee/components/BulkTerminateDialog";
 import { EMP_STATUS, EMP_TYPE, formatDate, toEmployeeView } from "@features/employee/constants";
 import type {
   EmployeeStats, EmployeeStatus, EmployeeView, ListMeta,
@@ -120,6 +121,8 @@ export default function EmployeesPage() {
 
   const [selected, setSelected] = useState<EmployeeView | null>(null);
   const [creating, setCreating] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Server-side filters (department, status, page). Search `q` is applied
   // client-side over the loaded page — see edit.md for server-side search.
@@ -130,6 +133,7 @@ export default function EmployeesPage() {
         .then(({ items, meta: m }) => {
           setRows(items.map(toEmployeeView));
           setMeta(m);
+          setSelectedIds(new Set());
           setError(null);
         })
         .catch(() => setError("Không thể tải danh sách nhân viên từ máy chủ."))
@@ -172,6 +176,21 @@ export default function EmployeesPage() {
         .includes(needle),
     );
   }, [rows, q]);
+
+  // Only active-group employees can be bulk-terminated.
+  const selectableRows = useMemo(() => filtered.filter((e) => EMP_STATUS[e.status].group === "active"), [filtered]);
+  const allSelected = selectableRows.length > 0 && selectableRows.every((e) => selectedIds.has(e.id));
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(selectableRows.map((e) => e.id)));
+  }
 
   function handleStatusChange(next: EmployeeStatus) {
     if (!selected) return;
@@ -263,6 +282,20 @@ export default function EmployeesPage() {
               </div>
             )}
 
+            {canManage && selectedIds.size > 0 && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50/60 px-4 py-2.5 text-[13px]">
+                <span className="font-medium text-foreground">Đã chọn <b className="tabular-nums">{selectedIds.size}</b> nhân viên</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg" onClick={() => setBulkOpen(true)}>
+                    <UserX className="size-3.5" /> Cho nghỉ việc
+                  </Button>
+                  <Button size="icon" variant="ghost" className="size-8" onClick={() => setSelectedIds(new Set())} aria-label="Bỏ chọn">
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* table */}
             <Card className="overflow-hidden">
               <div className="flex flex-wrap items-center gap-3 border-b p-4">
@@ -278,6 +311,12 @@ export default function EmployeesPage() {
                 <table className="w-full border-collapse text-[13px]">
                   <thead>
                     <tr className="border-b bg-muted/40">
+                      {canManage && (
+                        <Th className="w-10 text-center">
+                          <input type="checkbox" aria-label="Chọn tất cả" className="size-4 accent-primary align-middle"
+                            checked={allSelected} onChange={toggleAll} disabled={selectableRows.length === 0} />
+                        </Th>
+                      )}
                       <Th className="w-12 text-center">STT</Th>
                       <Th>Nhân viên</Th><Th>Mã NV</Th><Th>Mã vân tay</Th>
                       <Th>Phòng ban</Th><Th>Chức vụ</Th>
@@ -289,16 +328,24 @@ export default function EmployeesPage() {
                     {loading ? (
                       Array.from({ length: 6 }).map((_, i) => (
                         <tr key={i} className="border-b border-border/60">
-                          <td colSpan={10} className="px-4 py-3"><div className="h-8 animate-pulse rounded-lg bg-muted/60" /></td>
+                          <td colSpan={canManage ? 11 : 10} className="px-4 py-3"><div className="h-8 animate-pulse rounded-lg bg-muted/60" /></td>
                         </tr>
                       ))
                     ) : filtered.length === 0 ? (
-                      <tr><td colSpan={10} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Không tìm thấy nhân viên phù hợp.</td></tr>
+                      <tr><td colSpan={canManage ? 11 : 10} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Không tìm thấy nhân viên phù hợp.</td></tr>
                     ) : (
                       filtered.map((e, idx) => {
                         const g = EMP_STATUS[e.status].group;
                         return (
                           <tr key={e.id} onClick={() => setSelected(e)} className="group cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40">
+                            {canManage && (
+                              <Td className="text-center" >
+                                <input type="checkbox" aria-label={`Chọn ${e.fullName}`} className="size-4 accent-primary align-middle disabled:opacity-40"
+                                  checked={selectedIds.has(e.id)} disabled={g !== "active"}
+                                  onClick={(ev) => ev.stopPropagation()}
+                                  onChange={() => toggleOne(e.id)} />
+                              </Td>
+                            )}
                             <Td className="text-center text-[12px] tabular-nums text-muted-foreground">{(meta.page - 1) * meta.limit + idx + 1}</Td>
                             <Td>
                               <div className="flex items-center gap-3">
@@ -364,6 +411,14 @@ export default function EmployeesPage() {
         <CreateEmployeeModal
           onClose={() => setCreating(false)}
           onCreated={() => { setCreating(false); reloadAll(); }}
+        />
+      )}
+      {bulkOpen && (
+        <BulkTerminateDialog
+          open
+          onOpenChange={setBulkOpen}
+          employeeIds={[...selectedIds]}
+          onDone={() => { setSelectedIds(new Set()); reloadAll(); }}
         />
       )}
     </div>

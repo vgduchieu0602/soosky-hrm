@@ -90,6 +90,6 @@ router.patch(
   validate(updatePositionDto, 'body'),
   positionController.update,
 );
-router.delete('/admin/positions/:id', authenticate, hrOrAdmin, positionController.remove);
+router.delete('/admin/positions/:id', authenticate, hrOrAdmin, positionController.archive);
 
 export default router;

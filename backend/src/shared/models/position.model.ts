@@ -3,12 +3,16 @@ import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
 const DB_NAME = 'position';
 const COLLECTION_NAME = 'positions';
 
+export const POSITION_STATUS = ['active', 'archived'] as const;
+export type PositionStatus = (typeof POSITION_STATUS)[number];
+
 export interface IPosition {
   title: string;
   code: string;
   departmentId: Types.ObjectId;
   level: number;
   description: string;
+  status: PositionStatus;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -27,6 +31,7 @@ const positionSchema = new Schema<IPosition>(
     },
     level: { type: Number, required: true, min: 1 },
     description: { type: String, default: '' },
+    status: { type: String, enum: POSITION_STATUS, default: 'active', index: true },
   },
   {
     collection: COLLECTION_NAME,

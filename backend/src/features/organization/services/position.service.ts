@@ -14,7 +14,7 @@ import type {
 const log = logger.child({ feature: 'organization', module: 'position' });
 
 export const positionService = {
-  list(filter: { departmentId?: string }) {
+  list(filter: { departmentId?: string; status?: string }) {
     return positionRepository.list(filter);
   },
 
@@ -67,6 +67,25 @@ export const positionService = {
     return updated.toJSON();
   },
 
+  /**
+   * Archive a position (soft): hide from active pickers but keep it referenced
+   * by historical employee records. Allowed even when in use.
+   */
+  async archive(id: string, auditUserId: string) {
+    const updated = await positionRepository.updateById(id, { status: 'archived' });
+    if (!updated) throw new HttpError(404, 'Position not found', 'ORG_005');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'position',
+      action: 'delete',
+      resourceId: id,
+      changes: { status: 'archived' },
+    });
+    log.info({ positionId: id }, 'position archived');
+    return updated.toJSON();
+  },
+
+  /** Hard delete — only allowed when no employee references the position. */
   async remove(id: string, auditUserId: string) {
     const inUse = await Employee.countDocuments({ positionId: new Types.ObjectId(id) });
     if (inUse > 0) {

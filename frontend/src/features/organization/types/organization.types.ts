@@ -27,6 +27,7 @@ export interface Position {
   departmentId: string;
   level: number;
   description?: string;
+  status?: "active" | "archived";
 }
 
 export interface CreatePositionInput {
