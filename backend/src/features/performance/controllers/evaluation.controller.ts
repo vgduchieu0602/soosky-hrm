@@ -22,6 +22,14 @@ export const evaluationController = {
       next(e);
     }
   },
+  async byEmployee(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.params as { employeeId: string };
+      res.json({ data: await evaluationService.listByEmployee(employeeId) });
+    } catch (e) {
+      next(e);
+    }
+  },
   async get(req: Request, res: Response, next: NextFunction) {
     try {
       res.json({ data: await evaluationService.get(idOf(req)) });

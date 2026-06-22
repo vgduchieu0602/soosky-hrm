@@ -94,6 +94,12 @@ export const evaluationService = {
     return (await load(id)).toJSON();
   },
 
+  /** HR: one employee's evaluations across all periods (history/trend). */
+  listByEmployee(employeeId: string) {
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) return Promise.resolve([]);
+    return MonthlyEvaluation.find({ employeeId }).sort({ updated_at: -1 }).lean();
+  },
+
   /** Self-service: the acting employee's own (finalized) evaluations. */
   async listMine(userId: string) {
     const employeeId = await employeeIdOfUser(userId);

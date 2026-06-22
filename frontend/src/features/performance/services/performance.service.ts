@@ -12,6 +12,11 @@ export const performanceService = {
     });
     return data.data ?? [];
   },
+  /** HR: one employee's evaluations across all periods (history). */
+  async byEmployee(employeeId: string): Promise<Evaluation[]> {
+    const { data } = await api.get<Env<Evaluation[]>>(`/performance/evaluations/employee/${employeeId}`);
+    return data.data ?? [];
+  },
   async mine(): Promise<Evaluation[]> {
     const { data } = await api.get<Env<Evaluation[]>>("/performance/evaluations/me");
     return data.data ?? [];

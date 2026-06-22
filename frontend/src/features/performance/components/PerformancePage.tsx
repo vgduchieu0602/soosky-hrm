@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Search, ChevronDown, Check, ClipboardCheck, Pencil } from "lucide-react";
+import { Search, ChevronDown, Check, ClipboardCheck, Pencil, History, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,13 @@ export default function Performance() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [scoreEmp, setScoreEmp] = useState<EmpRow | null>(null);
+  const [historyEmp, setHistoryEmp] = useState<EmpRow | null>(null);
+
+  const periodNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of periods) m.set(p._id, p.name);
+    return m;
+  }, [periods]);
 
   useEffect(() => {
     let active = true;
@@ -180,10 +187,15 @@ export default function Performance() {
                           <Td className="text-right tabular-nums">{ev ? `${Math.round(ev.performanceRatio)}%` : "—"}</Td>
                           <Td className="text-right tabular-nums">{ev ? `${Math.round(ev.goalRatio)}%` : "—"}</Td>
                           <Td className="text-right">
-                            <Button size="sm" variant={ev ? "outline" : "default"} disabled={acked}
-                              onClick={() => setScoreEmp(emp)} className="h-8 gap-1.5 rounded-lg text-[12.5px]">
-                              {ev ? <><Pencil className="size-3.5" /> Sửa</> : <><ClipboardCheck className="size-3.5" /> Đánh giá</>}
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button size="sm" variant={ev ? "outline" : "default"} disabled={acked}
+                                onClick={() => setScoreEmp(emp)} className="h-8 gap-1.5 rounded-lg text-[12.5px]">
+                                {ev ? <><Pencil className="size-3.5" /> Sửa</> : <><ClipboardCheck className="size-3.5" /> Đánh giá</>}
+                              </Button>
+                              <Button size="icon" variant="ghost" onClick={() => setHistoryEmp(emp)} aria-label="Lịch sử đánh giá" title="Lịch sử đánh giá" className="size-8 text-muted-foreground hover:text-foreground">
+                                <History className="size-4" />
+                              </Button>
+                            </div>
                           </Td>
                         </tr>
                       );
@@ -226,6 +238,95 @@ export default function Performance() {
           onSaved={() => setReloadKey((n) => n + 1)}
         />
       )}
+
+      {historyEmp && (
+        <EvaluationHistoryDrawer
+          employee={historyEmp}
+          periodNameById={periodNameById}
+          onClose={() => setHistoryEmp(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function EvaluationHistoryDrawer({ employee, periodNameById, onClose }: {
+  employee: EmpRow; periodNameById: Map<string, string>; onClose: () => void;
+}) {
+  const [rows, setRows] = useState<Evaluation[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    performanceService.byEmployee(employee.id)
+      .then((rs) => { if (active) setRows(rs); })
+      .catch(() => { if (active) setRows([]); });
+    return () => { active = false; };
+  }, [employee.id]);
+
+  // Sort by period name (YYYY-MM) descending; fall back to id order.
+  const sorted = useMemo(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) =>
+      (periodNameById.get(b.payrollPeriodId) ?? "").localeCompare(periodNameById.get(a.payrollPeriodId) ?? ""));
+  }, [rows, periodNameById]);
+
+  // Trend: oldest → newest performance ratios.
+  const trend = useMemo(() => [...sorted].reverse().map((e) => Math.round(e.performanceRatio)), [sorted]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-secondary-900/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative flex h-full w-full max-w-[440px] flex-col bg-background shadow-2xl">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <div>
+            <h3 className="text-[15px] font-bold text-foreground">Lịch sử đánh giá</h3>
+            <p className="text-[12px] text-muted-foreground"><span className="font-mono">{employee.code}</span> · {employee.name}</p>
+          </div>
+          <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {rows === null && <p className="py-10 text-center text-[13px] text-muted-foreground">Đang tải…</p>}
+          {rows !== null && sorted.length === 0 && <p className="py-10 text-center text-[13px] text-muted-foreground">Chưa có đánh giá nào.</p>}
+
+          {sorted.length >= 2 && (
+            <div className="mb-4 flex items-end gap-1 rounded-xl border bg-muted/30 p-3">
+              {trend.map((v, i) => (
+                <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                  <div className="w-full rounded-sm bg-primary-500/70" style={{ height: `${Math.max(4, v * 0.6)}px` }} title={`${v}%`} />
+                  <span className="text-[9px] tabular-nums text-muted-foreground">{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {sorted.map((ev, i) => {
+              const next = sorted[i + 1]; // older period
+              const delta = next ? Math.round(ev.performanceRatio) - Math.round(next.performanceRatio) : 0;
+              return (
+                <div key={ev._id} className="rounded-xl border px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-semibold text-foreground">{periodNameById.get(ev.payrollPeriodId) ?? "—"}</span>
+                    <Badge variant={STATUS[ev.status].variant}>{STATUS[ev.status].label}</Badge>
+                  </div>
+                  <div className="mt-2 flex items-center gap-4 text-[12.5px]">
+                    <span className="text-muted-foreground">Hiệu suất <b className="tabular-nums text-foreground">{Math.round(ev.performanceRatio)}%</b></span>
+                    <span className="text-muted-foreground">Mục tiêu <b className="tabular-nums text-foreground">{Math.round(ev.goalRatio)}%</b></span>
+                    {next && (
+                      <span className={cn("ml-auto inline-flex items-center gap-0.5 text-[11.5px] font-medium tabular-nums",
+                        delta > 0 ? "text-emerald-600" : delta < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                        {delta > 0 ? <TrendingUp className="size-3.5" /> : delta < 0 ? <TrendingDown className="size-3.5" /> : <Minus className="size-3.5" />}
+                        {delta > 0 ? `+${delta}` : delta}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

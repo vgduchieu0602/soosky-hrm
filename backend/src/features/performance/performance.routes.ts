@@ -14,6 +14,7 @@ router.post('/performance/evaluations/:id/acknowledge', authenticate, validate(a
 
 // ---- HR / Admin: chấm trực tiếp ----
 router.get('/performance/evaluations', authenticate, hrOrAdmin, evaluationController.list);
+router.get('/performance/evaluations/employee/:employeeId', authenticate, hrOrAdmin, evaluationController.byEmployee);
 router.get('/performance/evaluations/:id', authenticate, evaluationController.get);
 router.post('/performance/evaluations', authenticate, hrOrAdmin, validate(directEvaluateDto, 'body'), evaluationController.evaluate);
 router.post('/performance/evaluations/:id/reopen', authenticate, hrOrAdmin, evaluationController.reopen);
