@@ -189,12 +189,12 @@ export const employeeController = {
   async exportCsv(req: Request, res: Response, next: NextFunction) {
     try {
       requireUser(req);
-      const csv = await employeeService.exportCsv(
+      const buf = await employeeService.exportXlsx(
         req.query as Record<string, string | undefined>,
       );
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', 'attachment; filename="employees.csv"');
-      res.send(csv);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="employees.xlsx"');
+      res.send(buf);
     } catch (err) {
       next(err);
     }
