@@ -5,6 +5,7 @@ import { employeeAccountService } from '@features/employee/services/employee-acc
 import { employeeReminderService } from '@features/employee/services/employee-reminder.service';
 import { employeeImportService } from '@features/employee/services/employee-import.service';
 import { employeeCompletenessService } from '@features/employee/services/employee-completeness.service';
+import { runContractReminders } from '@features/employee/jobs/reminder.job';
 import type { BulkTerminateEmployeesDto } from '@features/employee/dto/sub-resource.dto';
 
 function requireUser(req: Request) {
@@ -54,6 +55,14 @@ export const employeeController = {
       const raw = Number((req.query as { withinDays?: string }).withinDays);
       const withinDays = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 365) : 30;
       res.json({ data: await employeeReminderService.expiring(withinDays) });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async runReminders(_req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await runContractReminders() });
     } catch (err) {
       next(err);
     }

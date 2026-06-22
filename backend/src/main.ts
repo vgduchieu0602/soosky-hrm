@@ -4,6 +4,7 @@ import { env } from '@config/env';
 import { logger } from '@core/logger/logger';
 import { registerAccountEmailListeners } from '@features/employee/listeners/account-email.listener';
 import { registerNotificationListeners } from '@features/notification';
+import { registerReminderJobs } from '@features/employee/jobs/reminder.job';
 import { mailService } from '@core/mail/mail.service';
 
 async function bootstrap() {
@@ -13,6 +14,7 @@ async function bootstrap() {
   //Register domain event listeners (e.g. credential emails + in-app notifications)
   registerAccountEmailListeners();
   registerNotificationListeners();
+  registerReminderJobs();
 
   //Check mail transport (logs readiness / falls back to dev log transport)
   await mailService.verify();
