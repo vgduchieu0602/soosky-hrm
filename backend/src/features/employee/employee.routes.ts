@@ -14,6 +14,7 @@ import {
 } from '@features/employee/controllers/sub-resource.controller';
 
 import { createEmployeeDto } from '@features/employee/dto/create-employee.dto';
+import { importEmployeesDto } from '@features/employee/dto/import-employees.dto';
 import { updateEmployeeDto } from '@features/employee/dto/update-employee.dto';
 import { updateProfileDto } from '@features/employee/dto/update-profile.dto';
 import { grantLoginDto } from '@features/employee/dto/grant-login.dto';
@@ -117,6 +118,13 @@ router.post(
   hrOrAdmin,
   validate(grantLoginDto, 'body'),
   employeeController.grantLogin,
+);
+router.post(
+  '/admin/employees/import',
+  authenticate,
+  hrOrAdmin,
+  validate(importEmployeesDto, 'body'),
+  employeeController.importEmployees,
 );
 router.post(
   '/admin/employees/bulk/terminate',
