@@ -3,6 +3,7 @@ import { employeeService } from '@features/employee/services/employee.service';
 import { accountProvisioningService } from '@features/employee/services/account-provisioning.service';
 import { employeeAccountService } from '@features/employee/services/employee-account.service';
 import { employeeReminderService } from '@features/employee/services/employee-reminder.service';
+import { employeeImportService } from '@features/employee/services/employee-import.service';
 import type { BulkTerminateEmployeesDto } from '@features/employee/dto/sub-resource.dto';
 
 function requireUser(req: Request) {
@@ -31,6 +32,16 @@ export const employeeController = {
         req.query as Record<string, string | undefined>,
       );
       res.json({ data: items, meta });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async importEmployees(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { rows } = req.body as { rows: Parameters<typeof employeeImportService.importEmployees>[0] };
+      res.json({ data: await employeeImportService.importEmployees(rows, user.userId) });
     } catch (err) {
       next(err);
     }

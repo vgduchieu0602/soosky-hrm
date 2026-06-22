@@ -331,3 +331,31 @@ export interface ExpiryReminders {
   probation: ReminderItem[];
   contract: ReminderItem[];
 }
+
+export interface ImportEmployeeRow {
+  employeeCode: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  departmentCode: string;
+  positionCode: string;
+  employeeType: string;
+  hireDate: string;
+  email?: string;
+  phone?: string;
+  gender?: string;
+  salaryZone?: string;
+}
+export interface ImportRowResult {
+  index: number;
+  employeeCode: string;
+  status: "created" | "error";
+  employeeId?: string;
+  error?: string;
+}
+export interface ImportResult {
+  total: number;
+  created: number;
+  failed: number;
+  results: ImportRowResult[];
+}

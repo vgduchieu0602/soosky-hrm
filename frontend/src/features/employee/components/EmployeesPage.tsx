@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, UserPlus, Download, ChevronRight, ChevronLeft, ChevronDown, Check,
-  Users, UserCheck, CalendarDays, RefreshCw, UserX, X, type LucideIcon,
+  Users, UserCheck, CalendarDays, RefreshCw, UserX, X, Upload, type LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { EmployeeDetail } from "@features/employee/components/EmployeeDetail";
 import { CreateEmployeeModal } from "@features/employee/components/CreateEmployeeModal";
 import { BulkTerminateDialog } from "@features/employee/components/BulkTerminateDialog";
 import { ContractRemindersCard } from "@features/employee/components/ContractRemindersCard";
+import { ImportEmployeesDialog } from "@features/employee/components/ImportEmployeesDialog";
 import { SavedFilters, type FilterState } from "@features/employee/components/SavedFilters";
 import { EMP_STATUS, EMP_TYPE, formatDate, toEmployeeView } from "@features/employee/constants";
 import type {
@@ -132,6 +133,7 @@ export default function EmployeesPage() {
   const [creating, setCreating] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Server-side filters (department, status, page). Search `q` is applied
   // client-side over the loaded page — see edit.md for server-side search.
@@ -283,6 +285,11 @@ export default function EmployeesPage() {
                 <Button variant="outline" size="sm" onClick={exportExcel} disabled={exporting} className="h-9 gap-2 rounded-full text-[13px]">
                   <Download className={cn("size-3.5", exporting && "animate-pulse")} strokeWidth={1.8} /> Xuất Excel
                 </Button>
+                {canManage && (
+                  <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="h-9 gap-2 rounded-full text-[13px]">
+                    <Upload className="size-3.5" strokeWidth={1.9} /> Nhập CSV
+                  </Button>
+                )}
                 {canManage && (
                   <Button onClick={() => setCreating(true)} size="sm" className="h-9 gap-2 rounded-full text-[13px]">
                     <UserPlus className="size-3.5" strokeWidth={1.9} /> Tạo nhân viên
@@ -447,6 +454,13 @@ export default function EmployeesPage() {
           onOpenChange={setBulkOpen}
           employeeIds={[...selectedIds]}
           onDone={() => { setSelectedIds(new Set()); reloadAll(); }}
+        />
+      )}
+      {importOpen && (
+        <ImportEmployeesDialog
+          open
+          onOpenChange={setImportOpen}
+          onDone={reloadAll}
         />
       )}
     </div>

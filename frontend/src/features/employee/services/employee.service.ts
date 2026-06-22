@@ -11,6 +11,8 @@ import type {
   EmployeeRecord,
   EmployeeStats,
   ExpiryReminders,
+  ImportEmployeeRow,
+  ImportResult,
   GrantLoginInput,
   GrantLoginResult,
   ListEmployeesParams,
@@ -73,6 +75,11 @@ export const employeeService = {
 
   async getById(id: string): Promise<EmployeeRecord> {
     const { data } = await api.get<ApiEnvelope<EmployeeRecord>>(`/employees/${id}`);
+    return data.data;
+  },
+
+  async importEmployees(rows: ImportEmployeeRow[]): Promise<ImportResult> {
+    const { data } = await api.post<ApiEnvelope<ImportResult>>("/admin/employees/import", { rows });
     return data.data;
   },
 
