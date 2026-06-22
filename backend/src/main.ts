@@ -3,14 +3,16 @@ import { connectDB, disconnectDB } from '@core/database/mongoose';
 import { env } from '@config/env';
 import { logger } from '@core/logger/logger';
 import { registerAccountEmailListeners } from '@features/employee/listeners/account-email.listener';
+import { registerNotificationListeners } from '@features/notification';
 import { mailService } from '@core/mail/mail.service';
 
 async function bootstrap() {
   //connect database
   await connectDB();
 
-  //Register domain event listeners (e.g. credential emails)
+  //Register domain event listeners (e.g. credential emails + in-app notifications)
   registerAccountEmailListeners();
+  registerNotificationListeners();
 
   //Check mail transport (logs readiness / falls back to dev log transport)
   await mailService.verify();
