@@ -3,6 +3,8 @@ import type {
   AccountView,
   CreateEmployeeInput,
   EmployeeAssetRecord,
+  EmployeeBankAccountRecord,
+  NewBankAccountInput,
   EmployeeContactRecord,
   EmployeeContractRecord,
   EmployeeDocumentRecord,
@@ -161,6 +163,30 @@ export const employeeService = {
       `/employees/${id}/contacts`,
     );
     return data.data ?? [];
+  },
+
+  async bankAccounts(id: string): Promise<EmployeeBankAccountRecord[]> {
+    const { data } = await api.get<ApiEnvelope<EmployeeBankAccountRecord[]>>(
+      `/employees/${id}/bank-accounts`,
+    );
+    return data.data ?? [];
+  },
+  async addBankAccount(id: string, input: NewBankAccountInput): Promise<EmployeeBankAccountRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeBankAccountRecord>>(
+      `/employees/${id}/bank-accounts`,
+      input,
+    );
+    return data.data;
+  },
+  async updateBankAccount(id: string, accountId: string, input: Partial<NewBankAccountInput>): Promise<EmployeeBankAccountRecord> {
+    const { data } = await api.patch<ApiEnvelope<EmployeeBankAccountRecord>>(
+      `/employees/${id}/bank-accounts/${accountId}`,
+      input,
+    );
+    return data.data;
+  },
+  async deleteBankAccount(id: string, accountId: string): Promise<void> {
+    await api.delete(`/employees/${id}/bank-accounts/${accountId}`);
   },
 
   async documents(id: string): Promise<EmployeeDocumentRecord[]> {

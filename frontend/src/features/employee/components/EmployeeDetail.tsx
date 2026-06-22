@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, FileText, Briefcase, Laptop, History, IdCard, Plus,
   Key, RefreshCw, Send, Power, Pencil, ChevronDown, Check, Trash2, RotateCcw,
-  Paperclip, Download, Loader2, Camera,
+  Paperclip, Download, Loader2, Camera, Landmark,
   type LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import {
   formatDate, formatMoney, fullNameOf, parseDecimal,
 } from "@features/employee/constants";
 import type {
-  AccountView, EmployeeAssetRecord, EmployeeContactRecord, EmployeeContractRecord,
+  AccountView, EmployeeAssetRecord, EmployeeBankAccountRecord, EmployeeContactRecord, EmployeeContractRecord,
   EmployeeDocumentRecord, EmployeeHistoryRecord, EmployeeProfile,
   EmployeeStatus, EmployeeView,
 } from "@features/employee/types/employee.types";
@@ -45,6 +45,7 @@ const TABS: { id: string; label: string; Icon: LucideIcon }[] = [
   { id: "profile", label: "Hồ sơ", Icon: IdCard },
   { id: "account", label: "Tài khoản", Icon: Key },
   { id: "contacts", label: "Liên hệ", Icon: Phone },
+  { id: "bank", label: "Ngân hàng", Icon: Landmark },
   { id: "documents", label: "Tài liệu", Icon: FileText },
   { id: "contracts", label: "Hợp đồng", Icon: Briefcase },
   { id: "assets", label: "Tài sản", Icon: Laptop },
@@ -150,6 +151,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
           )}
           {tab === "account" && <AccountTab view={view} canManage={canManage} onGranted={onAccountGranted} />}
           {tab === "contacts" && <ContactsTab employeeId={view.id} canManage={canManage} />}
+          {tab === "bank" && <BankAccountsTab employeeId={view.id} canManage={canManage} />}
           {tab === "documents" && <DocumentsTab employeeId={view.id} canManage={canManage} />}
           {tab === "contracts" && <ContractsTab employeeId={view.id} canManage={canManage} />}
           {tab === "assets" && <AssetsTab employeeId={view.id} canManage={canManage} />}
@@ -731,6 +733,93 @@ function ContactsTab({ employeeId, canManage }: { employeeId: string; canManage:
                   <>
                     <Button variant="ghost" size="icon" onClick={() => startEdit(c)} className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={removing === c._id} onClick={() => remove(c._id)} className="size-8 text-muted-foreground hover:text-rose-600"><Trash2 className="size-4" /></Button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+    </Panel>
+  );
+}
+
+// ===================== Bank accounts =====================
+function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canManage: boolean }) {
+  const [rk, setRk] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const { loading, items, error } = useResource<EmployeeBankAccountRecord>(() => employeeService.bankAccounts(employeeId), `${employeeId}:${rk}`);
+  const emptyForm = { bankName: "", branch: "", accountNumber: "", accountHolder: "", isPrimary: false };
+  const [f, setF] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  function remove(accountId: string) {
+    setRemoving(accountId);
+    employeeService.deleteBankAccount(employeeId, accountId)
+      .then(() => setRk((k) => k + 1))
+      .catch(() => {})
+      .finally(() => setRemoving(null));
+  }
+  function startEdit(b: EmployeeBankAccountRecord) {
+    setEditingId(b._id);
+    setF({ bankName: b.bankName, branch: b.branch ?? "", accountNumber: b.accountNumber, accountHolder: b.accountHolder, isPrimary: !!b.isPrimary });
+    setAdding(true);
+  }
+  function closeForm() { setAdding(false); setEditingId(null); setF(emptyForm); }
+  function setPrimary(b: EmployeeBankAccountRecord) {
+    if (b.isPrimary) return;
+    employeeService.updateBankAccount(employeeId, b._id, { isPrimary: true }).then(() => setRk((k) => k + 1)).catch(() => {});
+  }
+  function save() {
+    setBusy(true);
+    const payload = {
+      bankName: f.bankName.trim(),
+      branch: f.branch.trim() || undefined,
+      accountNumber: f.accountNumber.trim(),
+      accountHolder: f.accountHolder.trim(),
+      isPrimary: f.isPrimary,
+    };
+    const req = editingId
+      ? employeeService.updateBankAccount(employeeId, editingId, payload)
+      : employeeService.addBankAccount(employeeId, payload);
+    req.then(() => { closeForm(); setRk((k) => k + 1); }).catch(() => {}).finally(() => setBusy(false));
+  }
+  const valid = f.bankName.trim() && f.accountNumber.trim().length >= 4 && f.accountHolder.trim();
+
+  return (
+    <Panel title="Tài khoản ngân hàng" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
+      {adding && (
+        <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
+          <LabeledInput label="Ngân hàng"><input className={inputCls} value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} placeholder="VD: Vietcombank" /></LabeledInput>
+          <LabeledInput label="Chi nhánh"><input className={inputCls} value={f.branch} onChange={(e) => setF({ ...f, branch: e.target.value })} placeholder="VD: CN Hà Nội" /></LabeledInput>
+          <LabeledInput label="Số tài khoản"><input className={cn(inputCls, "font-mono")} value={f.accountNumber} onChange={(e) => setF({ ...f, accountNumber: e.target.value.replace(/[^\d]/g, "") })} inputMode="numeric" /></LabeledInput>
+          <LabeledInput label="Chủ tài khoản"><input className={inputCls} value={f.accountHolder} onChange={(e) => setF({ ...f, accountHolder: e.target.value })} placeholder="Tên in trên thẻ" /></LabeledInput>
+          <label className="flex items-end gap-2 pb-1 text-[12.5px]"><input type="checkbox" checked={f.isPrimary} onChange={(e) => setF({ ...f, isPrimary: e.target.checked })} className="size-4 accent-primary-500" /> Tài khoản nhận lương chính</label>
+          <div className="col-span-2 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={closeForm} className="rounded-lg">Huỷ</Button>
+            <Button size="sm" disabled={busy || !valid} onClick={save} className="rounded-lg">{editingId ? "Cập nhật" : "Lưu"}</Button>
+          </div>
+        </div>
+      )}
+      {loading ? <TabLoading /> : error ? <TabEmpty text="Không tải được tài khoản ngân hàng." /> :
+        items.length === 0 ? <TabEmpty text="Chưa có tài khoản ngân hàng nào." /> : (
+          <div className="flex flex-col gap-3">
+            {items.map((b) => (
+              <div key={b._id} className="flex items-center gap-3 rounded-xl border bg-muted/30 p-3.5">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600"><Landmark className="size-5" strokeWidth={1.8} /></span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13.5px] font-semibold text-foreground">{b.bankName}</span>
+                    {b.isPrimary && <Badge variant="blue" className="text-[10px]">Nhận lương</Badge>}
+                  </div>
+                  <div className="text-[12px] text-muted-foreground"><span className="font-mono">{b.accountNumber}</span> · {b.accountHolder}{b.branch ? ` · ${b.branch}` : ""}</div>
+                </div>
+                {canManage && (
+                  <>
+                    {!b.isPrimary && <Button variant="ghost" size="sm" onClick={() => setPrimary(b)} className="h-8 rounded-lg text-[12px] text-muted-foreground hover:text-primary-600">Đặt chính</Button>}
+                    <Button variant="ghost" size="icon" onClick={() => startEdit(b)} className="size-8 text-muted-foreground hover:text-primary-600"><Pencil className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={removing === b._id} onClick={() => remove(b._id)} className="size-8 text-muted-foreground hover:text-rose-600"><Trash2 className="size-4" /></Button>
                   </>
                 )}
               </div>

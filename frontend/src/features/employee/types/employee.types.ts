@@ -195,6 +195,21 @@ export interface NewContactInput {
   email?: string;
   isPrimary?: boolean;
 }
+export interface NewBankAccountInput {
+  bankName: string;
+  branch?: string;
+  accountNumber: string;
+  accountHolder: string;
+  isPrimary?: boolean;
+}
+export interface EmployeeBankAccountRecord {
+  _id: string;
+  bankName: string;
+  branch?: string;
+  accountNumber: string;
+  accountHolder: string;
+  isPrimary?: boolean;
+}
 export interface NewDocumentInput {
   documentType: DocumentType;
   documentNumber: string;
