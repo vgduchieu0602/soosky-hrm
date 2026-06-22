@@ -228,12 +228,17 @@ export default function EmployeesPage() {
   function exportExcel() {
     setExporting(true);
     employeeService
-      .exportCsv({ departmentId: dept || undefined, status: status || undefined, q: q || undefined })
+      .exportCsv({
+        departmentId: dept || undefined,
+        status: status || undefined,
+        employeeType: employeeType || undefined,
+        q: debouncedQ.trim() || undefined,
+      })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "employees.csv";
+        a.download = "nhan-vien.xlsx";
         a.click();
         URL.revokeObjectURL(url);
       })
