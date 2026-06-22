@@ -86,7 +86,7 @@ export default function SystemSettingsPage() {
             </div>
 
             {tab === "company" && <CompanySettings canManage={isAdmin} />}
-            {tab === "salary" && <SalaryPerformanceSettings canManage={isHrOrAdmin} />}
+            {tab === "salary" && <SalaryPerformanceSettings canManage={isHrOrAdmin} canManagePolicy={isAdmin} />}
             {tab === "attendance" && <AttendanceCatalogSettings canManage={isHrOrAdmin} />}
             {tab === "users" && <UsersSettings canManage={isAdmin} />}
             {tab === "roles" && isAdmin && <RolesSettings />}

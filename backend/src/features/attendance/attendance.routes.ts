@@ -39,6 +39,7 @@ router.delete('/admin/holidays/:id', authenticate, hrOrAdmin, catalogController.
 router.get('/attendance-symbols', authenticate, catalogController.listSymbols);
 router.post('/admin/attendance-symbols', authenticate, hrOrAdmin, validate(createSymbolDto, 'body'), catalogController.createSymbol);
 router.patch('/admin/attendance-symbols/:id', authenticate, hrOrAdmin, validate(updateSymbolDto, 'body'), catalogController.updateSymbol);
+router.delete('/admin/attendance-symbols/:id', authenticate, hrOrAdmin, catalogController.removeSymbol);
 
 // ---- Attendance records ----
 // Self (employee): only own records, derived from the token.

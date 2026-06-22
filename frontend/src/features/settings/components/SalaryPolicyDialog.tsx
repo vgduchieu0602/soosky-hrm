@@ -86,21 +86,24 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
   const [personalDeduction, setPersonalDeduction] = useState(() => num(target?.personalDeduction, 11_000_000));
   const [dependentDeduction, setDependentDeduction] = useState(() => num(target?.dependentDeduction, 4_400_000));
   const [nonResidentTaxRate, setNonResidentTaxRate] = useState(() => target?.nonResidentTaxRate ?? 20);
-  const [zone1, setZone1] = useState(4_960_000);
-  const [zone2, setZone2] = useState(4_410_000);
-  const [zone3, setZone3] = useState(3_860_000);
-  const [zone4, setZone4] = useState(3_450_000);
+  const zoneOf = (k: string, d: number) => target?.regionalMinWage?.[k] ?? d;
+  const [zone1, setZone1] = useState(() => zoneOf("zone1", 4_960_000));
+  const [zone2, setZone2] = useState(() => zoneOf("zone2", 4_410_000));
+  const [zone3, setZone3] = useState(() => zoneOf("zone3", 3_860_000));
+  const [zone4, setZone4] = useState(() => zoneOf("zone4", 3_450_000));
   const [wA, setWA] = useState(() => target?.salaryComponentWeights.attendance ?? 20);
   const [wP, setWP] = useState(() => target?.salaryComponentWeights.performance ?? 60);
   const [wG, setWG] = useState(() => target?.salaryComponentWeights.goal ?? 20);
   // Insurance rates (%). Employee total 10.5 · Employer total 20.5.
-  const [eeSocial, setEeSocial] = useState(8);
-  const [eeHealth, setEeHealth] = useState(1.5);
-  const [eeUnemp, setEeUnemp] = useState(1);
-  const [erSocial, setErSocial] = useState(17);
-  const [erHealth, setErHealth] = useState(3);
-  const [erUnemp, setErUnemp] = useState(0.5);
-  const [erOccup, setErOccup] = useState(0);
+  const ee = target?.insuranceRates?.employee;
+  const er = target?.insuranceRates?.employer;
+  const [eeSocial, setEeSocial] = useState(() => ee?.social ?? 8);
+  const [eeHealth, setEeHealth] = useState(() => ee?.health ?? 1.5);
+  const [eeUnemp, setEeUnemp] = useState(() => ee?.unemployment ?? 1);
+  const [erSocial, setErSocial] = useState(() => er?.social ?? 17);
+  const [erHealth, setErHealth] = useState(() => er?.health ?? 3);
+  const [erUnemp, setErUnemp] = useState(() => er?.unemployment ?? 0.5);
+  const [erOccup, setErOccup] = useState(() => er?.occupational ?? 0);
   // Fixed BHXH contribution salary (mức đóng BHXH) + union fee.
   const [socialInsuranceSalary, setSocialInsuranceSalary] = useState(() => num(target?.socialInsuranceSalary ?? undefined, 5_500_000));
   const [unionFeeEnabled, setUnionFeeEnabled] = useState(() => target?.unionFeeEnabled ?? true);

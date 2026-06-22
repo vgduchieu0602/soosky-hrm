@@ -76,6 +76,10 @@ export const settingsService = {
     const { data } = await api.post<Env<Holiday>>("/admin/holidays", input);
     return data.data;
   },
+  async updateHoliday(id: string, input: Record<string, unknown>): Promise<Holiday> {
+    const { data } = await api.patch<Env<Holiday>>(`/admin/holidays/${id}`, input);
+    return data.data;
+  },
   async deleteHoliday(id: string): Promise<void> {
     await api.delete(`/admin/holidays/${id}`);
   },
@@ -86,5 +90,12 @@ export const settingsService = {
   async createSymbol(input: Record<string, unknown>): Promise<AttendanceSymbol> {
     const { data } = await api.post<Env<AttendanceSymbol>>("/admin/attendance-symbols", input);
     return data.data;
+  },
+  async updateSymbol(id: string, input: Record<string, unknown>): Promise<AttendanceSymbol> {
+    const { data } = await api.patch<Env<AttendanceSymbol>>(`/admin/attendance-symbols/${id}`, input);
+    return data.data;
+  },
+  async deleteSymbol(id: string): Promise<void> {
+    await api.delete(`/admin/attendance-symbols/${id}`);
   },
 };

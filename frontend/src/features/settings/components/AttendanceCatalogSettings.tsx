@@ -122,8 +122,16 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
         )}
         <List rows={holidays} empty="Chưa có ngày lễ." render={(h) => (
           <div key={h._id} className="flex items-center gap-3 rounded-lg border p-3 text-[13px]">
-            <span className="flex-1 font-medium text-foreground">{h.name}</span>
-            <span className="font-mono text-[12px] text-muted-foreground">{h.date?.slice(0, 10)}</span>
+            {canManage ? (
+              <input className={cn(inputCls, "flex-1")} defaultValue={h.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== h.name) settingsService.updateHoliday(h._id, { name: v }).then(reload).catch(() => {}); }} />
+            ) : (
+              <span className="flex-1 font-medium text-foreground">{h.name}</span>
+            )}
+            {canManage ? (
+              <input type="date" className={cn(inputCls, "w-[150px]")} defaultValue={h.date?.slice(0, 10)} onChange={(e) => { const v = e.target.value; if (v && v !== h.date?.slice(0, 10)) settingsService.updateHoliday(h._id, { date: v }).then(reload).catch(() => {}); }} />
+            ) : (
+              <span className="font-mono text-[12px] text-muted-foreground">{h.date?.slice(0, 10)}</span>
+            )}
             {canManage && (
               <Button variant="ghost" size="icon" onClick={() => settingsService.deleteHoliday(h._id).then(reload).catch(() => {})} className="size-8 text-muted-foreground hover:text-rose-600"><Trash2 className="size-4" /></Button>
             )}
@@ -149,8 +157,15 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
         <List rows={symbols} empty="Chưa có ký hiệu." render={(s) => (
           <div key={s._id} className="flex items-center gap-3 rounded-lg border p-3 text-[13px]">
             <span className="flex size-7 items-center justify-center rounded-md bg-muted font-mono font-bold text-foreground">{s.code}</span>
-            <span className="flex-1 text-foreground">{s.label}</span>
+            {canManage ? (
+              <input className={cn(inputCls, "flex-1")} defaultValue={s.label} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.label) settingsService.updateSymbol(s._id, { label: v }).then(reload).catch(() => {}); }} />
+            ) : (
+              <span className="flex-1 text-foreground">{s.label}</span>
+            )}
             <span className="text-[11px] text-muted-foreground">{s.paidStatus}{s.affectsPayroll ? " · ảnh hưởng lương" : ""}</span>
+            {canManage && (
+              <Button variant="ghost" size="icon" onClick={() => settingsService.deleteSymbol(s._id).then(reload).catch(() => {})} className="size-8 text-muted-foreground hover:text-rose-600" aria-label="Xoá ký hiệu"><Trash2 className="size-4" /></Button>
+            )}
           </div>
         )} />
       </SettingsSection>

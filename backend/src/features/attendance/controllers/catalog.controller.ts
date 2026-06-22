@@ -49,4 +49,7 @@ export const catalogController = {
   async updateSymbol(req: Request, res: Response, next: NextFunction) {
     try { res.json({ data: await symbolService.update((req.params as { id: string }).id, req.body, userId(req)) }); } catch (e) { next(e); }
   },
+  async removeSymbol(req: Request, res: Response, next: NextFunction) {
+    try { res.json({ data: await symbolService.remove((req.params as { id: string }).id, userId(req)) }); } catch (e) { next(e); }
+  },
 };
