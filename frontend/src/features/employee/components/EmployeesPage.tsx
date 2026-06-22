@@ -17,6 +17,7 @@ import { employeeService } from "@features/employee/services/employee.service";
 import { EmployeeDetail } from "@features/employee/components/EmployeeDetail";
 import { CreateEmployeeModal } from "@features/employee/components/CreateEmployeeModal";
 import { BulkTerminateDialog } from "@features/employee/components/BulkTerminateDialog";
+import { ContractRemindersCard } from "@features/employee/components/ContractRemindersCard";
 import { EMP_STATUS, EMP_TYPE, formatDate, toEmployeeView } from "@features/employee/constants";
 import type {
   EmployeeStats, EmployeeStatus, EmployeeView, ListMeta,
@@ -266,6 +267,8 @@ export default function EmployeesPage() {
                 )}
               </div>
             </div>
+
+            {canManage && <ContractRemindersCard onLocate={(code) => { setQ(code); setPage(1); }} />}
 
             {/* stat strip */}
             <div className="grid grid-cols-4 gap-4">

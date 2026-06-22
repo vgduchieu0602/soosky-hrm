@@ -314,3 +314,20 @@ export interface GrantLoginResult {
   username: string;
   linkSentTo: string | null;
 }
+
+export interface ReminderItem {
+  contractId: string;
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  departmentName: string | null;
+  contractType: string;
+  employmentStatus: string;
+  contractNumber: string;
+  endDate: string;
+  daysLeft: number;
+}
+export interface ExpiryReminders {
+  probation: ReminderItem[];
+  contract: ReminderItem[];
+}
