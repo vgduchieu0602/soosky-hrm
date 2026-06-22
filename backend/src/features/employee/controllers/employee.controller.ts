@@ -4,6 +4,7 @@ import { accountProvisioningService } from '@features/employee/services/account-
 import { employeeAccountService } from '@features/employee/services/employee-account.service';
 import { employeeReminderService } from '@features/employee/services/employee-reminder.service';
 import { employeeImportService } from '@features/employee/services/employee-import.service';
+import { employeeCompletenessService } from '@features/employee/services/employee-completeness.service';
 import type { BulkTerminateEmployeesDto } from '@features/employee/dto/sub-resource.dto';
 
 function requireUser(req: Request) {
@@ -64,6 +65,16 @@ export const employeeController = {
       const { id } = req.params as { id: string };
       const employee = await employeeService.findById(id);
       res.json({ data: employee });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async completeness(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeCompletenessService.forEmployee(id) });
     } catch (err) {
       next(err);
     }

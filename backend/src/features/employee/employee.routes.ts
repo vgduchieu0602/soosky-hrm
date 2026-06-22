@@ -47,6 +47,7 @@ router.get('/employees/export', authenticate, employeeController.exportCsv);
 router.get('/employees/me', authenticate, employeeController.getMe);
 router.get('/employees/:id', authenticate, employeeController.getById);
 router.get('/employees/:id/account', authenticate, employeeController.getAccount);
+router.get('/employees/:id/completeness', authenticate, employeeController.completeness);
 router.get('/employees/:id/profile', authenticate, employeeController.getProfile);
 router.patch(
   '/employees/:id/profile',

@@ -15,6 +15,7 @@ import { uploadFile, signDownload, UPLOAD_RULES, type UploadScope } from "@/shar
 import { employeeService } from "@features/employee/services/employee.service";
 import { iamService } from "@features/iam/services/iam.service";
 import { EmployeeEditModal } from "@features/employee/components/EmployeeEditModal";
+import { ProfileCompletenessCard } from "@features/employee/components/ProfileCompletenessCard";
 import {
   CONTRACT_TYPE, EMPLOYMENT_STATUS, COND, DOC_TYPE, EMP_STATUS, EMP_TYPE, GENDER, HIST_EVENT,
   MARITAL, REL, ROLE, SALARY_ZONE_LABEL, STATUS_ACTIVE, STATUS_INACTIVE,
@@ -141,7 +142,12 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
 
         {/* body */}
         <div className="flex-1 overflow-y-auto bg-background p-6">
-          {tab === "profile" && <ProfileTab view={view} profile={profile} />}
+          {tab === "profile" && (
+            <>
+              {canManage && <ProfileCompletenessCard employeeId={view.id} />}
+              <ProfileTab view={view} profile={profile} />
+            </>
+          )}
           {tab === "account" && <AccountTab view={view} canManage={canManage} onGranted={onAccountGranted} />}
           {tab === "contacts" && <ContactsTab employeeId={view.id} canManage={canManage} />}
           {tab === "documents" && <DocumentsTab employeeId={view.id} canManage={canManage} />}
