@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X } from "lucide-react";
+import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X, Layers } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [edit, setEdit] = useState<EditTarget | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -153,6 +154,9 @@ export default function AttendancePage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Select label="Tháng" value={month} options={MONTH_OPTIONS} onChange={setMonth} />
                 <Select label="Phòng ban" value={dept} options={deptOptions.map((d) => ({ value: d, label: d }))} onChange={setDept} />
+                <Button size="sm" onClick={() => setBulkOpen(true)} disabled={shifts.length === 0 || rows.length === 0} className="h-9 gap-2 rounded-full text-[13px]">
+                  <Layers className="size-3.5" /> Chấm hàng loạt
+                </Button>
               </div>
             </div>
 
@@ -273,6 +277,16 @@ export default function AttendancePage() {
           onSaved={() => { setEdit(null); setReloadKey((k) => k + 1); }}
         />
       )}
+
+      {bulkOpen && (
+        <BulkEditor
+          month={month}
+          employees={rows}
+          shifts={shifts}
+          onClose={() => setBulkOpen(false)}
+          onSaved={() => { setBulkOpen(false); setReloadKey((k) => k + 1); }}
+        />
+      )}
     </div>
   );
 }
@@ -284,6 +298,103 @@ const MANUAL_OPTIONS = [
   { value: "holiday", label: "Nghỉ lễ" },
   { value: "absent", label: "Vắng" },
 ] as const;
+
+const BULK_STATUS = MANUAL_OPTIONS.filter((o) => o.value);
+const MAX_BULK_ROWS = 500;
+
+function BulkEditor({ month, employees, shifts, onClose, onSaved }: {
+  month: string; employees: RosterEmployee[]; shifts: ShiftOption[]; onClose: () => void; onSaved: () => void;
+}) {
+  const allDays = useMemo(() => monthDays(month), [month]);
+  const [fromKey, setFromKey] = useState(allDays[0]?.key ?? "");
+  const [toKey, setToKey] = useState(allDays[allDays.length - 1]?.key ?? "");
+  const [shiftId, setShiftId] = useState("");
+  const [status, setStatus] = useState<string>("holiday");
+  const [skipWeekend, setSkipWeekend] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedDays = useMemo(
+    () => allDays.filter((d) => d.key >= fromKey && d.key <= toKey && (!skipWeekend || !d.weekend)),
+    [allDays, fromKey, toKey, skipWeekend],
+  );
+  const targetShifts = shiftId ? shifts.filter((s) => s._id === shiftId) : shifts;
+  const total = employees.length * selectedDays.length * targetShifts.length;
+  const tooMany = total > MAX_BULK_ROWS;
+
+  function save() {
+    if (tooMany || total === 0) return;
+    setSaving(true);
+    setError(null);
+    const rows = employees.flatMap((e) =>
+      selectedDays.flatMap((d) =>
+        targetShifts.map((s) => ({
+          employeeId: e._id, date: d.key, shiftId: s._id,
+          status: status as "leave_paid" | "leave_unpaid" | "holiday" | "absent",
+        })),
+      ),
+    );
+    attendanceService.bulkUpsert(rows)
+      .then(() => onSaved())
+      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể chấm hàng loạt."))
+      .finally(() => setSaving(false));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+        <h3 className="text-[16px] font-bold text-foreground">Chấm công hàng loạt</h3>
+        <p className="mt-0.5 text-[12.5px] text-muted-foreground">Áp 1 trạng thái cho <b className="text-foreground">{employees.length}</b> nhân viên đang lọc, theo khoảng ngày &amp; ca.</p>
+
+        <div className="mt-4 flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-foreground">Từ ngày</label>
+              <input type="date" min={allDays[0]?.key} max={allDays[allDays.length - 1]?.key} value={fromKey} onChange={(e) => setFromKey(e.target.value)} className={cn(inputCls, "mt-1.5")} />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-foreground">Đến ngày</label>
+              <input type="date" min={allDays[0]?.key} max={allDays[allDays.length - 1]?.key} value={toKey} onChange={(e) => setToKey(e.target.value)} className={cn(inputCls, "mt-1.5")} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[12px] font-medium text-foreground">Ca</label>
+            <select className={cn(inputCls, "mt-1.5")} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+              <option value="">Tất cả ca ({shifts.length})</option>
+              {shifts.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[12px] font-medium text-foreground">Trạng thái</label>
+            <select className={cn(inputCls, "mt-1.5")} value={status} onChange={(e) => setStatus(e.target.value)}>
+              {BULK_STATUS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <label className="flex items-center gap-2 text-[13px] text-foreground">
+            <input type="checkbox" checked={skipWeekend} onChange={(e) => setSkipWeekend(e.target.checked)} className="size-4 accent-primary" />
+            Bỏ qua thứ Bảy &amp; Chủ nhật
+          </label>
+
+          <div className={cn("rounded-xl border px-3.5 py-2.5 text-[12.5px]", tooMany ? "border-rose-200 bg-rose-50 text-rose-700" : "border-border bg-muted/40 text-muted-foreground")}>
+            Sẽ ghi <b className="tabular-nums">{total}</b> bản ghi ({employees.length} NV × {selectedDays.length} ngày × {targetShifts.length} ca).
+            {tooMany && <> Vượt giới hạn {MAX_BULK_ROWS} — hãy thu hẹp khoảng ngày, ca hoặc lọc bớt nhân viên.</>}
+          </div>
+          {error && <p className="text-[12.5px] text-destructive">{error}</p>}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} className="rounded-xl">Huỷ</Button>
+          <Button onClick={save} disabled={saving || tooMany || total === 0} className="rounded-xl">{saving ? "Đang ghi…" : "Chấm hàng loạt"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface ShiftForm {
   checkIn: string;

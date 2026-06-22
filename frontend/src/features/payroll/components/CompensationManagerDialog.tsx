@@ -55,9 +55,9 @@ export function CompensationManagerDialog({ open, onOpenChange, employees, onCha
       .then(([as, bs, ds]: [Allowance[], Bonus[], Deduction[]]) => {
         if (!active) return;
         const rows: Item[] = [
-          ...as.map((a) => ({ _id: a._id, kind: "allowance" as Kind, name: a.name, amount: parseDecimal(a.amount), meta: a.type === "percentage" ? "% lương" : "VND" })),
+          ...as.map((a) => ({ _id: a._id, kind: "allowance" as Kind, name: a.name, amount: parseDecimal(a.amount), meta: `${a.type === "percentage" ? "% lương" : "VND"}${a.isTaxable ? " · chịu thuế" : ""}${a.isInsuranceBase ? " · nền BH" : ""}` })),
           ...bs.map((b) => ({ _id: b._id, kind: "bonus" as Kind, name: b.name, amount: parseDecimal(b.amount), meta: "theo kỳ" })),
-          ...ds.map((d) => ({ _id: d._id, kind: "deduction" as Kind, name: d.name, amount: parseDecimal(d.amount), meta: d.type === "percentage" ? "% gross" : "VND" })),
+          ...ds.map((d) => ({ _id: d._id, kind: "deduction" as Kind, name: d.name, amount: parseDecimal(d.amount), meta: `${d.type === "percentage" ? "% gross" : "VND"} · ${d.payrollPeriodId ? "một kỳ" : "định kỳ"}` })),
         ];
         setItems(rows);
         setLoading(false);

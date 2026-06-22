@@ -26,6 +26,14 @@ export const bonusFormSchema = z.object({
   amount: z.number().min(0, "≥ 0"),
 });
 
+export const deductionFormSchema = z.object({
+  employeeId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Chọn nhân viên"),
+  name: z.string().trim().min(1, "Bắt buộc").max(120, "≤ 120 ký tự"),
+  type: z.enum(["fixed", "percentage"]),
+  amount: z.number().min(0, "≥ 0"),
+  effectiveDate: z.string().min(1, "Bắt buộc"),
+});
+
 export const taxProfileFormSchema = z.object({
   employeeId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Chọn nhân viên"),
   dependentsCount: z.number().int().min(0, "≥ 0"),
