@@ -48,6 +48,10 @@ export const attendanceService = {
   async remove(id: string): Promise<void> {
     await api.delete(`/admin/attendances/${id}`);
   },
+  async bulkUpsert(rows: UpsertAttendanceInput[]): Promise<{ count: number }> {
+    const { data } = await api.post<Env<{ count: number }>>("/admin/attendances/bulk", { rows });
+    return data.data;
+  },
 
   // ---- leave (self) ----
   async submitLeave(input: SubmitLeaveInput): Promise<LeaveRequestRecord> {

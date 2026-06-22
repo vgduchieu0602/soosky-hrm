@@ -9,10 +9,10 @@ import { cn } from "@/shared/utils/cn";
 import { payrollService } from "@features/payroll/services/payroll.service";
 import type { PayrollPeriod } from "@features/payroll/types/payroll.types";
 import {
-  allowanceFormSchema, bonusFormSchema, fieldErrors, taxProfileFormSchema,
+  allowanceFormSchema, bonusFormSchema, deductionFormSchema, fieldErrors, taxProfileFormSchema,
 } from "@features/payroll/schemas/payroll.schema";
 
-export type CompKind = "allowance" | "bonus" | "taxProfile";
+export type CompKind = "allowance" | "bonus" | "deduction" | "taxProfile";
 
 export interface EmpOption {
   id: string;
@@ -33,6 +33,7 @@ interface Props {
 const KINDS: { value: CompKind; label: string }[] = [
   { value: "allowance", label: "Phụ cấp" },
   { value: "bonus", label: "Thưởng" },
+  { value: "deduction", label: "Khấu trừ" },
   { value: "taxProfile", label: "Hồ sơ thuế" },
 ];
 
@@ -52,6 +53,7 @@ export function CompensationDialog({
   const [isInsuranceBase, setIsInsuranceBase] = useState(false);
   const [effectiveDate, setEffectiveDate] = useState(today());
   const [payrollPeriodId, setPayrollPeriodId] = useState(defaultPeriodId ?? "");
+  const [recurring, setRecurring] = useState(true);
   const [dependentsCount, setDependentsCount] = useState(0);
   const [isResident, setIsResident] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +66,9 @@ export function CompensationDialog({
         ? fieldErrors(allowanceFormSchema, { employeeId, name, type, amount, effectiveDate })
         : kind === "bonus"
           ? fieldErrors(bonusFormSchema, { employeeId, payrollPeriodId, name, amount })
-          : fieldErrors(taxProfileFormSchema, { employeeId, dependentsCount, effectiveDate });
+          : kind === "deduction"
+            ? fieldErrors(deductionFormSchema, { employeeId, name, type, amount, effectiveDate })
+            : fieldErrors(taxProfileFormSchema, { employeeId, dependentsCount, effectiveDate });
     setFErrors(errs ?? {});
     return !errs;
   }
@@ -79,6 +83,11 @@ export function CompensationDialog({
         await payrollService.createAllowance({ employeeId, name, type, amount, isTaxable, isInsuranceBase, effectiveDate });
       } else if (kind === "bonus") {
         await payrollService.createBonus({ employeeId, payrollPeriodId, name, amount, isTaxable });
+      } else if (kind === "deduction") {
+        await payrollService.createDeduction({
+          employeeId, name, type, amount, effectiveDate,
+          payrollPeriodId: recurring ? null : (payrollPeriodId || null),
+        });
       } else {
         await payrollService.upsertTaxProfile({ employeeId, dependentsCount, isResident, effectiveDate });
       }
@@ -99,7 +108,7 @@ export function CompensationDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nhập cấu phần lương</DialogTitle>
-          <DialogDescription>Thêm phụ cấp, thưởng hoặc hồ sơ thuế cho nhân viên.</DialogDescription>
+          <DialogDescription>Thêm phụ cấp, thưởng, khấu trừ hoặc hồ sơ thuế cho nhân viên.</DialogDescription>
         </DialogHeader>
 
         {/* kind tabs */}
@@ -132,12 +141,12 @@ export function CompensationDialog({
                 {fErrors.name && <span className="text-[11px] text-destructive">{fErrors.name}</span>}
               </div>
 
-              {kind === "allowance" && (
+              {(kind === "allowance" || kind === "deduction") && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="c-type">Loại</Label>
                   <select id="c-type" value={type} onChange={(e) => setType(e.target.value as "fixed" | "percentage")} className={fieldCls}>
                     <option value="fixed">Cố định (VND)</option>
-                    <option value="percentage">% lương cơ bản</option>
+                    <option value="percentage">{kind === "deduction" ? "% lương gross" : "% lương cơ bản"}</option>
                   </select>
                 </div>
               )}
@@ -154,15 +163,41 @@ export function CompensationDialog({
               )}
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="c-amount">{type === "percentage" && kind === "allowance" ? "Tỷ lệ (%)" : "Số tiền (VND)"} *</Label>
+                <Label htmlFor="c-amount">{type === "percentage" && (kind === "allowance" || kind === "deduction") ? "Tỷ lệ (%)" : "Số tiền (VND)"} *</Label>
                 <Input id="c-amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
                 {fErrors.amount && <span className="text-[11px] text-destructive">{fErrors.amount}</span>}
               </div>
 
-              <label className="col-span-2 flex items-center gap-2 text-[13px] text-foreground">
-                <input type="checkbox" checked={isTaxable} onChange={(e) => setIsTaxable(e.target.checked)} />
-                Chịu thuế TNCN
-              </label>
+              {kind === "deduction" && (
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <Label>Phạm vi áp dụng</Label>
+                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                    <button type="button" onClick={() => setRecurring(true)}
+                      className={cn("flex-1 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+                        recurring ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                      Định kỳ (mọi kỳ)
+                    </button>
+                    <button type="button" onClick={() => setRecurring(false)}
+                      className={cn("flex-1 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+                        !recurring ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                      Một kỳ
+                    </button>
+                  </div>
+                  {!recurring && (
+                    <select value={payrollPeriodId} onChange={(e) => setPayrollPeriodId(e.target.value)} className={cn(fieldCls, "mt-1")}>
+                      <option value="">— Chọn kỳ áp dụng —</option>
+                      {periods.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {kind !== "deduction" && (
+                <label className="col-span-2 flex items-center gap-2 text-[13px] text-foreground">
+                  <input type="checkbox" checked={isTaxable} onChange={(e) => setIsTaxable(e.target.checked)} />
+                  Chịu thuế TNCN
+                </label>
+              )}
               {kind === "allowance" && (
                 <label className="col-span-2 flex items-center gap-2 text-[13px] text-foreground">
                   <input type="checkbox" checked={isInsuranceBase} onChange={(e) => setIsInsuranceBase(e.target.checked)} />
@@ -191,7 +226,7 @@ export function CompensationDialog({
             </div>
           )}
 
-          {kind === "allowance" && (
+          {(kind === "allowance" || kind === "deduction") && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="c-eff2">Hiệu lực từ *</Label>
               <Input id="c-eff2" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
