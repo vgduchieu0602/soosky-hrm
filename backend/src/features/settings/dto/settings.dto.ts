@@ -73,7 +73,6 @@ export const createCriterionDto = z
     label: z.string().min(1).max(200).trim(),
     description: z.string().max(500).optional(),
     type: z.enum(['performance', 'goal']).optional(),
-    weight: z.coerce.number().min(0).max(100).optional(),
     order: z.coerce.number().int().min(0).optional(),
   })
   .strict();
@@ -83,7 +82,6 @@ export const updateCriterionDto = z
   .object({
     label: z.string().min(1).max(200).trim().optional(),
     description: z.string().max(500).optional(),
-    weight: z.coerce.number().min(0).max(100).optional(),
     order: z.coerce.number().int().min(0).optional(),
     status: z.enum(['active', 'archived']).optional(),
   })

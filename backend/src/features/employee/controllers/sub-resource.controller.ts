@@ -105,6 +105,13 @@ export const bankAccountController = {
       });
     } catch (err) { next(err); }
   },
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id, accountId } = req.params as { id: string; accountId: string };
+      res.json({ data: await employeeBankAccountService.remove(id, accountId, user.userId) });
+    } catch (err) { next(err); }
+  },
 };
 
 export const contractController = {

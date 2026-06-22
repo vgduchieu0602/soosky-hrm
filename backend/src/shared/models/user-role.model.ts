@@ -14,8 +14,8 @@ export interface IUserRole {
 
 const userRoleSchema = new Schema<IUserRole>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'users', required: true, index: true },
-    roleId: { type: Schema.Types.ObjectId, ref: 'roles', required: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'user', required: true, index: true },
+    roleId: { type: Schema.Types.ObjectId, ref: 'role', required: true, index: true },
     assignedAt: { type: Date, default: () => new Date() },
     expiresAt: { type: Date }, // optional — for temporary grants (acting manager)
   },

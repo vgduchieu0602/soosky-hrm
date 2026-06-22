@@ -19,6 +19,11 @@ export const employeeBankAccountRepository = {
     return EmployeeBankAccount.findByIdAndUpdate(id, patch, { new: true });
   },
 
+  deleteById(id: string) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return EmployeeBankAccount.findByIdAndDelete(id);
+  },
+
   clearPrimary(employeeId: string) {
     return EmployeeBankAccount.updateMany(
       { employeeId: new Types.ObjectId(employeeId), isPrimary: true },

@@ -27,6 +27,7 @@ const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => ({
   deductions: [],
   overtimePay: 0,
   totalBonuses: 0,
+  totalNonTaxableBonuses: 0,
   socialHealthCeiling: 46_800_000,
   unemploymentCeiling: 99_200_000,
   personalDeduction: 11_000_000,
@@ -84,6 +85,15 @@ describe('buildPayrollDoc', () => {
     expect(num(doc.otherDeductions)).toBe(3_773_000);
     const baseline = buildPayrollDoc(baseCtx());
     expect(num(baseline.netSalary) - num(doc.netSalary)).toBe(3_773_000);
+  });
+
+  it('excludes non-taxable bonuses from taxable income (so they are not taxed)', () => {
+    const taxed = buildPayrollDoc(baseCtx({ totalBonuses: 5_000_000, totalNonTaxableBonuses: 0 }));
+    const exempt = buildPayrollDoc(baseCtx({ totalBonuses: 5_000_000, totalNonTaxableBonuses: 5_000_000 }));
+    // Same gross, but the exempt bonus lowers taxable income → lower tax → higher net.
+    expect(num(exempt.grossSalary)).toBe(num(taxed.grossSalary));
+    expect(num(exempt.tax)).toBeLessThan(num(taxed.tax));
+    expect(num(exempt.netSalary)).toBeGreaterThan(num(taxed.netSalary));
   });
 
   it('subtracts the union fee from net and adds it to total deductions', () => {

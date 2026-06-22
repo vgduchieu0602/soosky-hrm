@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { Department, type IDepartment } from '@shared/models/department.model';
 
 export const departmentRepository = {
@@ -24,8 +24,8 @@ export const departmentRepository = {
     return Department.create(input);
   },
 
-  updateById(id: string, patch: Partial<IDepartment>) {
+  updateById(id: string, patch: Partial<IDepartment>, session?: ClientSession) {
     if (!Types.ObjectId.isValid(id)) return null;
-    return Department.findByIdAndUpdate(id, patch, { new: true });
+    return Department.findByIdAndUpdate(id, patch, { new: true, session });
   },
 };

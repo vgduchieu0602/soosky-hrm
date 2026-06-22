@@ -16,8 +16,6 @@ export interface IPerformanceCriterion {
   description?: string;
   /** performance → 60% component · goal → 20% component. */
   type: CriterionType;
-  /** Weight in percent. Sum of all `active` criteria of the SAME type should equal 100. */
-  weight: number;
   order: number;
   status: CriterionStatus;
   created_at?: Date;
@@ -32,7 +30,6 @@ const performanceCriterionSchema = new Schema<IPerformanceCriterion>(
     label: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     type: { type: String, enum: CRITERION_TYPE, default: 'performance', index: true },
-    weight: { type: Number, required: true, min: 0, max: 100 },
     order: { type: Number, default: 0 },
     status: { type: String, enum: CRITERION_STATUS, default: 'active', index: true },
   },

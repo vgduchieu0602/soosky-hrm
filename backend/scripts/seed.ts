@@ -50,22 +50,22 @@ async function seedSalaryPolicy() {
   console.log('  SalaryPolicyConfig: VN 2026 ensured');
 }
 
-/** Default 4 performance criteria (weights sum to 100). */
+/** Default performance + goal sub-indicators (equally weighted → simple average). */
 async function seedPerformanceCriteria() {
   const criteria = [
     // Performance sub-indicators (→ 60%)
-    { key: 'quality', label: 'Chất lượng công việc', type: 'performance', weight: 25, order: 1 },
-    { key: 'productivity', label: 'Năng suất & khối lượng', type: 'performance', weight: 25, order: 2 },
-    { key: 'teamwork', label: 'Phối hợp & tinh thần đồng đội', type: 'performance', weight: 25, order: 3 },
-    { key: 'discipline', label: 'Kỷ luật & tuân thủ', type: 'performance', weight: 25, order: 4 },
+    { key: 'quality', label: 'Chất lượng công việc', type: 'performance', order: 1 },
+    { key: 'productivity', label: 'Năng suất & khối lượng', type: 'performance', order: 2 },
+    { key: 'teamwork', label: 'Phối hợp & tinh thần đồng đội', type: 'performance', order: 3 },
+    { key: 'discipline', label: 'Kỷ luật & tuân thủ', type: 'performance', order: 4 },
     // Goal sub-indicators (→ 20%)
-    { key: 'goal_individual', label: 'Mục tiêu cá nhân', type: 'goal', weight: 50, order: 1 },
-    { key: 'goal_team', label: 'Mục tiêu nhóm/phòng ban', type: 'goal', weight: 50, order: 2 },
+    { key: 'goal_individual', label: 'Mục tiêu cá nhân', type: 'goal', order: 1 },
+    { key: 'goal_team', label: 'Mục tiêu nhóm/phòng ban', type: 'goal', order: 2 },
   ];
   for (const c of criteria) {
     await PerformanceCriterion.findOneAndUpdate(
       { key: c.key },
-      { $set: { label: c.label, type: c.type, weight: c.weight, order: c.order, status: 'active' } },
+      { $set: { label: c.label, type: c.type, order: c.order, status: 'active' } },
       { upsert: true },
     );
   }

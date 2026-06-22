@@ -92,6 +92,7 @@ router.patch(
   validate(updateBankAccountDto, 'body'),
   bankAccountController.update,
 );
+router.delete('/employees/:id/bank-accounts/:accountId', authenticate, bankAccountController.remove);
 
 // ---------- Admin / HR-only mutations ----------
 router.post(

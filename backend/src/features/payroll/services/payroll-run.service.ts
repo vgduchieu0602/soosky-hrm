@@ -81,6 +81,7 @@ export interface PayrollRunContext {
   deductions: { type: 'fixed' | 'percentage'; amount: number }[];
   overtimePay: number;
   totalBonuses: number;
+  totalNonTaxableBonuses: number;
 
   socialHealthCeiling: number;
   unemploymentCeiling: number;
@@ -113,6 +114,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     deductions: ctx.deductions,
     overtimePay: ctx.overtimePay,
     totalBonuses: ctx.totalBonuses,
+    totalNonTaxableBonuses: ctx.totalNonTaxableBonuses,
     socialHealthCeiling: ctx.socialHealthCeiling,
     unemploymentCeiling: ctx.unemploymentCeiling,
     personalDeduction: ctx.personalDeduction,
@@ -293,6 +295,9 @@ async function resolveContext(
 
   const bonusRows = await Bonus.find({ employeeId, payrollPeriodId: period._id }).lean();
   const totalBonuses = Math.round(bonusRows.reduce((s, b) => s + toNum(b.amount), 0));
+  const totalNonTaxableBonuses = Math.round(
+    bonusRows.filter((b) => b.isTaxable === false).reduce((s, b) => s + toNum(b.amount), 0),
+  );
 
   // Post-tax deductions: one-off for this period + active recurring ones.
   const deductionRows = await Deduction.find({
@@ -336,6 +341,7 @@ async function resolveContext(
     // source OT hours per employee and call computeOvertimePay here.
     overtimePay: 0,
     totalBonuses,
+    totalNonTaxableBonuses,
 
     socialHealthCeiling: policyBaseSalary * multiplier,
     unemploymentCeiling: zoneWage * multiplier,

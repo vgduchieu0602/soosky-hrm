@@ -97,17 +97,17 @@ async function seedCompanyPolicy() {
 
 async function seedCriteria(): Promise<mongoose.Types.ObjectId[]> {
   const defs = [
-    { key: 'quality', type: 'performance', weight: 25 },
-    { key: 'productivity', type: 'performance', weight: 25 },
-    { key: 'teamwork', type: 'performance', weight: 25 },
-    { key: 'discipline', type: 'performance', weight: 25 },
-    { key: 'goal_individual', type: 'goal', weight: 50 },
-    { key: 'goal_team', type: 'goal', weight: 50 },
+    { key: 'quality', type: 'performance' },
+    { key: 'productivity', type: 'performance' },
+    { key: 'teamwork', type: 'performance' },
+    { key: 'discipline', type: 'performance' },
+    { key: 'goal_individual', type: 'goal' },
+    { key: 'goal_team', type: 'goal' },
   ];
   const ids: mongoose.Types.ObjectId[] = [];
   for (let i = 0; i < defs.length; i += 1) {
     const doc = await PerformanceCriterion.create({
-      key: defs[i].key, label: defs[i].key, type: defs[i].type as 'performance' | 'goal', weight: defs[i].weight, order: i + 1, status: 'active',
+      key: defs[i].key, label: defs[i].key, type: defs[i].type as 'performance' | 'goal', order: i + 1, status: 'active',
     });
     ids.push(doc._id as mongoose.Types.ObjectId);
   }

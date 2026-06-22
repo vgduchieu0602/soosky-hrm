@@ -297,6 +297,8 @@ export interface ComputePayrollInput {
   insuranceBaseAllowances?: number;
   overtimePay?: number;
   totalBonuses?: number;
+  /** Portion of totalBonuses that is non-taxable — excluded from assessable income. */
+  totalNonTaxableBonuses?: number;
   // insurance ceilings (already multiplied by the multiplier)
   socialHealthCeiling: number;
   unemploymentCeiling: number;
@@ -381,8 +383,9 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     rates: input.insuranceRates,
   });
 
-  // Non-taxable allowances are excluded from assessable income.
-  const taxableIncome = grossSalary - insurance.insurance - totalNonTaxableAllowances;
+  // Non-taxable allowances AND non-taxable bonuses are excluded from assessable income.
+  const taxableIncome =
+    grossSalary - insurance.insurance - totalNonTaxableAllowances - (input.totalNonTaxableBonuses ?? 0);
   const dependentsCount = input.dependentsCount ?? 0;
 
   // Tax residents get personal + dependent deductions and the progressive

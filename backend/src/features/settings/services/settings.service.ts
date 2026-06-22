@@ -133,16 +133,8 @@ export const salaryPolicyService = {
 };
 
 // ============================ Performance criteria ============================
-/** Sum of active criteria weights in a type-group, optionally excluding one id. */
-async function activeWeightSum(type: 'performance' | 'goal', excludeId?: string): Promise<number> {
-  const filter: Record<string, unknown> = { status: 'active', type };
-  if (excludeId) filter._id = { $ne: excludeId };
-  const rows = await PerformanceCriterion.find(filter).select('weight').lean();
-  return rows.reduce((s, r) => s + (r.weight ?? 0), 0);
-}
-
-const GROUP_LABEL: Record<string, string> = { performance: 'Hiệu suất', goal: 'Mục tiêu' };
-
+// Criteria are equally weighted — the evaluation ratio is a simple average of
+// each type's sub-indicators, so no per-criterion weight is stored.
 export const performanceCriterionService = {
   async list(includeArchived = false) {
     const filter = includeArchived ? {} : { status: 'active' as const };
@@ -151,8 +143,8 @@ export const performanceCriterionService = {
 
   async create(input: CreateCriterionDto, auditUserId: string) {
     const type = input.type ?? 'performance';
-    // Admin only names the criterion — key is auto-generated, weights are equal
-    // (ratio = simple average), so no weight input is required.
+    // Admin only names the criterion — key is auto-generated; criteria are
+    // equally weighted (ratio = simple average), so no weight input is required.
     const baseKey = (input.key?.trim() || input.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')) || 'criterion';
     let key = baseKey;
     for (let i = 2; await PerformanceCriterion.exists({ key }); i += 1) key = `${baseKey}_${i}`;
@@ -161,7 +153,6 @@ export const performanceCriterionService = {
       label: input.label,
       description: input.description,
       type,
-      weight: input.weight ?? 0,
       order: input.order ?? 0,
       status: 'active',
     });
@@ -178,13 +169,6 @@ export const performanceCriterionService = {
     if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Criterion not found', 'SET_004');
     const existing = await PerformanceCriterion.findById(id).lean();
     if (!existing) throw new HttpError(404, 'Criterion not found', 'SET_004');
-    // Re-check the group total when weight changes (only for active criteria).
-    if (input.weight != null && (input.status ?? existing.status) === 'active') {
-      const others = await activeWeightSum(existing.type, id);
-      if (others + input.weight > 100) {
-        throw new HttpError(422, `Tổng trọng số nhóm ${GROUP_LABEL[existing.type]} sẽ vượt 100% (khác ${others}%, đặt ${input.weight}%)`, 'SET_WEIGHT');
-      }
-    }
     const updated = await PerformanceCriterion.findByIdAndUpdate(id, input, { new: true });
     if (!updated) throw new HttpError(404, 'Criterion not found', 'SET_004');
     await auditService.record({

@@ -176,6 +176,10 @@ export const leaveService = {
     if (vnDateKey(dto.endDate).getTime() < vnDateKey(dto.startDate).getTime()) {
       throw new HttpError(400, 'Ngày kết thúc phải sau ngày bắt đầu', 'LV_003');
     }
+    // Half-day leave only makes sense for a single calendar day.
+    if (dto.halfDaySession && vnDateKey(dto.startDate).getTime() !== vnDateKey(dto.endDate).getTime()) {
+      throw new HttpError(400, 'Nghỉ nửa ngày chỉ áp dụng cho đơn trong cùng một ngày', 'LV_006');
+    }
     const days = await countWorkingDays(dto.startDate, dto.endDate, dto.halfDaySession);
     if (days <= 0) {
       throw new HttpError(400, 'Khoảng nghỉ không có ngày làm việc nào', 'LV_003');

@@ -45,11 +45,11 @@ async function seedCriteria(): Promise<{ perf: mongoose.Types.ObjectId[]; goal: 
   const perf: mongoose.Types.ObjectId[] = [];
   const goal: mongoose.Types.ObjectId[] = [];
   for (const key of ['quality', 'productivity', 'teamwork', 'discipline']) {
-    const d = await PerformanceCriterion.create({ key, label: key, type: 'performance', weight: 25, status: 'active' });
+    const d = await PerformanceCriterion.create({ key, label: key, type: 'performance', status: 'active' });
     perf.push(d._id as mongoose.Types.ObjectId);
   }
   for (const key of ['goal_individual', 'goal_team']) {
-    const d = await PerformanceCriterion.create({ key, label: key, type: 'goal', weight: 50, status: 'active' });
+    const d = await PerformanceCriterion.create({ key, label: key, type: 'goal', status: 'active' });
     goal.push(d._id as mongoose.Types.ObjectId);
   }
   return { perf, goal };

@@ -383,7 +383,7 @@ export const departmentService = {
           { departmentId: targetObjId },
           { session },
         );
-        await departmentRepository.updateById(sourceId, { status: 'archived' });
+        await departmentRepository.updateById(sourceId, { status: 'archived' }, session);
       });
     } finally {
       await session.endSession();

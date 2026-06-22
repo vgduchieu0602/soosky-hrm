@@ -56,4 +56,16 @@ export const employeeBankAccountService = {
     });
     return updated.toJSON();
   },
+
+  async remove(employeeId: string, accountId: string, auditUserId: string) {
+    const deleted = await employeeBankAccountRepository.deleteById(accountId);
+    if (!deleted) throw new HttpError(404, 'Bank account not found', 'EMP_005');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'employeeBankAccount',
+      action: 'delete',
+      resourceId: accountId,
+    });
+    return { deleted: true };
+  },
 };

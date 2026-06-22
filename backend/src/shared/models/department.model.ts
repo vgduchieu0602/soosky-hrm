@@ -33,7 +33,7 @@ const departmentSchema = new Schema<IDepartment>(
     },
     managerId: {
       type: Schema.Types.ObjectId,
-      ref: 'employees',
+      ref: 'employee',
       default: null,
       index: true,
     },

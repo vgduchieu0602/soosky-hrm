@@ -12,8 +12,8 @@ export interface IRolePermission {
 
 const rolePermissionSchema = new Schema<IRolePermission>(
   {
-    roleId: { type: Schema.Types.ObjectId, ref: 'roles', required: true, index: true },
-    permissionId: { type: Schema.Types.ObjectId, ref: 'permissions', required: true, index: true },
+    roleId: { type: Schema.Types.ObjectId, ref: 'role', required: true, index: true },
+    permissionId: { type: Schema.Types.ObjectId, ref: 'permission', required: true, index: true },
   },
   {
     collection: COLLECTION_NAME,

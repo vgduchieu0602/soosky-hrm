@@ -37,7 +37,6 @@ export interface PerformanceCriterion {
   label: string;
   description?: string;
   type: "performance" | "goal";
-  weight: number;
   order: number;
   status: "active" | "archived";
 }
