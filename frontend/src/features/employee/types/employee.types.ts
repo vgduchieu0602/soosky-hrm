@@ -359,3 +359,14 @@ export interface ImportResult {
   failed: number;
   results: ImportRowResult[];
 }
+
+export interface ChecklistItem {
+  key: string;
+  label: string;
+  done: boolean;
+  required: boolean;
+}
+export interface ProfileCompleteness {
+  percent: number;
+  items: ChecklistItem[];
+}

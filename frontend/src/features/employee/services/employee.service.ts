@@ -15,6 +15,7 @@ import type {
   ImportResult,
   GrantLoginInput,
   GrantLoginResult,
+  ProfileCompleteness,
   ListEmployeesParams,
   ListMeta,
   NewAssetInput,
@@ -75,6 +76,11 @@ export const employeeService = {
 
   async getById(id: string): Promise<EmployeeRecord> {
     const { data } = await api.get<ApiEnvelope<EmployeeRecord>>(`/employees/${id}`);
+    return data.data;
+  },
+
+  async completeness(id: string): Promise<ProfileCompleteness> {
+    const { data } = await api.get<ApiEnvelope<ProfileCompleteness>>(`/employees/${id}/completeness`);
     return data.data;
   },
 
