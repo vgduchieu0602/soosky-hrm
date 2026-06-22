@@ -18,6 +18,7 @@ import { EmployeeDetail } from "@features/employee/components/EmployeeDetail";
 import { CreateEmployeeModal } from "@features/employee/components/CreateEmployeeModal";
 import { BulkTerminateDialog } from "@features/employee/components/BulkTerminateDialog";
 import { ContractRemindersCard } from "@features/employee/components/ContractRemindersCard";
+import { SavedFilters, type FilterState } from "@features/employee/components/SavedFilters";
 import { EMP_STATUS, EMP_TYPE, formatDate, toEmployeeView } from "@features/employee/constants";
 import type {
   EmployeeStats, EmployeeStatus, EmployeeView, ListMeta,
@@ -43,6 +44,11 @@ const STATUS_OPTIONS: Option[] = [
   { value: "onboarding", label: "Onboarding" },
   { value: "active", label: "Đang làm việc" },
   { value: "on_leave", label: "Đang nghỉ" },
+];
+
+const TYPE_OPTIONS: Option[] = [
+  { value: "", label: "Tất cả" },
+  ...Object.entries(EMP_TYPE).map(([value, label]) => ({ value, label: String(label) })),
 ];
 
 function StatCard({
@@ -117,8 +123,10 @@ export default function EmployeesPage() {
 
   const [dept, setDept] = useState("");
   const [status, setStatus] = useState("");
+  const [employeeType, setEmployeeType] = useState("");
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
 
   const [selected, setSelected] = useState<EmployeeView | null>(null);
   const [creating, setCreating] = useState(false);
@@ -130,7 +138,13 @@ export default function EmployeesPage() {
   const loadList = useCallback(
     () =>
       employeeService
-        .list({ page, limit: PAGE_SIZE, departmentId: dept || undefined, status: status || undefined })
+        .list({
+          page, limit: PAGE_SIZE,
+          departmentId: dept || undefined,
+          status: status || undefined,
+          employeeType: employeeType || undefined,
+          q: debouncedQ.trim() || undefined,
+        })
         .then(({ items, meta: m }) => {
           setRows(items.map(toEmployeeView));
           setMeta(m);
@@ -139,12 +153,18 @@ export default function EmployeesPage() {
         })
         .catch(() => setError("Không thể tải danh sách nhân viên từ máy chủ."))
         .finally(() => setLoading(false)),
-    [page, dept, status],
+    [page, dept, status, employeeType, debouncedQ],
   );
 
   // Initial loading state is `true`; filter/pagination handlers flip it back on
   // before changing deps, so the effect only needs to kick the fetch.
   useEffect(() => { void loadList(); }, [loadList]);
+
+  // Debounce the search box into the server-side query (`debouncedQ`).
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedQ(q); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [q]);
 
   // Stats + department options load once.
   useEffect(() => {
@@ -168,15 +188,8 @@ export default function EmployeesPage() {
     employeeService.stats().then(setStats).catch(() => {});
   }
 
-  const filtered = useMemo(() => {
-    if (!q.trim()) return rows;
-    const needle = q.toLowerCase();
-    return rows.filter((e) =>
-      `${e.fullName} ${e.code} ${e.fingerprintId} ${e.positionName} ${e.email}`
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [rows, q]);
+  // Search + filters are applied server-side; the page rows are already filtered.
+  const filtered = rows;
 
   // Only active-group employees can be bulk-terminated.
   const selectableRows = useMemo(() => filtered.filter((e) => EMP_STATUS[e.status].group === "active"), [filtered]);
@@ -229,6 +242,16 @@ export default function EmployeesPage() {
   function setFilter(setter: (v: string) => void, v: string) {
     setLoading(true);
     setter(v);
+    setPage(1);
+  }
+
+  function applyView(f: FilterState) {
+    setLoading(true);
+    setDept(f.dept);
+    setStatus(f.status);
+    setEmployeeType(f.employeeType);
+    setQ(f.q);
+    setDebouncedQ(f.q);
     setPage(1);
   }
 
@@ -308,6 +331,8 @@ export default function EmployeesPage() {
                 </div>
                 <FilterPill label="Phòng ban" value={dept} options={deptOptions} onChange={(v) => setFilter(setDept, v)} />
                 <FilterPill label="Trạng thái" value={status} options={STATUS_OPTIONS} onChange={(v) => setFilter(setStatus, v)} />
+                <FilterPill label="Loại NV" value={employeeType} options={TYPE_OPTIONS} onChange={(v) => setFilter(setEmployeeType, v)} />
+                <SavedFilters current={{ dept, status, employeeType, q }} onApply={applyView} />
               </div>
 
               <div className="overflow-x-auto">
