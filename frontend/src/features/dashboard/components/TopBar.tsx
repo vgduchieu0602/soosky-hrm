@@ -1,7 +1,8 @@
 import { Fragment } from "react";
-import { Search, Bell, ChevronRight, Calendar, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { Search, ChevronRight, Calendar, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@features/notification/NotificationBell";
 
 interface TopBarProps {
   crumbs?: string[];
@@ -37,10 +38,7 @@ export function TopBar({ crumbs = ["Trang chủ", "Tổng quan"] }: TopBarProps)
         </kbd>
       </div>
 
-      <Button variant="outline" size="icon" className="relative size-9" aria-label="Thông báo">
-        <Bell className="size-4" />
-        <span className="absolute right-2 top-2 size-1.5 rounded-full bg-red-500" />
-      </Button>
+      <NotificationBell />
     </header>
   );
 }

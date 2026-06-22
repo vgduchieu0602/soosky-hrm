@@ -1,5 +1,6 @@
 import mongoose, { Types, type ClientSession, type PipelineStage } from 'mongoose';
 import { logger } from '@core/logger/logger';
+import { eventBus } from '@core/events/event-bus';
 import { HttpError } from '@shared/errors/http-error';
 import { Employee } from '@shared/models/employee.model';
 import { Attendance } from '@shared/models/attendance.model';
@@ -14,6 +15,13 @@ import {
   mmddKey,
 } from '@features/attendance/services/attendance-calc';
 import type { SubmitLeaveDto, UpsertLeaveBalanceDto } from '@features/attendance/dto/leave.dto';
+
+declare module '@core/events/event-bus' {
+  interface AppEventMap {
+    'leave.submitted': { leaveRequestId: string; employeeId: string };
+    'leave.decided': { leaveRequestId: string; employeeId: string; approved: boolean; reason?: string };
+  }
+}
 
 const log = logger.child({ feature: 'attendance', module: 'leave' });
 
@@ -197,6 +205,10 @@ export const leaveService = {
       createdBy: new Types.ObjectId(userId),
     });
     log.info({ id: doc._id, employeeId: employee._id }, 'leave request submitted');
+    eventBus.emit('leave.submitted', {
+      leaveRequestId: doc._id.toString(),
+      employeeId: employee._id.toString(),
+    });
     return doc.toJSON();
   },
 
@@ -232,6 +244,7 @@ export const leaveService = {
     const session = await mongoose.startSession();
     try {
       let result: unknown;
+      let employeeIdStr = '';
       await session.withTransaction(async () => {
         const req = await LeaveRequest.findById(id).session(session);
         if (!req) throw new HttpError(404, 'Không tìm thấy đơn', 'LV_001');
@@ -270,9 +283,11 @@ export const leaveService = {
           resourceId: req._id.toString(),
           changes: { approved: true, days: req.days },
         });
+        employeeIdStr = req.employeeId.toString();
         result = req.toJSON();
       });
       log.info({ id }, 'leave approved');
+      eventBus.emit('leave.decided', { leaveRequestId: id, employeeId: employeeIdStr, approved: true });
       return result;
     } finally {
       await session.endSession();
@@ -299,6 +314,12 @@ export const leaveService = {
       changes: { rejected: true, reason },
     });
     log.info({ id }, 'leave rejected');
+    eventBus.emit('leave.decided', {
+      leaveRequestId: id,
+      employeeId: req.employeeId.toString(),
+      approved: false,
+      reason,
+    });
     return req.toJSON();
   },
 
