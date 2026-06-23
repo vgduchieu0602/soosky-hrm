@@ -6,11 +6,15 @@
  *   full_day = 1 · morning = 0.5 · afternoon = 0.5
  *
  * Status → category:
- *   present | late | early_leave | incomplete → worked (paid, counts as work)
- *   leave_paid                                 → paid leave (paid, not "worked")
- *   holiday                                    → holiday   (paid, not "worked")
- *   leave_unpaid                               → unpaid leave (reduces pay)
- *   absent                                     → absence      (reduces pay)
+ *   present | late | early_leave  → worked (paid, counts as work)
+ *   incomplete                    → NOT counted as a paid work day (missing
+ *                                   check-out) — tracked separately so HR fixes
+ *                                   it before payroll close; until then it does
+ *                                   not inflate the attendance ratio
+ *   leave_paid                    → paid leave (paid, not "worked")
+ *   holiday                       → holiday   (paid, not "worked")
+ *   leave_unpaid                  → unpaid leave (reduces pay)
+ *   absent                        → absence      (reduces pay)
  *
  * `actualWorkDays` = paid days (worked + paid leave + holiday) so the
  * attendanceRatio does not penalise approved paid leave or public holidays;
@@ -30,6 +34,8 @@ export interface AttendanceSummary {
   holidayDays: number;
   unpaidLeaveDays: number;
   absentDays: number;
+  /** Check-in but no check-out — not paid until corrected. */
+  incompleteDays: number;
   /** Paid days counting toward salary: worked + paid leave + holiday. */
   actualWorkDays: number;
   /** Days not paid: unpaid leave + absence. */
@@ -53,6 +59,7 @@ export function summarizeAttendance(rows: AttendanceRow[]): AttendanceSummary {
   let holidayDays = 0;
   let unpaidLeaveDays = 0;
   let absentDays = 0;
+  let incompleteDays = 0;
   let totalWorkHours = 0;
 
   for (const row of rows) {
@@ -64,9 +71,13 @@ export function summarizeAttendance(rows: AttendanceRow[]): AttendanceSummary {
       case 'present':
       case 'late':
       case 'early_leave':
-      case 'incomplete':
         workedDays += weight;
         totalWorkHours += row.workHours ?? 0;
+        break;
+      // Checked in but never checked out: not a payable day until HR corrects
+      // it. Excluded from actualWorkDays so it can't inflate the ratio.
+      case 'incomplete':
+        incompleteDays += weight;
         break;
       case 'leave_paid':
         paidLeaveDays += weight;
@@ -89,6 +100,7 @@ export function summarizeAttendance(rows: AttendanceRow[]): AttendanceSummary {
     holidayDays: round2(holidayDays),
     unpaidLeaveDays: round2(unpaidLeaveDays),
     absentDays: round2(absentDays),
+    incompleteDays: round2(incompleteDays),
     actualWorkDays: round2(workedDays + paidLeaveDays + holidayDays),
     unpaidDays: round2(unpaidLeaveDays + absentDays),
     totalWorkHours: round2(totalWorkHours),
