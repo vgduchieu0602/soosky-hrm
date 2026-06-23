@@ -28,6 +28,7 @@ export const editEmployeeSchema = z.object({
   departmentId: z.string().length(24, "Chọn phòng ban"),
   positionId: z.string().length(24, "Chọn chức vụ"),
   managerId: z.string(),
+  shiftId: z.string(),
   employeeType: z.enum(["full_time", "part_time", "contract", "intern"]),
   salaryZone: z.enum(["zone1", "zone2", "zone3", "zone4"]),
 });

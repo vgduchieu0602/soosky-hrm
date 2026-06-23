@@ -18,6 +18,9 @@ export interface IPayrollPeriod {
   /** Set when the period is closed (locks computed payrolls from re-run). */
   closedAt?: Date | null;
   closedBy?: Types.ObjectId | null;
+  /** Set when attendance is locked — must precede payroll run; blocks edits. */
+  attendanceLockedAt?: Date | null;
+  attendanceLockedBy?: Types.ObjectId | null;
   createdBy?: Types.ObjectId | null;
   created_at?: Date;
   updated_at?: Date;
@@ -35,6 +38,8 @@ const payrollPeriodSchema = new Schema<IPayrollPeriod>(
     status: { type: String, enum: PAYROLL_PERIOD_STATUS, default: 'open', index: true },
     closedAt: { type: Date, default: null },
     closedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
+    attendanceLockedAt: { type: Date, default: null },
+    attendanceLockedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
   },
   {

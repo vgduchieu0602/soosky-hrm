@@ -19,6 +19,8 @@ export interface IEmployee {
   departmentId: Types.ObjectId;
   positionId: Types.ObjectId;
   managerId?: Types.ObjectId | null;
+  /** Default work shift — drives the per-employee standard working days. */
+  shiftId?: Types.ObjectId | null;
   hireDate: Date;
   terminationDate?: Date | null;
   employeeType: EmployeeType;
@@ -43,6 +45,7 @@ const employeeSchema = new Schema<IEmployee>(
     },
     positionId: { type: Schema.Types.ObjectId, ref: 'position', required: true },
     managerId: { type: Schema.Types.ObjectId, ref: 'employee', default: null, index: true },
+    shiftId: { type: Schema.Types.ObjectId, ref: 'shift', default: null },
     hireDate: { type: Date, required: true },
     terminationDate: { type: Date, default: null },
     employeeType: { type: String, enum: EMPLOYEE_TYPE, required: true },

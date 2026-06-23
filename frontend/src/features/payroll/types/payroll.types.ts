@@ -29,6 +29,7 @@ export interface PayrollPeriod {
   standardWorkDays: number;
   status: PayrollPeriodStatus;
   closedAt?: string | null;
+  attendanceLockedAt?: string | null;
   created_at?: string;
 }
 

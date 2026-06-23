@@ -215,6 +215,7 @@ export function toEmployeeView(rec: EmployeeRecord): EmployeeView {
     positionName: positionTitle(rec.positionId),
     managerId: rec.managerId ? refId(rec.managerId) || null : null,
     managerName: managerName(rec.managerId),
+    shiftId: rec.shiftId ?? null,
     employeeType: rec.employeeType,
     status: rec.status,
     hireDate: rec.hireDate,

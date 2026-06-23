@@ -41,6 +41,14 @@ export const payrollService = {
     const { data } = await api.post<Env<PayrollPeriod>>("/payroll/periods", input);
     return data.data;
   },
+  async lockAttendance(id: string): Promise<PayrollPeriod> {
+    const { data } = await api.post<Env<PayrollPeriod>>(`/payroll/periods/${id}/lock-attendance`);
+    return data.data;
+  },
+  async unlockAttendance(id: string): Promise<PayrollPeriod> {
+    const { data } = await api.post<Env<PayrollPeriod>>(`/payroll/periods/${id}/unlock-attendance`);
+    return data.data;
+  },
   async closePeriod(id: string): Promise<PayrollPeriod> {
     const { data } = await api.post<Env<PayrollPeriod>>(`/payroll/periods/${id}/close`);
     return data.data;

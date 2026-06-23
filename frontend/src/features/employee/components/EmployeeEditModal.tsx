@@ -7,6 +7,7 @@ import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
 import { employeeService } from "@features/employee/services/employee.service";
 import { organizationService } from "@features/organization/services/organization.service";
+import { attendanceService } from "@features/attendance/services/attendance.service";
 import { toEmployeeView } from "@features/employee/constants";
 import {
   editEmployeeSchema,
@@ -32,6 +33,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
   const [depts, setDepts] = useState<DeptOption[]>([]);
   const [positions, setPositions] = useState<PosOption[]>([]);
   const [managers, setManagers] = useState<MgrOption[]>([]);
+  const [shifts, setShifts] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const {
@@ -53,6 +55,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
       departmentId: view.departmentId ?? "",
       positionId: view.positionId ?? "",
       managerId: view.managerId ?? "",
+      shiftId: view.shiftId ?? "",
       employeeType: view.employeeType,
       salaryZone: (view.salaryZone || "zone1") as EditEmployeeForm["salaryZone"],
     },
@@ -71,6 +74,9 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
     employeeService.list({ limit: 100, status: "active" })
       .then(({ items }) => { if (!cancelled) setManagers(items.map((r) => { const v = toEmployeeView(r); return { id: v.id, name: v.fullName }; })); })
       .catch(() => { if (!cancelled) setManagers([]); });
+    attendanceService.shifts()
+      .then((rows) => { if (!cancelled) setShifts(rows.filter((s) => s.status !== "archived").map((s) => ({ id: s._id, name: s.name }))); })
+      .catch(() => { if (!cancelled) setShifts([]); });
     return () => { cancelled = true; };
   }, []);
 
@@ -98,6 +104,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
         departmentId: form.departmentId,
         positionId: form.positionId,
         managerId: form.managerId || null,
+        shiftId: form.shiftId || null,
         employeeType: form.employeeType,
         salaryZone: form.salaryZone,
       });
@@ -206,6 +213,12 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
               <select className={inputCls} {...register("salaryZone")}>
                 <option value="zone1">Vùng 1</option><option value="zone2">Vùng 2</option>
                 <option value="zone3">Vùng 3</option><option value="zone4">Vùng 4</option>
+              </select>
+            </Field>
+            <Field label="Ca làm việc">
+              <select className={inputCls} {...register("shiftId")}>
+                <option value="">— Theo lịch chung (T2–T6) —</option>
+                {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </Field>
           </div>
