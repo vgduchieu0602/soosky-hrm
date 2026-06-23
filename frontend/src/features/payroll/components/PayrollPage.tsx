@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Search, Wallet, ChevronDown, Check, ChevronRight, Loader2, BadgeDollarSign,
-  Plus, FilePlus2, Settings2, Calculator,
+  Plus, FilePlus2, Settings2, Calculator, Lock, LockOpen,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -212,6 +212,24 @@ export default function Payroll() {
     }
   }
 
+  const attLocked = !!period?.attendanceLockedAt;
+  async function lockAtt(lock: boolean) {
+    if (!periodId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const updated = lock
+        ? await payrollService.lockAttendance(periodId)
+        : await payrollService.unlockAttendance(periodId);
+      setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+    } catch (e) {
+      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+      setErr(d?.error?.message ?? d?.message ?? "Thao tác thất bại.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const detail = detailId ? payrolls.find((p) => p._id === detailId) ?? null : null;
 
   return (
@@ -247,7 +265,21 @@ export default function Payroll() {
                 <Button size="sm" variant="outline" onClick={() => setGrossUpDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
                   <Calculator className="size-3.5" strokeWidth={1.9} /> NET → GROSS
                 </Button>
-                <Button size="sm" disabled={busy || locked || !periodId}
+                {period && !locked && (
+                  attLocked ? (
+                    <Button size="sm" variant="outline" disabled={busy || !periodId}
+                      onClick={() => lockAtt(false)} className="h-9 gap-2 rounded-full text-[13px]">
+                      <LockOpen className="size-3.5" strokeWidth={1.9} /> Mở chốt chấm công
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled={busy || !periodId}
+                      onClick={() => lockAtt(true)} className="h-9 gap-2 rounded-full text-[13px]">
+                      <Lock className="size-3.5" strokeWidth={1.9} /> Chốt chấm công
+                    </Button>
+                  )
+                )}
+                <Button size="sm" disabled={busy || locked || !periodId || !attLocked}
+                  title={!attLocked ? "Hãy chốt chấm công trước khi tính lương" : undefined}
                   onClick={() => act(() => payrollService.runPeriod(periodId))}
                   className="h-9 gap-2 rounded-full text-[13px]">
                   {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" strokeWidth={1.9} />} Tính lương
@@ -273,6 +305,7 @@ export default function Payroll() {
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Kỳ lương {period?.name ?? "—"}</span>
                     {period && <Badge variant={PERIOD_STATUS[period.status]?.variant ?? "slate"} className="border border-white/10">{PERIOD_STATUS[period.status]?.label}</Badge>}
+                    {attLocked && <Badge variant="emerald" className="border border-white/10">Đã chốt chấm công</Badge>}
                   </div>
                   <div className="mt-2 text-[12px] font-medium uppercase tracking-wider text-white/45">Tổng chi thực nhận (Net)</div>
                   <div className="mt-1 flex items-baseline gap-2">

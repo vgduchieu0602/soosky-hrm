@@ -10,6 +10,7 @@ export const createEmployeeDto = z.object({
   departmentId: objectId,
   positionId: objectId,
   managerId: objectId.optional(),
+  shiftId: objectId.optional(),
   hireDate: z.coerce.date(),
   employeeType: z.enum(EMPLOYEE_TYPE),
   salaryZone: z.enum(SALARY_ZONE).optional(),

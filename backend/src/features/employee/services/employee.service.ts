@@ -62,6 +62,7 @@ export const employeeService = {
               departmentId: new Types.ObjectId(input.departmentId),
               positionId: new Types.ObjectId(input.positionId),
               managerId: input.managerId ? new Types.ObjectId(input.managerId) : null,
+              shiftId: input.shiftId ? new Types.ObjectId(input.shiftId) : null,
               hireDate: input.hireDate,
               employeeType: input.employeeType,
               salaryZone: input.salaryZone,
@@ -454,7 +455,7 @@ async function buildWorkbook(rows: ExportRow[]): Promise<Buffer> {
 
 function toObjectIdFields(input: UpdateEmployeeDto): Record<string, unknown> {
   const out: Record<string, unknown> = { ...input };
-  for (const key of ['departmentId', 'positionId', 'managerId'] as const) {
+  for (const key of ['departmentId', 'positionId', 'managerId', 'shiftId'] as const) {
     const v = input[key];
     if (typeof v === 'string') out[key] = new Types.ObjectId(v);
     else if (v === null) out[key] = null;

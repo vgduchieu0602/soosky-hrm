@@ -124,7 +124,7 @@ describe('Evaluation workflow → payroll (full chain)', () => {
 
     const period = await PayrollPeriod.create({
       name: '2026-05', startDate: utc('2026-05-01'), endDate: utc('2026-05-31'),
-      payDate: utc('2026-05-31'), standardWorkDays: 22, status: 'open',
+      payDate: utc('2026-05-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
     });
 
     // 22 present days in-period.

@@ -5,6 +5,7 @@ import { Attendance } from '@shared/models/attendance.model';
 import { Shift } from '@shared/models/shift.model';
 import { Employee } from '@shared/models/employee.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
+import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { auditService } from '@features/iam/services/audit.service';
 import {
   computeAttendance,
@@ -23,6 +24,19 @@ import type {
 const log = logger.child({ feature: 'attendance', module: 'attendance' });
 
 const MANUAL_STATUSES = ['leave_paid', 'leave_unpaid', 'holiday', 'absent'] as const;
+
+/** Reject edits when the day falls inside a payroll period whose attendance is locked. */
+async function assertAttendanceUnlocked(date: Date): Promise<void> {
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const locked = await PayrollPeriod.findOne({
+    startDate: { $lte: day },
+    endDate: { $gte: day },
+    attendanceLockedAt: { $ne: null },
+  }).select('name').lean();
+  if (locked) {
+    throw new HttpError(409, `Kỳ ${locked.name} đã chốt chấm công — không thể sửa`, 'ATT_LOCKED');
+  }
+}
 
 /** Attendance policy (timezone + grace) from CompanyConfig, set by Admin/HR. */
 async function loadPolicy(): Promise<AttendancePolicy> {
@@ -90,6 +104,7 @@ export const attendanceService = {
     const policy = await loadPolicy();
     const now = new Date();
     const dateKey = vnDateKey(now, policy.timezone);
+    await assertAttendanceUnlocked(dateKey);
     const window: ShiftWindow = { startTime: shift.startTime, endTime: shift.endTime, breakMinutes: shift.breakMinutes };
 
     const existing = await Attendance.findOne({ employeeId: employee._id, date: dateKey, shiftId: shift._id });
@@ -148,6 +163,7 @@ export const attendanceService = {
     const window = await shiftWindow(input.shiftId);
     const shiftObjId = new Types.ObjectId(input.shiftId);
     const dateKey = vnDateKey(input.date, policy.timezone);
+    await assertAttendanceUnlocked(dateKey);
     const fields = computeFields(window, policy, input);
 
     const existing = await Attendance.findOne({
@@ -214,6 +230,7 @@ export const attendanceService = {
     if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Không tìm thấy bản ghi', 'ATT_004');
     const record = await Attendance.findById(id);
     if (!record) throw new HttpError(404, 'Không tìm thấy bản ghi', 'ATT_004');
+    await assertAttendanceUnlocked(record.date);
 
     const policy = await loadPolicy();
     const shiftId = input.shiftId ?? record.shiftId?.toString();
@@ -250,6 +267,9 @@ export const attendanceService = {
   /** Delete one ca record (HR clears a ca). */
   async remove(id: string, userId: string) {
     if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Không tìm thấy bản ghi', 'ATT_004');
+    const record = await Attendance.findById(id).select('date').lean();
+    if (!record) throw new HttpError(404, 'Không tìm thấy bản ghi', 'ATT_004');
+    await assertAttendanceUnlocked(record.date);
     const deleted = await Attendance.findByIdAndDelete(id);
     if (!deleted) throw new HttpError(404, 'Không tìm thấy bản ghi', 'ATT_004');
     await auditService.record({ userId, resource: 'attendance', action: 'delete', resourceId: id });

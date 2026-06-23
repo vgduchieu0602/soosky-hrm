@@ -59,6 +59,7 @@ export interface EmployeeRecord {
   departmentId: DepartmentRef | string;
   positionId: PositionRef | string;
   managerId?: ManagerRef | string | null;
+  shiftId?: string | null;
   hireDate: string;
   terminationDate?: string | null;
   employeeType: EmployeeType;
@@ -85,6 +86,7 @@ export interface EmployeeView {
   positionName: string;
   managerId: string | null;
   managerName: string;
+  shiftId: string | null;
   employeeType: EmployeeType;
   status: EmployeeStatus;
   hireDate: string; // ISO
@@ -133,6 +135,7 @@ export interface CreateEmployeeInput {
   departmentId: string;
   positionId: string;
   managerId?: string;
+  shiftId?: string;
   hireDate: string;
   employeeType: EmployeeType;
   salaryZone?: SalaryZone;
@@ -171,6 +174,7 @@ export interface UpdateWorkInput {
   departmentId?: string;
   positionId?: string;
   managerId?: string | null;
+  shiftId?: string | null;
   employeeType?: EmployeeType;
   status?: EmployeeStatus;
   salaryZone?: SalaryZone;

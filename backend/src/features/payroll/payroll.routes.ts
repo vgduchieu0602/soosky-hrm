@@ -32,6 +32,8 @@ router.get('/payroll/periods/:id', authenticate, hrOrAdmin, payrollPeriodControl
 router.post('/payroll/periods', authenticate, hrOrAdmin, validate(createPeriodDto, 'body'), payrollPeriodController.create);
 router.patch('/payroll/periods/:id', authenticate, hrOrAdmin, validate(updatePeriodDto, 'body'), payrollPeriodController.update);
 router.post('/payroll/periods/:id/close', authenticate, hrOrAdmin, payrollPeriodController.close);
+router.post('/payroll/periods/:id/lock-attendance', authenticate, hrOrAdmin, payrollPeriodController.lockAttendance);
+router.post('/payroll/periods/:id/unlock-attendance', authenticate, hrOrAdmin, payrollPeriodController.unlockAttendance);
 
 // ---- Payroll run triggers ----
 router.post('/payroll/periods/:id/run', authenticate, hrOrAdmin, validate(runPeriodDto, 'body'), payrollPeriodController.runPeriod);

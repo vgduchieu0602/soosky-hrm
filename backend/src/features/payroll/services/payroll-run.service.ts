@@ -20,6 +20,7 @@ import { Deduction } from '@shared/models/deduction.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
 import { Employee } from '@shared/models/employee.model';
+import { Shift } from '@shared/models/shift.model';
 import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { Payroll, type IPayroll } from '@shared/models/payroll.model';
 import { PayrollPeriod, type PayrollPeriodDoc } from '@shared/models/payroll-period.model';
@@ -36,6 +37,7 @@ import {
 } from '@shared/utils/salary.util';
 
 import { aggregatePeriodAttendance } from './attendance-aggregate.service';
+import { standardWorkDaysInRange } from './workdays.service';
 
 const log = logger.child({ feature: 'payroll', module: 'run' });
 
@@ -221,8 +223,25 @@ async function resolveContext(
 ): Promise<PayrollRunContext> {
   const empId = new mongoose.Types.ObjectId(employeeId);
 
+  // Attendance must be locked before payroll consumes it, so figures can't shift
+  // mid-run.
+  if (!period.attendanceLockedAt) {
+    throw conflict(`Hãy chốt chấm công kỳ ${period.name} trước khi tính lương`, 'PAY_ATT_NOT_LOCKED');
+  }
+
   const employee = await Employee.findById(employeeId).lean();
   if (!employee) throw new NotFoundError('Employee');
+
+  // Per-employee standard working days: derive from the employee's assigned
+  // shift's working week (minus holidays); fall back to the period default.
+  let standardWorkDays = period.standardWorkDays;
+  if (employee.shiftId) {
+    const shift = await Shift.findById(employee.shiftId).select('workingDays').lean();
+    if (shift?.workingDays?.length) {
+      const computed = await standardWorkDaysInRange(period.startDate, period.endDate, shift.workingDays);
+      if (computed > 0) standardWorkDays = computed;
+    }
+  }
 
   // Active contract → base salary snapshot.
   const contract = await EmployeeContractModel.findOne({ employeeId, status: 'active' })
@@ -319,7 +338,7 @@ async function resolveContext(
     policyConfigId: policy._id as mongoose.Types.ObjectId,
     monthlyEvaluationId: (evaluation?._id as mongoose.Types.ObjectId) ?? null,
 
-    standardWorkDays: period.standardWorkDays,
+    standardWorkDays,
     actualWorkDays: summary.actualWorkDays,
     unpaidLeaveDays: summary.unpaidDays,
     workDays: summary.workedDays,
@@ -327,7 +346,12 @@ async function resolveContext(
 
     performanceRatio: evaluation?.performanceRatio ?? 0,
     goalRatio: evaluation?.goalRatio ?? 0,
-    weights: policy.salaryComponentWeights,
+    // Probation/internship pay is purely attendance-prorated:
+    //   (base × 85%) / standardWorkDays × actualWorkDays
+    // i.e. no 60/40 performance/goal split — model it as a 100% attendance weight.
+    weights: isProbation
+      ? { attendance: 100, performance: 0, goal: 0 }
+      : policy.salaryComponentWeights,
 
     baseSalary: effectiveBase,
     totalTaxableAllowances: allowances.taxable,

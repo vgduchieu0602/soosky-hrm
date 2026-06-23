@@ -323,3 +323,20 @@ describe('attendance drives the 20% component', () => {
     expect(r.attendanceComponent).toBe(6_000_000); // not more than 20%
   });
 });
+
+describe('probation pay = (base × 85%) / standard × actual (attendance only)', () => {
+  it('ignores performance/goal — 100% attendance weight on the 85% base', () => {
+    const base85 = Math.round(30_000_000 * 0.85); // 25,500,000
+    const ratio = computeAttendanceRatio(18, 22); // worked 18 of 22 days
+    const r = computeEffectiveBaseSalary({
+      baseSalary: base85,
+      attendanceRatio: ratio,
+      performanceRatio: 30, // must NOT affect probation pay
+      goalRatio: 10,
+      weights: { attendance: 100, performance: 0, goal: 0 },
+    });
+    expect(r.performanceComponent).toBe(0);
+    expect(r.goalComponent).toBe(0);
+    expect(r.proRatedBaseSalary).toBe(Math.round(base85 * (18 / 22))); // ≈ 20,863,636
+  });
+});
