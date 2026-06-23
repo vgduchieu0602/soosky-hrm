@@ -17,12 +17,22 @@ describe('summarizeAttendance', () => {
       row('present', 'full_day', 8),
       row('late', 'full_day', 7.5),
       row('early_leave', 'full_day', 6),
-      row('incomplete', 'full_day', null),
     ]);
-    expect(s.workedDays).toBe(4);
-    expect(s.actualWorkDays).toBe(4);
+    expect(s.workedDays).toBe(3);
+    expect(s.actualWorkDays).toBe(3);
     expect(s.unpaidDays).toBe(0);
     expect(s.totalWorkHours).toBe(21.5);
+  });
+
+  it('does NOT count an incomplete (no check-out) day as a paid work day', () => {
+    const s = summarizeAttendance([
+      row('present', 'full_day', 8),
+      row('incomplete', 'full_day', null),
+    ]);
+    expect(s.workedDays).toBe(1);
+    expect(s.incompleteDays).toBe(1);
+    expect(s.actualWorkDays).toBe(1); // incomplete excluded → ratio not inflated
+    expect(s.unpaidDays).toBe(0);
   });
 
   it('treats paid leave and holiday as paid (counts toward actualWorkDays, not worked)', () => {

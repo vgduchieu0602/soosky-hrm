@@ -21,6 +21,7 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
   const [endDate, setEndDate] = useState("");
   const [payDate, setPayDate] = useState("");
   const [standardWorkDays, setStandardWorkDays] = useState(22);
+  const [autoDays, setAutoDays] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fErrors, setFErrors] = useState<Record<string, string>>({});
@@ -28,14 +29,16 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    const values = { name, startDate, endDate, payDate, standardWorkDays };
+    // When "auto" is on, the backend derives standardWorkDays from the period
+    // calendar (minus weekends + holidays); pass a dummy only to satisfy the schema.
+    const values = { name, startDate, endDate, payDate, standardWorkDays: autoDays ? 22 : standardWorkDays };
     const errs = fieldErrors(periodFormSchema, values);
     if (errs) { setFErrors(errs); return; }
     setFErrors({});
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({ name, startDate, endDate, payDate, standardWorkDays });
+      await onSubmit({ name, startDate, endDate, payDate, ...(autoDays ? {} : { standardWorkDays }) });
       onOpenChange(false);
     } catch (err) {
       const message =
@@ -77,11 +80,17 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
               <Input id="p-pay" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
               {fErrors.payDate && <span className="text-[11px] text-destructive">{fErrors.payDate}</span>}
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="p-days">Ngày công chuẩn</Label>
-              <Input id="p-days" type="number" min={1} max={31} value={standardWorkDays}
-                onChange={(e) => setStandardWorkDays(Number(e.target.value))} />
-              {fErrors.standardWorkDays && <span className="text-[11px] text-destructive">{fErrors.standardWorkDays}</span>}
+              <label className="flex items-center gap-2 text-[12.5px] text-foreground">
+                <input type="checkbox" checked={autoDays} onChange={(e) => setAutoDays(e.target.checked)} className="size-4 accent-primary-500" />
+                Tự tính theo lịch (trừ T7/CN &amp; ngày lễ)
+              </label>
+              {!autoDays && (
+                <Input id="p-days" type="number" min={1} max={31} value={standardWorkDays}
+                  onChange={(e) => setStandardWorkDays(Number(e.target.value))} className="mt-1" />
+              )}
+              {!autoDays && fErrors.standardWorkDays && <span className="text-[11px] text-destructive">{fErrors.standardWorkDays}</span>}
             </div>
           </div>
 

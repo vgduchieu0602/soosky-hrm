@@ -297,3 +297,29 @@ describe('computePayroll — E1 parallel-run case', () => {
     expect(half.grossSalary).toBe(22_800_000);
   });
 });
+
+describe('attendance drives the 20% component', () => {
+  it('attendanceComponent = 20% × base × ratio (perfect attendance)', () => {
+    const r = computeEffectiveBaseSalary({
+      baseSalary: 30_000_000, attendanceRatio: 1, performanceRatio: 0, goalRatio: 0,
+    });
+    expect(r.attendanceComponent).toBe(6_000_000); // 0.2 × 30m × 1
+  });
+
+  it('fewer actual work days lowers the 20% component proportionally', () => {
+    // 18/22 working days → ratio ≈ 0.818
+    const ratio = computeAttendanceRatio(18, 22);
+    const r = computeEffectiveBaseSalary({
+      baseSalary: 30_000_000, attendanceRatio: ratio, performanceRatio: 0, goalRatio: 0,
+    });
+    expect(r.attendanceComponent).toBe(Math.round(0.2 * 30_000_000 * (18 / 22))); // ≈ 4,909,091
+  });
+
+  it('caps the ratio at 1 — working beyond standard does not inflate the 20%', () => {
+    const ratio = Math.min(1, computeAttendanceRatio(25, 22));
+    const r = computeEffectiveBaseSalary({
+      baseSalary: 30_000_000, attendanceRatio: ratio, performanceRatio: 0, goalRatio: 0,
+    });
+    expect(r.attendanceComponent).toBe(6_000_000); // not more than 20%
+  });
+});
