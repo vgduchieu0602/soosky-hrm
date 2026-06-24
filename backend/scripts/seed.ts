@@ -36,7 +36,7 @@ async function seedSalaryPolicy() {
         ],
         insuranceRates: {
           employee: { social: 8, health: 1.5, unemployment: 1 }, // 10.5%
-          employer: { social: 17, health: 3, unemployment: 0.5 }, // 20.5%
+          employer: { social: 17.5, health: 3, unemployment: 1 }, // 21.5%
         },
         // Fixed company-wide salary the insurance is contributed on (mức đóng BHXH).
         socialInsuranceSalary: dec(5_500_000),

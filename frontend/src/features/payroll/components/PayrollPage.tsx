@@ -19,6 +19,8 @@ import { CompensationDialog, type EmpOption } from "@features/payroll/components
 import { CompensationManagerDialog } from "@features/payroll/components/CompensationManagerDialog";
 import { GrossUpCalculatorDialog } from "@features/payroll/components/GrossUpCalculatorDialog";
 import { AttendanceLockDialog } from "@features/payroll/components/AttendanceLockDialog";
+import { PayrollPreflightDialog } from "@features/payroll/components/PayrollPreflightDialog";
+import { toast } from "sonner";
 import { PayslipDrawer, type EmpInfo } from "@features/payroll/components/PayslipDrawer";
 import type {
   CreatePeriodInput, PayrollPeriod, PayrollRecord, PayrollStatus,
@@ -118,6 +120,7 @@ export default function Payroll() {
   const [manageDlg, setManageDlg] = useState(false);
   const [grossUpDlg, setGrossUpDlg] = useState(false);
   const [lockDlg, setLockDlg] = useState(false);
+  const [preflightOpen, setPreflightOpen] = useState(false);
 
   // Load periods once + the employee directory (for name/dept join).
   useEffect(() => {
@@ -200,15 +203,43 @@ export default function Payroll() {
     setPeriodId(created._id);
   }
 
-  async function act(fn: () => Promise<unknown>) {
+  async function act(fn: () => Promise<unknown>, successMsg = "Đã cập nhật") {
     setBusy(true);
     setErr(null);
     try {
       await fn();
       setReloadKey((n) => n + 1);
+      toast.success(successMsg);
     } catch (e) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setErr(msg ?? "Thao tác thất bại.");
+      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+      const msg = d?.error?.message ?? d?.message ?? "Thao tác thất bại.";
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Compute payroll for the whole period, then surface the result via toast (#4).
+  async function runPayroll() {
+    if (!periodId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await payrollService.runPeriod(periodId);
+      setReloadKey((n) => n + 1);
+      if (res.errors?.length) {
+        toast.warning(`Đã tính ${res.computed} người · ${res.errors.length} bị bỏ qua`, {
+          description: res.errors.slice(0, 4).map((e) => e.reason).join("; "),
+        });
+      } else {
+        toast.success(`Đã tính lương ${res.computed} nhân viên`);
+      }
+    } catch (e) {
+      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+      const msg = d?.error?.message ?? d?.message ?? "Không tính được lương.";
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -224,9 +255,11 @@ export default function Payroll() {
         ? await payrollService.lockAttendance(periodId)
         : await payrollService.unlockAttendance(periodId);
       setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+      toast.success(lock ? "Đã chốt chấm công" : "Đã mở chốt chấm công");
     } catch (e) {
       const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
-      setErr(d?.error?.message ?? d?.message ?? "Thao tác thất bại.");
+      const msg = d?.error?.message ?? d?.message ?? "Thao tác thất bại.";
+      setErr(msg); toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -238,9 +271,11 @@ export default function Payroll() {
     try {
       const updated = await payrollService.reopenPeriod(periodId);
       setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+      toast.success("Đã mở lại kỳ lương");
     } catch (e) {
       const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
-      setErr(d?.error?.message ?? d?.message ?? "Không mở lại được kỳ.");
+      const msg = d?.error?.message ?? d?.message ?? "Không mở lại được kỳ.";
+      setErr(msg); toast.error(msg);
     } finally { setBusy(false); }
   }
   async function removePeriod() {
@@ -250,9 +285,11 @@ export default function Payroll() {
       await payrollService.deletePeriod(periodId);
       setPeriods((ps) => ps.filter((p) => p._id !== periodId));
       setPeriodId("");
+      toast.success("Đã xoá kỳ lương");
     } catch (e) {
       const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
-      setErr(d?.error?.message ?? d?.message ?? "Không xoá được kỳ.");
+      const msg = d?.error?.message ?? d?.message ?? "Không xoá được kỳ.";
+      setErr(msg); toast.error(msg);
     } finally { setBusy(false); }
   }
 
@@ -301,8 +338,9 @@ export default function Payroll() {
                         const a = document.createElement("a");
                         a.href = url; a.download = `bang-luong-${period?.name ?? "ky"}.xlsx`; a.click();
                         URL.revokeObjectURL(url);
+                        toast.success("Đã xuất bảng lương");
                       })
-                      .catch(() => setErr("Không xuất được bảng lương."))
+                      .catch(() => { setErr("Không xuất được bảng lương."); toast.error("Không xuất được bảng lương."); })
                       .finally(() => setBusy(false));
                   }}
                   className="h-9 gap-2 rounded-full text-[13px]">
@@ -323,13 +361,13 @@ export default function Payroll() {
                 )}
                 <Button size="sm" disabled={busy || locked || !periodId || !attLocked}
                   title={!attLocked ? "Hãy chốt chấm công trước khi tính lương" : undefined}
-                  onClick={() => act(() => payrollService.runPeriod(periodId))}
+                  onClick={() => setPreflightOpen(true)}
                   className="h-9 gap-2 rounded-full text-[13px]">
                   {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" strokeWidth={1.9} />} Tính lương
                 </Button>
                 {period?.status !== "paid" && (
                   <Button size="sm" variant="outline" disabled={busy || !periodId}
-                    onClick={() => act(() => payrollService.markPaid(periodId))}
+                    onClick={() => act(() => payrollService.markPaid(periodId), "Đã đánh dấu kỳ đã chi")}
                     className="h-9 gap-2 rounded-full text-[13px]">
                     <BadgeDollarSign className="size-3.5" strokeWidth={1.9} /> Đánh dấu đã chi
                   </Button>
@@ -491,6 +529,15 @@ export default function Payroll() {
         />
       )}
       {grossUpDlg && <GrossUpCalculatorDialog open onOpenChange={setGrossUpDlg} />}
+      {preflightOpen && period && (
+        <PayrollPreflightDialog
+          open
+          onOpenChange={setPreflightOpen}
+          periodId={period._id}
+          periodName={period.name}
+          onRun={runPayroll}
+        />
+      )}
       {lockDlg && period && (
         <AttendanceLockDialog
           open

@@ -42,6 +42,14 @@ export const payrollController = {
       next(e);
     }
   },
+  async preflight(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { periodId } = req.params as { periodId: string };
+      res.json({ data: await payrollService.preflight(periodId) });
+    } catch (e) {
+      next(e);
+    }
+  },
   async exportPeriod(req: Request, res: Response, next: NextFunction) {
     try {
       const { periodId } = req.params as { periodId: string };

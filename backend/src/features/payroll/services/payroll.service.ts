@@ -2,6 +2,10 @@ import mongoose from 'mongoose';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { ForbiddenError } from '@shared/errors/forbidden.error';
 import { Employee } from '@shared/models/employee.model';
+import { EmployeeProfile } from '@shared/models/employee-profile.model';
+import { EmployeeContractModel } from '@shared/models/employee-contract.model';
+import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
+import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { Payroll } from '@shared/models/payroll.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
@@ -54,6 +58,66 @@ export const payrollService = {
 
   async paginate(filter: ListPayrollFilter, page: number, limit: number) {
     return payrollRepository.paginate(filter, page, limit);
+  },
+
+  /**
+   * Pre-run check: for each active employee, flag what would BLOCK payroll
+   * (no active contract / no approved evaluation) and what would silently use
+   * defaults (no tax profile). Also flags a policy-level config gap.
+   */
+  async preflight(periodId: string) {
+    const period = await PayrollPeriod.findById(periodId).lean();
+    if (!period) throw new NotFoundError('Payroll period');
+    const policy = await SalaryPolicyConfig.findOne({ effectiveFrom: { $lte: period.payDate } })
+      .sort({ effectiveFrom: -1 })
+      .lean();
+
+    const employees = await Employee.find({ status: { $nin: ['terminated'] } })
+      .select('_id employeeCode')
+      .lean();
+    const ids = employees.map((e) => e._id);
+
+    const [contracts, evals, taxProfiles, profiles] = await Promise.all([
+      EmployeeContractModel.find({ employeeId: { $in: ids }, status: 'active' }).select('employeeId').lean(),
+      MonthlyEvaluation.find({ payrollPeriodId: periodId, status: { $in: ['approved', 'acknowledged'] } }).select('employeeId').lean(),
+      EmployeeTaxProfile.find({ employeeId: { $in: ids }, effectiveDate: { $lte: period.payDate } }).select('employeeId').lean(),
+      EmployeeProfile.find({ employeeId: { $in: ids } }).select('employeeId firstName middleName lastName').lean(),
+    ]);
+    const hasContract = new Set(contracts.map((c) => String(c.employeeId)));
+    const hasEval = new Set(evals.map((e) => String(e.employeeId)));
+    const hasTax = new Set(taxProfiles.map((t) => String(t.employeeId)));
+    const nameOf = new Map(
+      profiles.map((p) => [String(p.employeeId), [p.lastName, p.middleName, p.firstName].filter(Boolean).join(' ')]),
+    );
+
+    const items = employees.map((e) => {
+      const id = String(e._id);
+      const blockers: string[] = [];
+      const warnings: string[] = [];
+      if (!hasContract.has(id)) blockers.push('Chưa có hợp đồng đang hiệu lực');
+      if (!hasEval.has(id)) blockers.push('Chưa có đánh giá được duyệt cho kỳ này');
+      if (!hasTax.has(id)) warnings.push('Chưa có hồ sơ thuế (dùng mặc định: 0 phụ thuộc, cư trú)');
+      return {
+        employeeId: id,
+        employeeCode: e.employeeCode,
+        fullName: nameOf.get(id) || e.employeeCode,
+        blockers,
+        warnings,
+      };
+    });
+
+    const blocked = items.filter((i) => i.blockers.length > 0);
+    const policyWarnings: string[] = [];
+    if (!policy) policyWarnings.push('Chưa có chính sách lương hiệu lực — không thể tính lương.');
+    else if (!policy.socialInsuranceSalary) policyWarnings.push('Chưa đặt "Mức lương đóng BHXH" — nền BH sẽ lấy theo lương hợp đồng.');
+
+    return {
+      total: items.length,
+      ready: items.length - blocked.length,
+      blockedCount: blocked.length,
+      policyWarnings,
+      items: items.filter((i) => i.blockers.length || i.warnings.length),
+    };
   },
 
   /** Export one period's payrolls (all employees) as a styled .xlsx for accounting. */
