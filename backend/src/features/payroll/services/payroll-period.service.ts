@@ -3,6 +3,8 @@ import { logger } from '@core/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { CompanyConfig } from '@shared/models/company-config.model';
+import { Employee } from '@shared/models/employee.model';
+import { Attendance } from '@shared/models/attendance.model';
 import { auditService } from '@features/iam/services/audit.service';
 import { payrollPeriodRepository } from '@features/payroll/repositories/payroll-period.repository';
 import { standardWorkDaysInRange } from '@features/payroll/services/workdays.service';
@@ -90,6 +92,37 @@ export const payrollPeriodService = {
     });
     log.info({ action: 'close', periodId: id });
     return updated!.toJSON();
+  },
+
+  /**
+   * Pre-lock readiness: how complete is the period's attendance? Surfaces active
+   * employees with no record yet and records still missing a check-out, so HR
+   * only locks once attendance is actually finished.
+   */
+  async attendanceReadiness(id: string) {
+    const period = await payrollPeriodRepository.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+
+    const activeEmployees = await Employee.find({ status: { $ne: 'terminated' } })
+      .select('_id')
+      .lean();
+    const rows = await Attendance.find({
+      date: { $gte: period.startDate, $lte: period.endDate },
+    })
+      .select('employeeId status')
+      .lean();
+
+    const withRecords = new Set(rows.map((r) => String(r.employeeId)));
+    const incompleteRows = rows.filter((r) => r.status === 'incomplete');
+    const employeesNoRecords = activeEmployees.filter((e) => !withRecords.has(String(e._id))).length;
+
+    return {
+      attendanceLocked: !!period.attendanceLockedAt,
+      totalActiveEmployees: activeEmployees.length,
+      employeesNoRecords,
+      incompleteRecords: incompleteRows.length,
+      employeesWithIncomplete: new Set(incompleteRows.map((r) => String(r.employeeId))).size,
+    };
   },
 
   /** Lock attendance for the period so records can't change before payroll runs. */

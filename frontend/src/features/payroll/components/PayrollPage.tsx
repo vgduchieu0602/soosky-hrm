@@ -18,6 +18,7 @@ import { CreatePeriodDialog } from "@features/payroll/components/CreatePeriodDia
 import { CompensationDialog, type EmpOption } from "@features/payroll/components/CompensationDialog";
 import { CompensationManagerDialog } from "@features/payroll/components/CompensationManagerDialog";
 import { GrossUpCalculatorDialog } from "@features/payroll/components/GrossUpCalculatorDialog";
+import { AttendanceLockDialog } from "@features/payroll/components/AttendanceLockDialog";
 import { PayslipDrawer, type EmpInfo } from "@features/payroll/components/PayslipDrawer";
 import type {
   CreatePeriodInput, PayrollPeriod, PayrollRecord, PayrollStatus,
@@ -116,6 +117,7 @@ export default function Payroll() {
   const [compDlg, setCompDlg] = useState(false);
   const [manageDlg, setManageDlg] = useState(false);
   const [grossUpDlg, setGrossUpDlg] = useState(false);
+  const [lockDlg, setLockDlg] = useState(false);
 
   // Load periods once + the employee directory (for name/dept join).
   useEffect(() => {
@@ -273,7 +275,7 @@ export default function Payroll() {
                     </Button>
                   ) : (
                     <Button size="sm" variant="outline" disabled={busy || !periodId}
-                      onClick={() => lockAtt(true)} className="h-9 gap-2 rounded-full text-[13px]">
+                      onClick={() => setLockDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
                       <Lock className="size-3.5" strokeWidth={1.9} /> Chốt chấm công
                     </Button>
                   )
@@ -436,6 +438,15 @@ export default function Payroll() {
         />
       )}
       {grossUpDlg && <GrossUpCalculatorDialog open onOpenChange={setGrossUpDlg} />}
+      {lockDlg && period && (
+        <AttendanceLockDialog
+          open
+          onOpenChange={setLockDlg}
+          periodId={period._id}
+          periodName={period.name}
+          onConfirm={() => lockAtt(true)}
+        />
+      )}
 
       {detail && (
         <PayslipDrawer
