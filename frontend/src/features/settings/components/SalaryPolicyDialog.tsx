@@ -108,6 +108,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
   const [socialInsuranceSalary, setSocialInsuranceSalary] = useState(() => num(target?.socialInsuranceSalary ?? undefined, 5_500_000));
   const [unionFeeEnabled, setUnionFeeEnabled] = useState(() => target?.unionFeeEnabled ?? true);
   const [unionFeeRate, setUnionFeeRate] = useState(() => target?.unionFeeRate ?? 1);
+  const [probationPayRate, setProbationPayRate] = useState(() => target?.probationPayRate ?? 85);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,6 +135,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
       socialInsuranceSalary,
       unionFeeRate,
       unionFeeEnabled,
+      probationPayRate,
       salaryComponentWeights: { attendance: wA, performance: wP, goal: wG },
     };
     try {
@@ -228,6 +230,9 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
                   <input type="checkbox" checked={unionFeeEnabled} onChange={(e) => setUnionFeeEnabled(e.target.checked)} className="size-4 accent-primary" />
                   Trừ đoàn phí vào lương
                 </label>
+              </Field>
+              <Field label="Lương thử việc (%)" hint="% lương chính thức cho thử việc/thực tập (mặc định 85)">
+                <PercentInput value={probationPayRate} onChange={setProbationPayRate} />
               </Field>
             </div>
           </Section>

@@ -15,6 +15,8 @@ import { User } from '@shared/models/user.model';
 import { UserRole } from '@shared/models/user-role.model';
 import { Department } from '@shared/models/department.model';
 import { Position } from '@shared/models/position.model';
+import { CompanyConfig } from '@shared/models/company-config.model';
+import { LeaveBalance } from '@shared/models/leave-balance.model';
 
 import { employeeRepository } from '@features/employee/repositories/employee.repository';
 import { employeeProfileRepository } from '@features/employee/repositories/employee-profile.repository';
@@ -114,6 +116,9 @@ export const employeeService = {
       });
 
       log.info({ employeeId: result._id }, 'employee created');
+      await seedLeaveBalances(result._id).catch((err) =>
+        log.error({ err, employeeId: result._id }, 'failed to seed leave balances'),
+      );
       return result.toJSON();
     } finally {
       await session.endSession();
@@ -472,4 +477,16 @@ function toObjectIdFields(input: UpdateEmployeeDto): Record<string, unknown> {
     else if (v === null) out[key] = null;
   }
   return out;
+}
+
+/** Seed this year's leave balances from the company default quotas (best-effort). */
+async function seedLeaveBalances(employeeId: Types.ObjectId): Promise<void> {
+  const cfg = await CompanyConfig.findOne({ key: 'global' }).select('leaveQuotas').lean();
+  const quotas = (cfg?.leaveQuotas ?? {}) as Record<string, number>;
+  const year = new Date().getUTCFullYear();
+  const docs = Object.entries(quotas)
+    .filter(([, v]) => Number(v) > 0)
+    .map(([leaveType, entitled]) => ({ employeeId, leaveType, year, entitled: Number(entitled), used: 0 }));
+  if (docs.length === 0) return;
+  await LeaveBalance.insertMany(docs, { ordered: false }).catch(() => undefined);
 }

@@ -28,6 +28,8 @@ export interface ISalaryPolicyConfig {
   /** Union fee (đoàn phí công đoàn) as a percent of socialInsuranceSalary. */
   unionFeeRate: number;
   unionFeeEnabled: boolean;
+  /** Probation/internship pay as a PERCENT of contract salary (default 85). */
+  probationPayRate: number;
   /** Weights for the 20/60/20 effective base salary formula. */
   salaryComponentWeights: ISalaryComponentWeights;
   createdBy?: Types.ObjectId | null;
@@ -63,6 +65,7 @@ const salaryPolicyConfigSchema = new Schema<ISalaryPolicyConfig>(
     socialInsuranceSalary: { type: Schema.Types.Decimal128, default: null },
     unionFeeRate: { type: Number, default: 1 },
     unionFeeEnabled: { type: Boolean, default: true },
+    probationPayRate: { type: Number, default: 85, min: 0, max: 100 },
     salaryComponentWeights: {
       type: salaryComponentWeightsSchema,
       default: () => ({ attendance: 20, performance: 60, goal: 20 }),

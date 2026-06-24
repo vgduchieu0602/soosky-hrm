@@ -5,6 +5,9 @@ export interface CompanyConfig {
   standardWorkDays: number;
   graceLateMinutes: number;
   graceEarlyMinutes: number;
+  overtimeEnabled?: boolean;
+  lateAffectsPay?: boolean;
+  leaveQuotas?: Record<string, number>;
   contactEmail?: string;
   address?: string;
 }
@@ -28,6 +31,7 @@ export interface SalaryPolicy {
   socialInsuranceSalary?: string | number | null;
   unionFeeRate?: number;
   unionFeeEnabled?: boolean;
+  probationPayRate?: number;
   regionalMinWage?: Record<string, number>;
   taxBrackets?: Array<{ upTo: number | null; rate: number }>;
   insuranceRates?: {
