@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { logger } from '@core/logger/logger';
+import { eventBus } from '@core/events/event-bus';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { CompanyConfig } from '@shared/models/company-config.model';
@@ -12,6 +13,12 @@ import type {
   CreatePeriodDto,
   UpdatePeriodDto,
 } from '@features/payroll/dto/payroll-period.dto';
+
+declare module '@core/events/event-bus' {
+  interface AppEventMap {
+    'payroll.attendance-locked': { periodId: string; periodName: string };
+  }
+}
 
 const log = logger.child({ feature: 'payroll', module: 'period' });
 
@@ -139,6 +146,7 @@ export const payrollPeriodService = {
       changes: { attendanceLocked: true },
     });
     log.info({ action: 'lock-attendance', periodId: id });
+    eventBus.emit('payroll.attendance-locked', { periodId: id, periodName: updated!.name });
     return updated!.toJSON();
   },
 
