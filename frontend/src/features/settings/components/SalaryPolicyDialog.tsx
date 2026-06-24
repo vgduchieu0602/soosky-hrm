@@ -100,9 +100,9 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
   const [eeSocial, setEeSocial] = useState(() => ee?.social ?? 8);
   const [eeHealth, setEeHealth] = useState(() => ee?.health ?? 1.5);
   const [eeUnemp, setEeUnemp] = useState(() => ee?.unemployment ?? 1);
-  const [erSocial, setErSocial] = useState(() => er?.social ?? 17);
+  const [erSocial, setErSocial] = useState(() => er?.social ?? 17.5);
   const [erHealth, setErHealth] = useState(() => er?.health ?? 3);
-  const [erUnemp, setErUnemp] = useState(() => er?.unemployment ?? 0.5);
+  const [erUnemp, setErUnemp] = useState(() => er?.unemployment ?? 1);
   const [erOccup, setErOccup] = useState(() => er?.occupational ?? 0);
   // Fixed BHXH contribution salary (mức đóng BHXH) + union fee.
   const [socialInsuranceSalary, setSocialInsuranceSalary] = useState(() => num(target?.socialInsuranceSalary ?? undefined, 5_500_000));
@@ -204,7 +204,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
             </div>
           </Section>
 
-          <Section title="Mức đóng bảo hiểm" aside={<span className="flex gap-3">{total(eeTotal === 10.5, `NLĐ ${eeTotal}%`)}{total(erTotal === 20.5, `DN ${erTotal}%`)}</span>}>
+          <Section title="Mức đóng bảo hiểm" aside={<span className="flex gap-3">{total(eeTotal === 10.5, `NLĐ ${eeTotal}%`)}{total(erTotal === 21.5, `DN ${erTotal}%`)}</span>}>
             <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
               <Field label="NLĐ · BHXH"><PercentInput value={eeSocial} onChange={setEeSocial} /></Field>
               <Field label="NLĐ · BHYT"><PercentInput value={eeHealth} onChange={setEeHealth} /></Field>

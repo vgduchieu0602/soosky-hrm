@@ -109,6 +109,21 @@ export interface PeriodTotalRow {
   net: number;
 }
 
+export interface PreflightItem {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  blockers: string[];
+  warnings: string[];
+}
+export interface PayrollPreflight {
+  total: number;
+  ready: number;
+  blockedCount: number;
+  policyWarnings: string[];
+  items: PreflightItem[];
+}
+
 export interface RunResult {
   periodId: string;
   computed: number;

@@ -358,7 +358,9 @@ async function resolveContext(
     totalTaxableAllowances: allowances.taxable,
     totalNonTaxableAllowances: allowances.nonTaxable,
     insuranceBaseSalary,
-    insuranceBaseAllowances: 0,
+    // Allowances flagged isInsuranceBase add to the BHXH base — except for
+    // probation/internship, who are not on compulsory insurance.
+    insuranceBaseAllowances: isProbation ? 0 : allowances.insuranceBase,
     unionFee,
     deductions,
     // OT is disabled by company policy (companyConfig.overtimeEnabled = false):

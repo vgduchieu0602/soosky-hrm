@@ -75,6 +75,17 @@ export const employeeContractService = {
     if (input.baseSalary !== undefined) {
       patch.baseSalary = mongoose.Types.Decimal128.fromString(String(input.baseSalary));
     }
+    // Re-activating a contract must keep the "one active contract per employee"
+    // invariant — expire any other active contract of the same employee.
+    if (input.status === 'active') {
+      const current = await EmployeeContractModel.findById(contractId).select('employeeId').lean();
+      if (current) {
+        await EmployeeContractModel.updateMany(
+          { employeeId: current.employeeId, status: 'active', _id: { $ne: current._id } },
+          { $set: { status: 'expired' } },
+        );
+      }
+    }
     const updated = await employeeContractRepository.updateById(contractId, patch);
     if (!updated) throw new HttpError(404, 'Contract not found', 'EMP_006');
     await auditService.record({

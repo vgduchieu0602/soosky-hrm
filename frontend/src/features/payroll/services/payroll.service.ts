@@ -2,6 +2,7 @@ import api from "@core/http/axios";
 import type {
   Allowance,
   AttendanceReadiness,
+  PayrollPreflight,
   ApprovalResult,
   Bonus,
   CreatePeriodInput,
@@ -91,6 +92,10 @@ export const payrollService = {
   },
   async getPayroll(id: string): Promise<PayrollRecord> {
     const { data } = await api.get<Env<PayrollRecord>>(`/payroll/payrolls/${id}`);
+    return data.data;
+  },
+  async preflight(periodId: string): Promise<PayrollPreflight> {
+    const { data } = await api.get<Env<PayrollPreflight>>(`/payroll/periods/${periodId}/preflight`);
     return data.data;
   },
   async exportPeriod(periodId: string): Promise<Blob> {
