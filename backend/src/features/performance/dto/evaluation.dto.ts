@@ -30,3 +30,11 @@ export const acknowledgeDto = z
   })
   .strict();
 export type AcknowledgeDto = z.infer<typeof acknowledgeDto>;
+
+/** HR reopens an approved evaluation — reason recorded for transparency. */
+export const reopenDto = z
+  .object({
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+export type ReopenDto = z.infer<typeof reopenDto>;

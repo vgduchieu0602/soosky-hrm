@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Search, ChevronDown, Check, ClipboardCheck, Pencil, History, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Search, ChevronDown, Check, ClipboardCheck, Pencil, History, X, TrendingUp, TrendingDown, Minus, Download } from "lucide-react";
+import { scoreBand } from "@features/performance/utils/score-band";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,8 @@ export default function Performance() {
   const [pageSize, setPageSize] = useState(10);
   const [scoreEmp, setScoreEmp] = useState<EmpRow | null>(null);
   const [historyEmp, setHistoryEmp] = useState<EmpRow | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [exporting, setExporting] = useState(false);
 
   const periodNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -120,17 +123,24 @@ export default function Performance() {
   }, [evals]);
 
   const rows = useMemo(
-    () => employees.filter((e) => !q || `${e.name} ${e.code} ${e.dept}`.toLowerCase().includes(q.toLowerCase())),
-    [employees, q],
+    () => employees.filter((e) => {
+      if (q && !`${e.name} ${e.code} ${e.dept}`.toLowerCase().includes(q.toLowerCase())) return false;
+      if (statusFilter === "all") return true;
+      const st = evalByEmp.get(e.id)?.status;
+      if (statusFilter === "none") return !st;
+      return st === statusFilter;
+    }),
+    [employees, q, statusFilter, evalByEmp],
   );
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const stats = useMemo(() => {
-    const done = evals.filter((e) => e.status === "approved" || e.status === "acknowledged").length;
+    const pendingApprove = evals.filter((e) => e.status === "draft").length;
+    const pendingAck = evals.filter((e) => e.status === "approved").length;
     const avg = evals.length ? Math.round(evals.reduce((s, e) => s + e.performanceRatio, 0) / evals.length) : 0;
-    return { total: employees.length, done, avg };
+    return { total: employees.length, pendingApprove, pendingAck, avg };
   }, [evals, employees]);
 
   return (
@@ -145,14 +155,33 @@ export default function Performance() {
                 <h1 className="text-[26px] font-bold tracking-tight text-foreground">Đánh giá hiệu suất</h1>
                 <p className="mt-1 text-[13.5px] text-muted-foreground">Click vào nhân viên để chấm trực tiếp. Hiệu suất 60% + Mục tiêu 20% nuôi lương.</p>
               </div>
-              <PeriodSelect value={periodId} options={periods} onChange={(v) => { setPeriodId(v); setPage(1); }} />
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={exporting || !periodId}
+                  onClick={() => {
+                    setExporting(true);
+                    performanceService.exportXlsx(periodId)
+                      .then((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = "danh-gia.xlsx"; a.click();
+                        URL.revokeObjectURL(url);
+                      })
+                      .catch(() => setErr("Không xuất được dữ liệu."))
+                      .finally(() => setExporting(false));
+                  }}
+                  className="h-9 gap-2 rounded-full text-[13px]">
+                  <Download className="size-3.5" /> Xuất Excel
+                </Button>
+                <PeriodSelect value={periodId} options={periods} onChange={(v) => { setPeriodId(v); setPage(1); }} />
+              </div>
             </div>
 
             {err && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700">{err}</div>}
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <StatCard label="Nhân sự" value={`${stats.total}`} />
-              <StatCard label="Đã duyệt" value={`${stats.done}/${stats.total}`} />
+              <StatCard label="Chờ duyệt" value={`${stats.pendingApprove}`} />
+              <StatCard label="Chờ NV xác nhận" value={`${stats.pendingAck}`} />
               <StatCard label="Hiệu suất TB" value={`${stats.avg}%`} />
             </div>
 
@@ -161,6 +190,18 @@ export default function Performance() {
                 <div className="relative min-w-[220px] flex-1">
                   <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Tìm theo tên, mã NV…" className="h-9 pl-10 text-[13px]" />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    ["all", "Tất cả"], ["none", "Chưa đánh giá"], ["draft", "Chờ duyệt"],
+                    ["approved", "Chờ xác nhận"], ["acknowledged", "Đã xác nhận"],
+                  ] as const).map(([val, label]) => (
+                    <button key={val} type="button" onClick={() => { setStatusFilter(val); setPage(1); }}
+                      className={cn("rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                        statusFilter === val ? "border-primary-500 bg-primary-50 text-primary-700" : "text-muted-foreground hover:bg-muted")}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -184,8 +225,8 @@ export default function Performance() {
                             </div>
                           </Td>
                           <Td>{ev ? <Badge variant={STATUS[ev.status].variant}>{STATUS[ev.status].label}</Badge> : <span className="text-[12px] text-muted-foreground">Chưa đánh giá</span>}</Td>
-                          <Td className="text-right tabular-nums">{ev ? `${Math.round(ev.performanceRatio)}%` : "—"}</Td>
-                          <Td className="text-right tabular-nums">{ev ? `${Math.round(ev.goalRatio)}%` : "—"}</Td>
+                          <Td className="text-right tabular-nums">{ev ? <RatioCell value={ev.performanceRatio} /> : "—"}</Td>
+                          <Td className="text-right tabular-nums">{ev ? <RatioCell value={ev.goalRatio} /> : "—"}</Td>
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <Button size="sm" variant={ev ? "outline" : "default"} disabled={acked}
@@ -328,6 +369,16 @@ function EvaluationHistoryDrawer({ employee, periodNameById, onClose }: {
         </div>
       </div>
     </div>
+  );
+}
+
+function RatioCell({ value }: { value: number }) {
+  const band = scoreBand(value);
+  return (
+    <span className="inline-flex items-center justify-end gap-1.5">
+      <span>{Math.round(value)}%</span>
+      <Badge variant={band.tone}>{band.label}</Badge>
+    </span>
   );
 }
 

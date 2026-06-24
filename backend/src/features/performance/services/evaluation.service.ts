@@ -11,6 +11,7 @@
 import mongoose from 'mongoose';
 
 import { logger } from '@core/logger/logger';
+import { eventBus } from '@core/events/event-bus';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { ForbiddenError } from '@shared/errors/forbidden.error';
@@ -26,6 +27,13 @@ import type { DirectEvaluateDto } from '@features/performance/dto/evaluation.dto
 
 const log = logger.child({ feature: 'performance', module: 'evaluation' });
 const conflict = (message: string, code = 'EVAL_409') => new HttpError(409, message, code);
+
+declare module '@core/events/event-bus' {
+  interface AppEventMap {
+    'evaluation.finalized': { employeeId: string; payrollPeriodId: string };
+    'evaluation.reopened': { employeeId: string };
+  }
+}
 
 export interface ScoreInput {
   criterionId: string;
@@ -163,6 +171,12 @@ export const evaluationService = {
       changes: { status: set.status, performanceRatio, goalRatio },
     });
     log.info({ action: 'direct-evaluate', employeeId: input.employeeId, finalize, performanceRatio, goalRatio });
+    if (finalize) {
+      eventBus.emit('evaluation.finalized', {
+        employeeId: String(input.employeeId),
+        payrollPeriodId: String(input.payrollPeriodId),
+      });
+    }
     return doc!.toJSON();
   },
 
@@ -182,13 +196,77 @@ export const evaluationService = {
   },
 
   /** approved → draft (re-open to edit before payroll uses it). HR only. */
-  async reopen(id: string, hrUserId: string) {
+  async reopen(id: string, hrUserId: string, reason?: string) {
     const doc = await load(id);
     if (doc.status !== 'approved') throw conflict('Chỉ mở lại bản đã duyệt', 'EVAL_NOT_APPROVED');
     doc.status = 'draft';
     doc.approvedAt = null;
     await doc.save();
-    await audit(hrUserId, id, { status: 'draft' });
+    await audit(hrUserId, id, { status: 'draft', reason: reason ?? null });
+    eventBus.emit('evaluation.reopened', { employeeId: String(doc.employeeId) });
     return doc.toJSON();
+  },
+
+  /** Export evaluations (optionally for one period) as a styled .xlsx buffer. */
+  async exportXlsx(payrollPeriodId?: string): Promise<Buffer> {
+    const match: Record<string, unknown> = {};
+    if (payrollPeriodId && mongoose.Types.ObjectId.isValid(payrollPeriodId)) {
+      match.payrollPeriodId = new mongoose.Types.ObjectId(payrollPeriodId);
+    }
+    const rows = await MonthlyEvaluation.aggregate([
+      { $match: match },
+      { $lookup: { from: 'employees', localField: 'employeeId', foreignField: '_id', as: 'emp' } },
+      { $unwind: { path: '$emp', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'employeeProfiles', localField: 'employeeId', foreignField: 'employeeId', as: 'profile' } },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'departments', localField: 'emp.departmentId', foreignField: '_id', as: 'dept' } },
+      { $unwind: { path: '$dept', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'payrollPeriods', localField: 'payrollPeriodId', foreignField: '_id', as: 'period' } },
+      { $unwind: { path: '$period', preserveNullAndEmptyArrays: true } },
+      { $sort: { 'period.name': -1, 'emp.employeeCode': 1 } },
+    ]);
+
+    const STATUS_LABEL: Record<string, string> = {
+      draft: 'Nháp', approved: 'Đã duyệt', acknowledged: 'NV đã xác nhận',
+    };
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Soosky HRM';
+    const ws = wb.addWorksheet('Đánh giá', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [
+      { header: 'Mã NV', key: 'code', width: 14 },
+      { header: 'Họ và tên', key: 'name', width: 26 },
+      { header: 'Phòng ban', key: 'dept', width: 22 },
+      { header: 'Kỳ', key: 'period', width: 12 },
+      { header: 'Hiệu suất (%)', key: 'perf', width: 14 },
+      { header: 'Mục tiêu (%)', key: 'goal', width: 14 },
+      { header: 'Trạng thái', key: 'status', width: 16 },
+      { header: 'Điểm mạnh', key: 'strengths', width: 34 },
+      { header: 'Cần cải thiện', key: 'improvements', width: 34 },
+      { header: 'Kế hoạch phát triển', key: 'developmentPlan', width: 34 },
+    ];
+    for (const r of rows as Record<string, any>[]) {
+      const fullName = [r.profile?.lastName, r.profile?.middleName, r.profile?.firstName]
+        .filter(Boolean)
+        .join(' ');
+      ws.addRow({
+        code: r.emp?.employeeCode ?? '',
+        name: fullName || r.emp?.employeeCode || '',
+        dept: r.dept?.name ?? '',
+        period: r.period?.name ?? '',
+        perf: Math.round(r.performanceRatio ?? 0),
+        goal: Math.round(r.goalRatio ?? 0),
+        status: STATUS_LABEL[r.status] ?? r.status,
+        strengths: r.strengths ?? '',
+        improvements: r.improvements ?? '',
+        developmentPlan: r.developmentPlan ?? '',
+      });
+    }
+    const header = ws.getRow(1);
+    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 10 } };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf as ArrayBuffer);
   },
 };

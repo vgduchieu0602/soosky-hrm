@@ -8,6 +8,7 @@ import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
 import { settingsService } from "@features/settings/services/settings.service";
 import { performanceService } from "@features/performance/services/performance.service";
+import { scoreBand } from "@features/performance/utils/score-band";
 import type { Evaluation, EvaluationStatus } from "@features/performance/types/performance.types";
 import type { PerformanceCriterion } from "@features/settings/types/settings.types";
 
@@ -138,10 +139,12 @@ function DetailDrawer({ ev, metaOf, busy, onAcknowledge, onClose }: {
             <div>
               <div className="text-[11px] uppercase tracking-wider text-white/45">Hiệu suất</div>
               <div className="text-[28px] font-bold tabular-nums">{Math.round(ev.performanceRatio)}%</div>
+              <div className="text-[12px] font-medium text-white/70">{scoreBand(ev.performanceRatio).label}</div>
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wider text-white/45">Mục tiêu</div>
               <div className="text-[28px] font-bold tabular-nums">{Math.round(ev.goalRatio)}%</div>
+              <div className="text-[12px] font-medium text-white/70">{scoreBand(ev.goalRatio).label}</div>
             </div>
           </div>
         </div>

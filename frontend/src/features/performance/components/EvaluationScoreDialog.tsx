@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { performanceService } from "@features/performance/services/performance.service";
+import { scoreBand } from "@features/performance/utils/score-band";
 import type { Evaluation } from "@features/performance/types/performance.types";
 import type { PerformanceCriterion } from "@features/settings/types/settings.types";
 
@@ -38,6 +40,24 @@ export function EvaluationScoreDialog({
   const [developmentPlan, setDevelopmentPlan] = useState(() => existing?.developmentPlan ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reopening, setReopening] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
+
+  async function reopen() {
+    if (!existing || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await performanceService.reopen(existing._id, reopenReason.trim() || undefined);
+      onSaved();
+      onOpenChange(false);
+    } catch (err) {
+      const d = (err as { response?: { data?: { message?: string; error?: { message?: string } } } })?.response?.data;
+      setError(d?.message ?? d?.error?.message ?? "Không mở lại được.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const groupRatio = (group: PerformanceCriterion[]) => {
     if (group.length === 0) return 0;
@@ -82,11 +102,11 @@ export function EvaluationScoreDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center justify-between rounded-lg bg-secondary-50 px-3 py-2 text-[13px]">
               <span className="text-secondary-700">Hiệu suất</span>
-              <span className="font-bold tabular-nums text-secondary-700">{groupRatio(perf)}%</span>
+              <span className="flex items-center gap-1.5"><span className="font-bold tabular-nums text-secondary-700">{groupRatio(perf)}%</span><Badge variant={scoreBand(groupRatio(perf)).tone}>{scoreBand(groupRatio(perf)).label}</Badge></span>
             </div>
             <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-[13px]">
               <span className="text-emerald-700">Mục tiêu</span>
-              <span className="font-bold tabular-nums text-emerald-700">{groupRatio(goal)}%</span>
+              <span className="flex items-center gap-1.5"><span className="font-bold tabular-nums text-emerald-700">{groupRatio(goal)}%</span><Badge variant={scoreBand(groupRatio(goal)).tone}>{scoreBand(groupRatio(goal)).label}</Badge></span>
             </div>
           </div>
 
@@ -104,6 +124,25 @@ export function EvaluationScoreDialog({
               <Textarea id="ev-dev" value={developmentPlan} onChange={(e) => setDevelopmentPlan(e.target.value)} placeholder="Hướng phát triển / đào tạo…" maxLength={2000} />
             </div>
           </div>
+
+          {existing?.status === "approved" && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+              {!reopening ? (
+                <button type="button" onClick={() => setReopening(true)} className="text-[12.5px] font-medium text-amber-700 hover:underline">
+                  Mở lại để sửa (ghi nhận lý do)…
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="ev-reopen" className="text-amber-700">Lý do mở lại</Label>
+                  <Input id="ev-reopen" value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} placeholder="VD: cập nhật lại điểm mục tiêu" maxLength={500} />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => setReopening(false)}>Huỷ</Button>
+                    <Button type="button" size="sm" disabled={submitting} onClick={reopen}>{submitting ? "Đang mở…" : "Xác nhận mở lại"}</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
 

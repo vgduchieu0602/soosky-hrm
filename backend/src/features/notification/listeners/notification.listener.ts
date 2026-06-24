@@ -72,6 +72,10 @@ export function registerNotificationListeners(): void {
   eventBus.on('leave.submitted', (e) => void notifyLeaveSubmitted(e.employeeId));
   eventBus.on('leave.decided', (e) => void notifyLeaveDecided(e));
 
+  // ---- Performance evaluation ----
+  eventBus.on('evaluation.finalized', (e) => void notifyEvaluation(e.employeeId, 'finalized'));
+  eventBus.on('evaluation.reopened', (e) => void notifyEvaluation(e.employeeId, 'reopened'));
+
   log.info('notification listeners registered');
 }
 
@@ -92,6 +96,33 @@ async function notifyPayslipReady(periodId: string) {
     });
   } catch (err) {
     log.error({ err, periodId }, 'failed to notify payslip ready');
+  }
+}
+
+async function notifyEvaluation(employeeId: string, kind: 'finalized' | 'reopened') {
+  try {
+    const userId = await userIdOfEmployee(employeeId);
+    if (!userId) return;
+    if (kind === 'finalized') {
+      await notificationService.notify({
+        userId,
+        type: 'performance',
+        title: 'Kết quả đánh giá đã có',
+        message: 'Kết quả đánh giá hiệu suất của bạn đã được duyệt — vui lòng xem và xác nhận.',
+        link: '/me/evaluations',
+      });
+    } else {
+      await notificationService.notify({
+        userId,
+        type: 'performance',
+        severity: 'warning',
+        title: 'Đánh giá được mở lại',
+        message: 'Bản đánh giá của bạn đã được mở lại để cập nhật. Kết quả có thể thay đổi.',
+        link: '/me/evaluations',
+      });
+    }
+  } catch (err) {
+    log.error({ err, employeeId }, 'failed to notify evaluation');
   }
 }
 
