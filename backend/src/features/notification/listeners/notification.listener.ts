@@ -2,6 +2,7 @@ import { logger } from '@core/logger/logger';
 import { eventBus } from '@core/events/event-bus';
 import { Employee } from '@shared/models/employee.model';
 import { Payroll } from '@shared/models/payroll.model';
+import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { notificationService } from '@features/notification/services/notification.service';
 
 const log = logger.child({ feature: 'notification', module: 'listener' });
@@ -75,6 +76,10 @@ export function registerNotificationListeners(): void {
   // ---- Performance evaluation ----
   eventBus.on('evaluation.finalized', (e) => void notifyEvaluation(e.employeeId, 'finalized'));
   eventBus.on('evaluation.reopened', (e) => void notifyEvaluation(e.employeeId, 'reopened'));
+  eventBus.on('evaluation.disputed', (e) => void notifyEvaluationDisputed(e.employeeId));
+
+  // ---- Payroll: HR reminder when attendance is locked but evaluations pending ----
+  eventBus.on('payroll.attendance-locked', (e) => void notifyEvaluationsPending(e.periodId, e.periodName));
 
   log.info('notification listeners registered');
 }
@@ -123,6 +128,43 @@ async function notifyEvaluation(employeeId: string, kind: 'finalized' | 'reopene
     }
   } catch (err) {
     log.error({ err, employeeId }, 'failed to notify evaluation');
+  }
+}
+
+async function notifyEvaluationDisputed(employeeId: string) {
+  try {
+    const hr = await notificationService.userIdsByRoles(['admin', 'hr_manager']);
+    const emp = await Employee.findById(employeeId).select('employeeCode').lean();
+    await notificationService.notifyMany(hr, {
+      type: 'performance',
+      severity: 'warning',
+      title: 'Khiếu nại kết quả đánh giá',
+      message: `Nhân viên ${emp?.employeeCode ?? ''} đã gửi khiếu nại về kết quả đánh giá.`.trim(),
+      link: '/performance',
+    });
+  } catch (err) {
+    log.error({ err, employeeId }, 'failed to notify evaluation dispute');
+  }
+}
+
+async function notifyEvaluationsPending(periodId: string, periodName: string) {
+  try {
+    const [activeCount, doneCount] = await Promise.all([
+      Employee.countDocuments({ status: { $ne: 'terminated' } }),
+      MonthlyEvaluation.countDocuments({ payrollPeriodId: periodId, status: { $in: ['approved', 'acknowledged'] } }),
+    ]);
+    const pending = activeCount - doneCount;
+    if (pending <= 0) return;
+    const hr = await notificationService.userIdsByRoles(['admin', 'hr_manager']);
+    await notificationService.notifyMany(hr, {
+      type: 'performance',
+      severity: 'warning',
+      title: 'Còn nhân viên chưa được đánh giá',
+      message: `Kỳ ${periodName}: còn ${pending} nhân viên chưa có đánh giá được duyệt trước khi tính lương.`,
+      link: '/performance',
+    });
+  } catch (err) {
+    log.error({ err, periodId }, 'failed to notify pending evaluations');
   }
 }
 

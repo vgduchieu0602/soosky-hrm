@@ -46,10 +46,9 @@ export default function MyEvaluations() {
   const visible = evals.filter((e) => VISIBLE.includes(e.status));
   const detail = detailId ? evals.find((e) => e._id === detailId) ?? null : null;
 
-  function acknowledge(ev: Evaluation) {
-    if (!window.confirm("Xác nhận bạn đã xem kết quả đánh giá này?")) return;
+  function acknowledge(ev: Evaluation, disputeNote?: string) {
     setBusy(true); setErr(null);
-    performanceService.acknowledge(ev._id)
+    performanceService.acknowledge(ev._id, disputeNote)
       .then(() => { setReloadKey((k) => k + 1); setDetailId(null); })
       .catch((e) => setErr(e?.response?.data?.message ?? "Xác nhận thất bại."))
       .finally(() => setBusy(false));
@@ -91,7 +90,7 @@ export default function MyEvaluations() {
       </div>
 
       {detail && (
-        <DetailDrawer ev={detail} metaOf={metaOf} busy={busy} onAcknowledge={() => acknowledge(detail)} onClose={() => setDetailId(null)} />
+        <DetailDrawer ev={detail} metaOf={metaOf} busy={busy} onAcknowledge={(note) => acknowledge(detail, note)} onClose={() => setDetailId(null)} />
       )}
     </div>
   );
@@ -100,8 +99,9 @@ export default function MyEvaluations() {
 function DetailDrawer({ ev, metaOf, busy, onAcknowledge, onClose }: {
   ev: Evaluation;
   metaOf: (id: string) => { label: string; type: "performance" | "goal" };
-  busy: boolean; onAcknowledge: () => void; onClose: () => void;
+  busy: boolean; onAcknowledge: (disputeNote?: string) => void; onClose: () => void;
 }) {
+  const [dispute, setDispute] = useState("");
   const perfScores = ev.criteriaScores.filter((s) => metaOf(s.criterionId).type === "performance");
   const goalScores = ev.criteriaScores.filter((s) => metaOf(s.criterionId).type === "goal");
 
@@ -175,9 +175,20 @@ function DetailDrawer({ ev, metaOf, busy, onAcknowledge, onClose }: {
                 <Check className="size-4" strokeWidth={2.4} /> Bạn đã xác nhận kết quả này
               </div>
             ) : (
-              <Button disabled={busy} onClick={onAcknowledge} className="w-full gap-2 rounded-xl">
-                <Check className="size-4" strokeWidth={2.4} /> Xác nhận đã xem
-              </Button>
+              <div className="flex flex-col gap-2">
+                <label className="text-[12.5px] font-medium text-foreground">Ý kiến / khiếu nại (nếu có)</label>
+                <textarea
+                  value={dispute}
+                  onChange={(e) => setDispute(e.target.value)}
+                  rows={2}
+                  maxLength={1000}
+                  placeholder="Để trống nếu bạn đồng ý với kết quả…"
+                  className="w-full rounded-lg border border-input bg-card px-3 py-2 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20"
+                />
+                <Button disabled={busy} onClick={() => onAcknowledge(dispute.trim() || undefined)} className="w-full gap-2 rounded-xl">
+                  <Check className="size-4" strokeWidth={2.4} /> {dispute.trim() ? "Xác nhận & gửi khiếu nại" : "Xác nhận đã xem"}
+                </Button>
+              </div>
             )}
           </div>
         </div>

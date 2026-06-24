@@ -32,6 +32,7 @@ declare module '@core/events/event-bus' {
   interface AppEventMap {
     'evaluation.finalized': { employeeId: string; payrollPeriodId: string };
     'evaluation.reopened': { employeeId: string };
+    'evaluation.disputed': { employeeId: string; evaluationId: string };
   }
 }
 
@@ -98,8 +99,17 @@ export const evaluationService = {
     return MonthlyEvaluation.find(filter).sort({ updated_at: -1 }).lean();
   },
 
-  async get(id: string) {
-    return (await load(id)).toJSON();
+  /**
+   * Fetch one evaluation. A non-HR caller may only read their OWN evaluation —
+   * prevents an employee from reading someone else's scores/notes by guessing id.
+   */
+  async get(id: string, viewer?: { userId: string; isHrOrAdmin: boolean }) {
+    const doc = await load(id);
+    if (viewer && !viewer.isHrOrAdmin) {
+      const empId = await employeeIdOfUser(viewer.userId);
+      if (empId !== String(doc.employeeId)) throw new ForbiddenError();
+    }
+    return doc.toJSON();
   },
 
   /** HR: one employee's evaluations across all periods (history/trend). */
@@ -192,6 +202,9 @@ export const evaluationService = {
     doc.disputeNote = disputeNote ?? null;
     await doc.save();
     await audit(userId, id, { status: 'acknowledged', dispute: !!disputeNote });
+    if (disputeNote) {
+      eventBus.emit('evaluation.disputed', { employeeId: String(doc.employeeId), evaluationId: id });
+    }
     return doc.toJSON();
   },
 

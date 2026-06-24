@@ -32,7 +32,9 @@ export const evaluationController = {
   },
   async get(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json({ data: await evaluationService.get(idOf(req)) });
+      const roles = req.user?.roles ?? [];
+      const isHrOrAdmin = roles.includes('admin') || roles.includes('hr_manager');
+      res.json({ data: await evaluationService.get(idOf(req), { userId: userId(req), isHrOrAdmin }) });
     } catch (e) {
       next(e);
     }
