@@ -57,6 +57,12 @@ function ManagerLeave() {
   const pending = list.filter((r) => r.status === "pending");
   const history = list.filter((r) => r.status !== "pending");
 
+  function revoke(id: string) {
+    if (!window.confirm("Thu hồi đơn nghỉ đã duyệt? Số ngày phép sẽ được hoàn lại và ngày nghỉ bị gỡ khỏi chấm công.")) return;
+    setBusy(id);
+    attendanceService.revokeLeave(id).then(() => setReloadKey((k) => k + 1)).finally(() => setBusy(null));
+  }
+
   function approve(id: string) {
     setBusy(id);
     attendanceService.approveLeave(id).then(() => setReloadKey((k) => k + 1)).finally(() => setBusy(null));
@@ -103,7 +109,7 @@ function ManagerLeave() {
         <div className="border-b p-4"><h3 className="text-[14px] font-semibold text-foreground">Lịch sử đơn nghỉ</h3></div>
         <table className="w-full border-collapse text-[13px]">
           <thead><tr className="border-b bg-muted/40 text-[11px] uppercase tracking-wider text-muted-foreground">
-            <th className="px-4 py-3 text-left">Nhân viên</th><th className="px-4 py-3 text-left">Loại</th><th className="px-4 py-3 text-left">Thời gian</th><th className="px-4 py-3 text-right">Ngày</th><th className="px-4 py-3 text-left">Trạng thái</th>
+            <th className="px-4 py-3 text-left">Nhân viên</th><th className="px-4 py-3 text-left">Loại</th><th className="px-4 py-3 text-left">Thời gian</th><th className="px-4 py-3 text-right">Ngày</th><th className="px-4 py-3 text-left">Trạng thái</th><th className="px-4 py-3 text-right">·</th>
           </tr></thead>
           <tbody>
             {history.map((r) => (
@@ -113,9 +119,14 @@ function ManagerLeave() {
                 <td className="px-4 py-3 tabular-nums text-foreground/80">{fmt(r.startDate)}{r.days > 1 ? ` → ${fmt(r.endDate)}` : ""}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{r.days}</td>
                 <td className="px-4 py-3"><StatusChip status={r.status} /></td>
+                <td className="px-4 py-3 text-right">
+                  {r.status === "approved" && (
+                    <Button variant="outline" size="sm" disabled={busy === r._id} onClick={() => revoke(r._id)} className="h-7 rounded-lg text-[12px] text-rose-600 hover:border-rose-200 hover:bg-rose-50">Thu hồi</Button>
+                  )}
+                </td>
               </tr>
             ))}
-            {history.length === 0 && <tr><td colSpan={5} className="px-4 py-12 text-center text-[13px] text-muted-foreground">Chưa có đơn.</td></tr>}
+            {history.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] text-muted-foreground">Chưa có đơn.</td></tr>}
           </tbody>
         </table>
       </Card>

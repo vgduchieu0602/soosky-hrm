@@ -64,6 +64,15 @@ export const leaveController = {
       next(e);
     }
   },
+  async revoke(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params as { id: string };
+      const { reason } = req.body as { reason?: string };
+      res.json({ data: await leaveService.revoke(id, userId(req), reason) });
+    } catch (e) {
+      next(e);
+    }
+  },
   async adminBalances(req: Request, res: Response, next: NextFunction) {
     try {
       const { employeeId } = req.params as { employeeId: string };

@@ -164,6 +164,17 @@ export const employeeService = {
       const exists = await Position.findById(input.positionId).lean();
       if (!exists) throw new HttpError(404, 'Position not found', 'ORG_001');
     }
+    // Correcting the employee code / fingerprint id — enforce uniqueness.
+    if (input.employeeCode && input.employeeCode !== before.employeeCode) {
+      const dup = await employeeRepository.findByCode(input.employeeCode);
+      if (dup && dup._id.toString() !== id) throw new HttpError(409, 'Mã nhân viên đã tồn tại', 'EMP_002');
+    }
+    if (input.fingerprintId) {
+      const dupFp = await Employee.findOne({ fingerprintId: input.fingerprintId, _id: { $ne: id } })
+        .select('_id')
+        .lean();
+      if (dupFp) throw new HttpError(409, 'Mã vân tay đã tồn tại', 'EMP_002');
+    }
 
     const patch = toObjectIdFields(input);
     const updated = await employeeRepository.updateById(id, patch);

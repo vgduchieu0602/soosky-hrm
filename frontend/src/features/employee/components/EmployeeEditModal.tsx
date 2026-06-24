@@ -52,6 +52,8 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
       email: profile?.email ?? view.personalEmail ?? "",
       workEmail: profile?.workEmail ?? view.email ?? "",
       address: profile?.address ?? view.address ?? "",
+      employeeCode: view.code ?? "",
+      fingerprintId: view.fingerprintId ?? "",
       departmentId: view.departmentId ?? "",
       positionId: view.positionId ?? "",
       managerId: view.managerId ?? "",
@@ -101,6 +103,8 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
         address: form.address || undefined,
       });
       await employeeService.update(view.id, {
+        employeeCode: form.employeeCode.trim(),
+        fingerprintId: form.fingerprintId.trim() || null,
         departmentId: form.departmentId,
         positionId: form.positionId,
         managerId: form.managerId || null,
@@ -181,6 +185,12 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
 
           <div className="mb-2 mt-6 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Thông tin công việc</div>
           <div className="grid grid-cols-2 gap-4">
+            <Field label="Mã nhân viên" error={errors.employeeCode?.message}>
+              <input className={cn(inputCls, "font-mono")} {...register("employeeCode")} />
+            </Field>
+            <Field label="Mã vân tay" error={errors.fingerprintId?.message}>
+              <input className={cn(inputCls, "font-mono")} {...register("fingerprintId")} placeholder="Không bắt buộc" />
+            </Field>
             <Field label="Phòng ban" error={errors.departmentId?.message}>
               <select
                 className={inputCls}

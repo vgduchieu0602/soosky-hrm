@@ -6,6 +6,7 @@ import { NotFoundError } from '@shared/errors/not-found.error';
 import { CompanyConfig } from '@shared/models/company-config.model';
 import { Employee } from '@shared/models/employee.model';
 import { Attendance } from '@shared/models/attendance.model';
+import { Payroll } from '@shared/models/payroll.model';
 import { auditService } from '@features/iam/services/audit.service';
 import { payrollPeriodRepository } from '@features/payroll/repositories/payroll-period.repository';
 import { standardWorkDaysInRange } from '@features/payroll/services/workdays.service';
@@ -148,6 +149,41 @@ export const payrollPeriodService = {
     log.info({ action: 'lock-attendance', periodId: id });
     eventBus.emit('payroll.attendance-locked', { periodId: id, periodName: updated!.name });
     return updated!.toJSON();
+  },
+
+  /** Re-open a closed/paid period so it can be recomputed (correction). Admin. */
+  async reopen(id: string, auditUserId: string) {
+    const period = await payrollPeriodRepository.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+    if (period.status === 'open') return period.toJSON();
+    const updated = await payrollPeriodRepository.updateById(id, {
+      status: 'open',
+      closedAt: null,
+      closedBy: null,
+    });
+    await auditService.record({
+      userId: auditUserId, resource: 'payrollPeriod', action: 'update', resourceId: id,
+      changes: { reopened: true, from: period.status },
+    });
+    log.info({ action: 'reopen', periodId: id });
+    return updated!.toJSON();
+  },
+
+  /** Delete a period created by mistake — only when it has no payroll rows yet. */
+  async remove(id: string, auditUserId: string) {
+    const period = await payrollPeriodRepository.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+    const count = await Payroll.countDocuments({ payrollPeriodId: id });
+    if (count > 0) {
+      throw new HttpError(409, 'Kỳ đã có bảng lương — không thể xoá. Hãy hoàn tác bảng lương trước.', 'PAY_PERIOD_HAS_DATA');
+    }
+    await payrollPeriodRepository.deleteById(id);
+    await auditService.record({
+      userId: auditUserId, resource: 'payrollPeriod', action: 'delete', resourceId: id,
+      changes: { name: period.name },
+    });
+    log.info({ action: 'delete', periodId: id });
+    return { id };
   },
 
   /** Re-open attendance for editing (only before the period is closed/paid). */
