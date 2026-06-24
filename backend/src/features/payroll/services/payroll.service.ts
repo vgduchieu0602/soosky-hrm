@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import { NotFoundError } from '@shared/errors/not-found.error';
+import { ForbiddenError } from '@shared/errors/forbidden.error';
 import { Employee } from '@shared/models/employee.model';
+import { Payroll } from '@shared/models/payroll.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
 import {
@@ -54,9 +56,78 @@ export const payrollService = {
     return payrollRepository.paginate(filter, page, limit);
   },
 
-  async get(id: string) {
+  /** Export one period's payrolls (all employees) as a styled .xlsx for accounting. */
+  async exportPeriodXlsx(payrollPeriodId: string): Promise<Buffer> {
+    const period = await PayrollPeriod.findById(payrollPeriodId).lean();
+    const rows = await Payroll.aggregate([
+      { $match: { payrollPeriodId: new mongoose.Types.ObjectId(payrollPeriodId) } },
+      { $lookup: { from: 'employees', localField: 'employeeId', foreignField: '_id', as: 'emp' } },
+      { $unwind: { path: '$emp', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'employeeProfiles', localField: 'employeeId', foreignField: 'employeeId', as: 'profile' } },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'departments', localField: 'emp.departmentId', foreignField: '_id', as: 'dept' } },
+      { $unwind: { path: '$dept', preserveNullAndEmptyArrays: true } },
+      { $sort: { 'emp.employeeCode': 1 } },
+    ]);
+
+    const STATUS_LABEL: Record<string, string> = { draft: 'Nháp', approved: 'Đã duyệt', paid: 'Đã chi' };
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Soosky HRM';
+    const ws = wb.addWorksheet(`Bảng lương ${period?.name ?? ''}`.trim(), { views: [{ state: 'frozen', ySplit: 1 }] });
+    const money = '#,##0';
+    ws.columns = [
+      { header: 'Mã NV', key: 'code', width: 14 },
+      { header: 'Họ và tên', key: 'name', width: 24 },
+      { header: 'Phòng ban', key: 'dept', width: 20 },
+      { header: 'Ngày công', key: 'days', width: 12 },
+      { header: 'Lương cơ bản', key: 'base', width: 15, style: { numFmt: money } },
+      { header: 'Lương theo công', key: 'prorated', width: 16, style: { numFmt: money } },
+      { header: 'Phụ cấp', key: 'allow', width: 14, style: { numFmt: money } },
+      { header: 'Thưởng', key: 'bonus', width: 14, style: { numFmt: money } },
+      { header: 'Tổng thu nhập (Gross)', key: 'gross', width: 18, style: { numFmt: money } },
+      { header: 'BHXH (NLĐ)', key: 'insurance', width: 14, style: { numFmt: money } },
+      { header: 'Thuế TNCN', key: 'tax', width: 14, style: { numFmt: money } },
+      { header: 'Đoàn phí', key: 'union', width: 12, style: { numFmt: money } },
+      { header: 'Khấu trừ khác', key: 'other', width: 15, style: { numFmt: money } },
+      { header: 'Thực nhận (Net)', key: 'net', width: 16, style: { numFmt: money } },
+      { header: 'Trạng thái', key: 'status', width: 12 },
+    ];
+    for (const r of rows as Record<string, any>[]) {
+      const fullName = [r.profile?.lastName, r.profile?.middleName, r.profile?.firstName].filter(Boolean).join(' ');
+      ws.addRow({
+        code: r.emp?.employeeCode ?? '',
+        name: fullName || r.emp?.employeeCode || '',
+        dept: r.dept?.name ?? '',
+        days: `${r.actualWorkDays ?? 0}/${r.standardWorkDays ?? 0}`,
+        base: toNum(r.baseSalary), prorated: toNum(r.proRatedBaseSalary),
+        allow: toNum(r.totalAllowances), bonus: toNum(r.totalBonuses),
+        gross: toNum(r.grossSalary), insurance: toNum(r.insurance), tax: toNum(r.tax),
+        union: toNum(r.unionFee), other: toNum(r.otherDeductions), net: toNum(r.netSalary),
+        status: STATUS_LABEL[r.status] ?? r.status,
+      });
+    }
+    const header = ws.getRow(1);
+    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B3A74' } };
+    header.alignment = { vertical: 'middle', wrapText: true };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 15 } };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf as ArrayBuffer);
+  },
+
+  /**
+   * Fetch one payroll. Defense-in-depth: a non-HR caller may only read their own
+   * payslip (in addition to the route's hrOrAdmin gate), so a leaked/relaxed
+   * route can never expose another employee's salary.
+   */
+  async get(id: string, viewer?: { userId: string; isHrOrAdmin: boolean }) {
     const payroll = await payrollRepository.findById(id);
     if (!payroll) throw new NotFoundError('Payroll');
+    if (viewer && !viewer.isHrOrAdmin) {
+      const me = await Employee.findOne({ userId: viewer.userId }).select('_id').lean();
+      if (!me || String(me._id) !== String(payroll.employeeId)) throw new ForbiddenError();
+    }
     return payroll;
   },
 

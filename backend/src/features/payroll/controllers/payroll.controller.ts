@@ -35,7 +35,20 @@ export const payrollController = {
   async get(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params as { id: string };
-      res.json({ data: await payrollService.get(id) });
+      const roles = req.user?.roles ?? [];
+      const isHrOrAdmin = roles.includes('admin') || roles.includes('hr_manager');
+      res.json({ data: await payrollService.get(id, { userId: userId(req), isHrOrAdmin }) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async exportPeriod(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { periodId } = req.params as { periodId: string };
+      const buf = await payrollService.exportPeriodXlsx(periodId);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="bang-luong.xlsx"');
+      res.send(buf);
     } catch (e) {
       next(e);
     }

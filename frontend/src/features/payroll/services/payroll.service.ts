@@ -86,6 +86,10 @@ export const payrollService = {
     const { data } = await api.get<Env<PayrollRecord>>(`/payroll/payrolls/${id}`);
     return data.data;
   },
+  async exportPeriod(periodId: string): Promise<Blob> {
+    const res = await api.get(`/payroll/periods/${periodId}/export`, { responseType: "blob" });
+    return res.data as Blob;
+  },
   async periodTotals(periodId: string): Promise<PeriodTotalRow[]> {
     const { data } = await api.get<Env<PeriodTotalRow[]>>(`/payroll/periods/${periodId}/totals`);
     return data.data ?? [];
