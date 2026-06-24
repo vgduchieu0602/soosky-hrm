@@ -45,6 +45,7 @@ router.get('/payroll/payrolls/me', authenticate, payrollController.mine);
 router.get('/payroll/payrolls', authenticate, hrOrAdmin, payrollController.list);
 router.get('/payroll/payrolls/:id', authenticate, hrOrAdmin, payrollController.get);
 router.get('/payroll/periods/:periodId/totals', authenticate, hrOrAdmin, payrollController.totals);
+router.get('/payroll/periods/:periodId/export', authenticate, hrOrAdmin, payrollController.exportPeriod);
 
 // ---- Workflow: approve (HR/Admin) → mark-paid (Admin) ----
 router.post('/payroll/periods/:id/approve', authenticate, hrOrAdmin, validate(approvePayrollDto, 'body'), payrollController.approve);

@@ -17,6 +17,7 @@ import SettingsPage from "@pages/SettingsPage";
 import SystemSettingsPage from "@features/settings/components/SystemSettingsPage";
 import NotFoundPage from "@pages/NotFoundPage";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { RoleRoute } from "./RoleRoute";
 
 export const router = createBrowserRouter([
   {
@@ -36,17 +37,23 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: "dashboard", element: <DashboardPage /> },
-          { path: "employees", element: <EmployeesPage /> },
-          { path: "departments", element: <DepartmentsPage /> },
           { path: "attendance", element: <AttendanceByRole /> },
           { path: "me/attendance", element: <MyAttendancePage /> },
           { path: "me/payslips", element: <MyPayslipsPage /> },
           { path: "me/evaluations", element: <MyEvaluationsPage /> },
           { path: "leave", element: <LeavePage /> },
-          { path: "payroll", element: <PayrollPage /> },
-          { path: "performance", element: <PerformancePage /> },
-          { path: "settings", element: <SystemSettingsPage /> },
           { path: "settings/account", element: <SettingsPage /> },
+          // HR / Admin only — employees are redirected to the dashboard.
+          {
+            element: <RoleRoute roles={["admin", "hr_manager"]} />,
+            children: [
+              { path: "employees", element: <EmployeesPage /> },
+              { path: "departments", element: <DepartmentsPage /> },
+              { path: "payroll", element: <PayrollPage /> },
+              { path: "performance", element: <PerformancePage /> },
+              { path: "settings", element: <SystemSettingsPage /> },
+            ],
+          },
         ],
       },
     ],

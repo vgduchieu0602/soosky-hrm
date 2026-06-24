@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Search, Wallet, ChevronDown, Check, ChevronRight, Loader2, BadgeDollarSign,
-  Plus, FilePlus2, Settings2, Calculator, Lock, LockOpen,
+  Plus, FilePlus2, Settings2, Calculator, Lock, LockOpen, Download,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -266,6 +266,23 @@ export default function Payroll() {
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setGrossUpDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
                   <Calculator className="size-3.5" strokeWidth={1.9} /> NET → GROSS
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy || !periodId || payrolls.length === 0}
+                  onClick={() => {
+                    if (!periodId) return;
+                    setBusy(true); setErr(null);
+                    payrollService.exportPeriod(periodId)
+                      .then((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = `bang-luong-${period?.name ?? "ky"}.xlsx`; a.click();
+                        URL.revokeObjectURL(url);
+                      })
+                      .catch(() => setErr("Không xuất được bảng lương."))
+                      .finally(() => setBusy(false));
+                  }}
+                  className="h-9 gap-2 rounded-full text-[13px]">
+                  <Download className="size-3.5" strokeWidth={1.9} /> Xuất Excel
                 </Button>
                 {period && !locked && (
                   attLocked ? (
