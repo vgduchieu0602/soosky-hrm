@@ -33,6 +33,14 @@ export interface PayrollPeriod {
   created_at?: string;
 }
 
+export interface AttendanceReadiness {
+  attendanceLocked: boolean;
+  totalActiveEmployees: number;
+  employeesNoRecords: number;
+  incompleteRecords: number;
+  employeesWithIncomplete: number;
+}
+
 export interface CreatePeriodInput {
   name: string;
   startDate: string;

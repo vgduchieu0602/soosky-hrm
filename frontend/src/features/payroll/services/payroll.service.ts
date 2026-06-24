@@ -1,6 +1,7 @@
 import api from "@core/http/axios";
 import type {
   Allowance,
+  AttendanceReadiness,
   ApprovalResult,
   Bonus,
   CreatePeriodInput,
@@ -39,6 +40,10 @@ export const payrollService = {
   },
   async createPeriod(input: CreatePeriodInput): Promise<PayrollPeriod> {
     const { data } = await api.post<Env<PayrollPeriod>>("/payroll/periods", input);
+    return data.data;
+  },
+  async attendanceReadiness(id: string): Promise<AttendanceReadiness> {
+    const { data } = await api.get<Env<AttendanceReadiness>>(`/payroll/periods/${id}/attendance-readiness`);
     return data.data;
   },
   async lockAttendance(id: string): Promise<PayrollPeriod> {
