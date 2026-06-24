@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { logger } from '@core/logger/logger';
+import { TIMEZONE } from '@features/attendance/services/attendance-calc';
 import { employeeReminderService } from '@features/employee/services/employee-reminder.service';
 import { notificationService } from '@features/notification';
 
@@ -35,6 +36,6 @@ export async function runContractReminders(): Promise<{ notified: number }> {
 export function registerReminderJobs(): void {
   cron.schedule('0 8 * * *', () => {
     runContractReminders().catch((err) => log.error({ err }, 'contract reminder job failed'));
-  }, { timezone: 'Asia/Ho_Chi_Minh' });
+  }, { timezone: TIMEZONE });
   log.info('reminder jobs scheduled (daily 08:00 ICT)');
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Globe2, Timer, Check, AlertCircle } from "lucide-react";
+import { Building2, Globe2, Timer, Check, AlertCircle, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
@@ -10,6 +10,14 @@ const inputCls =
   "flex h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] text-foreground transition-colors focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60";
 
 const TIMEZONES = ["Asia/Ho_Chi_Minh", "Asia/Bangkok", "Asia/Singapore", "Asia/Tokyo", "Asia/Seoul", "UTC"];
+
+const LEAVE_TYPES: { key: string; label: string }[] = [
+  { key: "annual", label: "Phép năm" },
+  { key: "sick", label: "Nghỉ ốm" },
+  { key: "personal", label: "Việc riêng" },
+  { key: "maternity", label: "Thai sản" },
+  { key: "paternity", label: "Nghỉ vợ sinh" },
+];
 
 interface Props { canManage: boolean }
 
@@ -42,6 +50,9 @@ export function CompanySettings({ canManage }: Props) {
       standardWorkDays: cfg.standardWorkDays,
       graceLateMinutes: cfg.graceLateMinutes,
       graceEarlyMinutes: cfg.graceEarlyMinutes,
+      overtimeEnabled: !!cfg.overtimeEnabled,
+      lateAffectsPay: !!cfg.lateAffectsPay,
+      leaveQuotas: cfg.leaveQuotas ?? {},
       contactEmail: cfg.contactEmail || undefined,
       address: cfg.address || undefined,
     })
@@ -90,6 +101,31 @@ export function CompanySettings({ canManage }: Props) {
           <Field label="Dung sai về sớm (phút)">
             <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.graceEarlyMinutes} onChange={(e) => set("graceEarlyMinutes", Number(e.target.value))} />
           </Field>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection icon={Timer} tone="violet" title="Chính sách lương theo chấm công" description="Bật khi muốn áp dụng — mặc định tắt.">
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-2.5 rounded-lg border bg-muted/30 p-3 text-[13px]">
+            <input type="checkbox" disabled={!canManage} checked={!!cfg.overtimeEnabled} onChange={(e) => set("overtimeEnabled", e.target.checked)} className="size-4 accent-primary" />
+            <span className="flex-1 text-foreground">Tính lương tăng ca (OT)</span>
+          </label>
+          <label className="flex items-center gap-2.5 rounded-lg border bg-muted/30 p-3 text-[13px]">
+            <input type="checkbox" disabled={!canManage} checked={!!cfg.lateAffectsPay} onChange={(e) => set("lateAffectsPay", e.target.checked)} className="size-4 accent-primary" />
+            <span className="flex-1 text-foreground">Đi muộn/về sớm ảnh hưởng lương</span>
+          </label>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection icon={CalendarDays} tone="emerald" title="Hạn mức nghỉ phép mặc định" description="Số ngày phép/năm tự gán cho nhân viên mới (0 = không gán).">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {LEAVE_TYPES.map((lt) => (
+            <Field key={lt.key} label={lt.label}>
+              <input type="number" min={0} max={365} className={inputCls} disabled={!canManage}
+                value={cfg.leaveQuotas?.[lt.key] ?? 0}
+                onChange={(e) => set("leaveQuotas", { ...(cfg.leaveQuotas ?? {}), [lt.key]: Number(e.target.value) })} />
+            </Field>
+          ))}
         </div>
       </SettingsSection>
 

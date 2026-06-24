@@ -9,6 +9,9 @@ export const updateCompanyConfigDto = z
     standardWorkDays: z.coerce.number().int().min(1).max(31).optional(),
     graceLateMinutes: z.coerce.number().int().min(0).max(120).optional(),
     graceEarlyMinutes: z.coerce.number().int().min(0).max(120).optional(),
+    overtimeEnabled: z.coerce.boolean().optional(),
+    lateAffectsPay: z.coerce.boolean().optional(),
+    leaveQuotas: z.record(z.string(), z.coerce.number().min(0).max(365)).optional(),
     contactEmail: z.string().email().optional(),
     address: z.string().max(255).optional(),
   })
@@ -43,6 +46,7 @@ export const createSalaryPolicyDto = z
     socialInsuranceSalary: z.coerce.number().nonnegative().optional(),
     unionFeeRate: z.coerce.number().min(0).max(100).optional(),
     unionFeeEnabled: z.coerce.boolean().optional(),
+    probationPayRate: z.coerce.number().min(0).max(100).optional(),
   })
   .strict();
 export type CreateSalaryPolicyDto = z.infer<typeof createSalaryPolicyDto>;
@@ -62,6 +66,7 @@ export const updateSalaryPolicyDto = z
     socialInsuranceSalary: z.coerce.number().nonnegative().optional(),
     unionFeeRate: z.coerce.number().min(0).max(100).optional(),
     unionFeeEnabled: z.coerce.boolean().optional(),
+    probationPayRate: z.coerce.number().min(0).max(100).optional(),
   })
   .strict();
 export type UpdateSalaryPolicyDto = z.infer<typeof updateSalaryPolicyDto>;

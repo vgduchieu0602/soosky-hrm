@@ -88,6 +88,7 @@ export const salaryPolicyService = {
       }),
       ...(input.unionFeeRate !== undefined && { unionFeeRate: input.unionFeeRate }),
       ...(input.unionFeeEnabled !== undefined && { unionFeeEnabled: input.unionFeeEnabled }),
+      ...(input.probationPayRate !== undefined && { probationPayRate: input.probationPayRate }),
       createdBy: new Types.ObjectId(auditUserId),
     });
     await auditService.record({
@@ -118,6 +119,7 @@ export const salaryPolicyService = {
       patch.socialInsuranceSalary = dec(input.socialInsuranceSalary);
     if (input.unionFeeRate !== undefined) patch.unionFeeRate = input.unionFeeRate;
     if (input.unionFeeEnabled !== undefined) patch.unionFeeEnabled = input.unionFeeEnabled;
+    if (input.probationPayRate !== undefined) patch.probationPayRate = input.probationPayRate;
 
     const updated = await SalaryPolicyConfig.findByIdAndUpdate(id, patch, { new: true });
     if (!updated) throw new HttpError(404, 'Policy not found', 'SET_002');

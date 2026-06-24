@@ -287,7 +287,8 @@ async function resolveContext(
   // Tình trạng (not loại HĐLĐ) decides insurance + 85% pay.
   const isProbation =
     contract.employmentStatus === 'probation' || contract.employmentStatus === 'internship';
-  const effectiveBase = isProbation ? Math.round(baseSalary * PROBATION_PAY_RATE) : baseSalary;
+  const probationRate = (policy.probationPayRate ?? PROBATION_PAY_RATE * 100) / 100;
+  const effectiveBase = isProbation ? Math.round(baseSalary * probationRate) : baseSalary;
 
   const fixedInsuranceSalary = toNum(policy.socialInsuranceSalary) || baseSalary;
   const insuranceBaseSalary = isProbation ? 0 : fixedInsuranceSalary;

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { attendanceService } from '@features/attendance/services/attendance.service';
+import { TIMEZONE } from '@features/attendance/services/attendance-calc';
 
 function userId(req: Request): string {
   if (!req.user) throw new Error('IAM_002');
@@ -8,7 +9,7 @@ function userId(req: Request): string {
 
 function currentMonthVN(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
+    timeZone: TIMEZONE,
     year: 'numeric',
     month: '2-digit',
   }).formatToParts(new Date());

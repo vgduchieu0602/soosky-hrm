@@ -26,6 +26,8 @@ export interface ICompanyConfig {
    * but a late day still counts as a full paid work day.
    */
   lateAffectsPay: boolean;
+  /** Default annual leave entitlement per leave type, seeded when an employee is created. */
+  leaveQuotas?: Record<string, number>;
   contactEmail?: string;
   address?: string;
   created_at?: Date;
@@ -45,6 +47,7 @@ const companyConfigSchema = new Schema<ICompanyConfig>(
     graceEarlyMinutes: { type: Number, default: 5, min: 0, max: 120 },
     overtimeEnabled: { type: Boolean, default: false },
     lateAffectsPay: { type: Boolean, default: false },
+    leaveQuotas: { type: Schema.Types.Mixed, default: {} },
     contactEmail: { type: String, lowercase: true, trim: true },
     address: { type: String, trim: true },
   },
