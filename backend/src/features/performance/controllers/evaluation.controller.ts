@@ -55,7 +55,18 @@ export const evaluationController = {
   },
   async reopen(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json({ data: await evaluationService.reopen(idOf(req), userId(req)) });
+      const { reason } = req.body as { reason?: string };
+      res.json({ data: await evaluationService.reopen(idOf(req), userId(req), reason) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async exportXlsx(req: Request, res: Response, next: NextFunction) {
+    try {
+      const buf = await evaluationService.exportXlsx((req.query as { payrollPeriodId?: string }).payrollPeriodId);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="danh-gia.xlsx"');
+      res.send(buf);
     } catch (e) {
       next(e);
     }

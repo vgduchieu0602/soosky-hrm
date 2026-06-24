@@ -32,8 +32,16 @@ export const performanceService = {
     });
     return data.data;
   },
-  async reopen(id: string): Promise<Evaluation> {
-    const { data } = await api.post<Env<Evaluation>>(`/performance/evaluations/${id}/reopen`);
+  async reopen(id: string, reason?: string): Promise<Evaluation> {
+    const { data } = await api.post<Env<Evaluation>>(`/performance/evaluations/${id}/reopen`, {
+      ...(reason ? { reason } : {}),
+    });
     return data.data;
+  },
+  async exportXlsx(payrollPeriodId?: string): Promise<Blob> {
+    const res = await api.get(`/performance/evaluations/export${payrollPeriodId ? `?payrollPeriodId=${payrollPeriodId}` : ""}`, {
+      responseType: "blob",
+    });
+    return res.data as Blob;
   },
 };
