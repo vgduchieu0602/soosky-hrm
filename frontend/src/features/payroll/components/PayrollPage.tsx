@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Search, Wallet, ChevronDown, Check, ChevronRight, Loader2, BadgeDollarSign,
-  Plus, FilePlus2, Settings2, Calculator, Lock, LockOpen, Download,
+  Plus, FilePlus2, Settings2, Calculator, Lock, LockOpen, Download, RotateCcw, Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -232,6 +232,30 @@ export default function Payroll() {
     }
   }
 
+  async function reopenPeriod() {
+    if (!periodId || !window.confirm("Mở lại kỳ lương đã khoá/đã chi để tính lại?")) return;
+    setBusy(true); setErr(null);
+    try {
+      const updated = await payrollService.reopenPeriod(periodId);
+      setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+    } catch (e) {
+      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+      setErr(d?.error?.message ?? d?.message ?? "Không mở lại được kỳ.");
+    } finally { setBusy(false); }
+  }
+  async function removePeriod() {
+    if (!periodId || !window.confirm("Xoá kỳ lương này? Chỉ xoá được khi chưa có bảng lương.")) return;
+    setBusy(true); setErr(null);
+    try {
+      await payrollService.deletePeriod(periodId);
+      setPeriods((ps) => ps.filter((p) => p._id !== periodId));
+      setPeriodId("");
+    } catch (e) {
+      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+      setErr(d?.error?.message ?? d?.message ?? "Không xoá được kỳ.");
+    } finally { setBusy(false); }
+  }
+
   const detail = detailId ? payrolls.find((p) => p._id === detailId) ?? null : null;
 
   return (
@@ -308,6 +332,18 @@ export default function Payroll() {
                     onClick={() => act(() => payrollService.markPaid(periodId))}
                     className="h-9 gap-2 rounded-full text-[13px]">
                     <BadgeDollarSign className="size-3.5" strokeWidth={1.9} /> Đánh dấu đã chi
+                  </Button>
+                )}
+                {period && locked && (
+                  <Button size="sm" variant="outline" disabled={busy || !periodId} onClick={reopenPeriod}
+                    className="h-9 gap-2 rounded-full text-[13px]">
+                    <RotateCcw className="size-3.5" strokeWidth={1.9} /> Mở lại kỳ
+                  </Button>
+                )}
+                {period && payrolls.length === 0 && (
+                  <Button size="sm" variant="outline" disabled={busy || !periodId} onClick={removePeriod}
+                    className="h-9 gap-2 rounded-full text-[13px] text-rose-600 hover:border-rose-200 hover:bg-rose-50">
+                    <Trash2 className="size-3.5" strokeWidth={1.9} /> Xoá kỳ
                   </Button>
                 )}
               </div>

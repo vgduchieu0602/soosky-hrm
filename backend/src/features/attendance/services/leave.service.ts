@@ -323,6 +323,52 @@ export const leaveService = {
     return req.toJSON();
   },
 
+  /**
+   * Revoke an APPROVED leave (HR approved by mistake): restore the used balance,
+   * clear the leave days written into attendance, and mark the request cancelled.
+   */
+  async revoke(id: string, approverUserId: string, reason?: string) {
+    if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Không tìm thấy đơn', 'LV_001');
+    const session = await mongoose.startSession();
+    try {
+      let result: unknown;
+      let employeeIdStr = '';
+      await session.withTransaction(async () => {
+        const req = await LeaveRequest.findById(id).session(session);
+        if (!req) throw new HttpError(404, 'Không tìm thấy đơn', 'LV_001');
+        if (req.status !== 'approved') {
+          throw new HttpError(409, 'Chỉ thu hồi được đơn đã duyệt', 'LV_002');
+        }
+        req.status = 'cancelled';
+        req.rejectionReason = reason ?? 'Thu hồi bởi HR';
+        await req.save({ session });
+
+        const year = vnDateKey(req.startDate).getUTCFullYear();
+        await LeaveBalance.updateOne(
+          { employeeId: req.employeeId, leaveType: req.leaveType, year },
+          { $inc: { used: -req.days } },
+          { session },
+        );
+        await clearLeaveAttendance(req._id, session);
+
+        await auditService.record({
+          userId: approverUserId,
+          resource: 'leaveRequest',
+          action: 'update',
+          resourceId: req._id.toString(),
+          changes: { revoked: true, restoredDays: req.days, reason: reason ?? null },
+        });
+        employeeIdStr = req.employeeId.toString();
+        result = req.toJSON();
+      });
+      log.info({ id }, 'leave revoked');
+      eventBus.emit('leave.decided', { leaveRequestId: id, employeeId: employeeIdStr, approved: false, reason: reason ?? 'Đơn nghỉ đã được thu hồi' });
+      return result;
+    } finally {
+      await session.endSession();
+    }
+  },
+
   async myBalances(userId: string) {
     const employee = await employeeOfUser(userId);
     const year = new Date().getUTCFullYear();

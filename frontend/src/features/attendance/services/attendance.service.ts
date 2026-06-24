@@ -88,6 +88,12 @@ export const attendanceService = {
     });
     return data.data;
   },
+  async revokeLeave(id: string, reason?: string): Promise<LeaveRequestRecord> {
+    const { data } = await api.post<Env<LeaveRequestRecord>>(`/admin/leave-requests/${id}/revoke`, {
+      ...(reason ? { reason } : {}),
+    });
+    return data.data;
+  },
 
   // ---- leave balances (admin/HR) ----
   async adminBalances(employeeId: string, year?: number): Promise<LeaveBalanceRecord[]> {

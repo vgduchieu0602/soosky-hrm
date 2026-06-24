@@ -63,6 +63,7 @@ router.get('/leave-balances/me', authenticate, leaveController.myBalances);
 router.get('/admin/leave-requests', authenticate, hrOrAdmin, leaveController.adminList);
 router.post('/admin/leave-requests/:id/approve', authenticate, hrOrAdmin, leaveController.approve);
 router.post('/admin/leave-requests/:id/reject', authenticate, hrOrAdmin, validate(rejectLeaveDto, 'body'), leaveController.reject);
+router.post('/admin/leave-requests/:id/revoke', authenticate, hrOrAdmin, leaveController.revoke);
 router.get('/admin/leave-balances/:employeeId', authenticate, hrOrAdmin, leaveController.adminBalances);
 router.post('/admin/leave-balances', authenticate, hrOrAdmin, validate(upsertLeaveBalanceDto, 'body'), leaveController.upsertBalance);
 

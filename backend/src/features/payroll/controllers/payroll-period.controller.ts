@@ -57,6 +57,22 @@ export const payrollPeriodController = {
       next(e);
     }
   },
+  async reopen(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params as { id: string };
+      res.json({ data: await payrollPeriodService.reopen(id, userId(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params as { id: string };
+      res.json({ data: await payrollPeriodService.remove(id, userId(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
   async lockAttendance(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params as { id: string };

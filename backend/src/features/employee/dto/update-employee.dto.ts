@@ -5,6 +5,8 @@ const objectId = z.string().length(24);
 
 export const updateEmployeeDto = z
   .object({
+    employeeCode: z.string().min(3).max(40).trim().optional(),
+    fingerprintId: z.string().max(40).trim().nullable().optional(),
     departmentId: objectId.optional(),
     positionId: objectId.optional(),
     managerId: objectId.nullable().optional(),

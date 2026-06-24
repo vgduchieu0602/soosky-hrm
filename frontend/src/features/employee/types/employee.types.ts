@@ -171,6 +171,8 @@ export interface UpdateProfileInput {
 }
 
 export interface UpdateWorkInput {
+  employeeCode?: string;
+  fingerprintId?: string | null;
   departmentId?: string;
   positionId?: string;
   managerId?: string | null;

@@ -23,4 +23,9 @@ export const payrollPeriodRepository = {
     if (!Types.ObjectId.isValid(id)) return null;
     return PayrollPeriod.findByIdAndUpdate(id, patch, { new: true });
   },
+
+  deleteById(id: string) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return PayrollPeriod.findByIdAndDelete(id);
+  },
 };
