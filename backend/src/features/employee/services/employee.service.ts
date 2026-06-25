@@ -17,6 +17,14 @@ import { Department } from '@shared/models/department.model';
 import { Position } from '@shared/models/position.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
 import { LeaveBalance } from '@shared/models/leave-balance.model';
+import { LeaveRequest } from '@shared/models/leave-request.model';
+import { Attendance } from '@shared/models/attendance.model';
+import { Payroll } from '@shared/models/payroll.model';
+import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
+import { Allowance } from '@shared/models/allowance.model';
+import { Bonus } from '@shared/models/bonus.model';
+import { Deduction } from '@shared/models/deduction.model';
+import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
 
 import { employeeRepository } from '@features/employee/repositories/employee.repository';
 import { employeeProfileRepository } from '@features/employee/repositories/employee-profile.repository';
@@ -282,6 +290,10 @@ export const employeeService = {
       await Employee.updateOne({ _id: id }, { $unset: { userId: '' } });
     }
 
+    // Detach this employee as a manager so subordinates don't keep a dangling
+    // managerId pointing at a terminated person.
+    await Employee.updateMany({ managerId: new Types.ObjectId(id) }, { $unset: { managerId: '' } });
+
     await employeeHistoryService.record({
       employeeId: id,
       eventType: 'terminated',
@@ -351,6 +363,20 @@ export const employeeService = {
         await EmployeeContractModel.deleteMany({ employeeId: employeeObjId }, { session });
         await EmployeeAsset.deleteMany({ employeeId: employeeObjId }, { session });
         await EmployeeHistory.deleteMany({ employeeId: employeeObjId }, { session });
+
+        // HR-domain records keyed by employeeId — remove so no rows are orphaned.
+        await Attendance.deleteMany({ employeeId: employeeObjId }, { session });
+        await LeaveRequest.deleteMany({ employeeId: employeeObjId }, { session });
+        await LeaveBalance.deleteMany({ employeeId: employeeObjId }, { session });
+        await Payroll.deleteMany({ employeeId: employeeObjId }, { session });
+        await MonthlyEvaluation.deleteMany({ employeeId: employeeObjId }, { session });
+        await Allowance.deleteMany({ employeeId: employeeObjId }, { session });
+        await Bonus.deleteMany({ employeeId: employeeObjId }, { session });
+        await Deduction.deleteMany({ employeeId: employeeObjId }, { session });
+        await EmployeeTaxProfile.deleteMany({ employeeId: employeeObjId }, { session });
+
+        // Detach this employee as a manager of anyone else.
+        await Employee.updateMany({ managerId: employeeObjId }, { $unset: { managerId: '' } }, { session });
 
         if (linkedUserId) {
           await UserRole.deleteMany({ userId: linkedUserId }, { session });
