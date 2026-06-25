@@ -150,6 +150,20 @@ export const evaluationService = {
 
     // Ratio = SIMPLE AVERAGE of each group's sub-indicators (no weights).
     const types = await criterionTypeSets();
+
+    // Guard against silent under-pay: finalizing with a whole group left
+    // unscored would average to 0 and zero out that salary band (perf 60% /
+    // goal 20%). Require every active criterion in each group to be scored.
+    if (finalize) {
+      const scored = new Set(input.criteriaScores.map((s) => String(s.criterionId)));
+      if (types.performance.size > 0 && [...types.performance].some((id) => !scored.has(id))) {
+        throw conflict('Chưa chấm đủ chỉ số nhóm Hiệu suất', 'EVAL_INCOMPLETE_PERFORMANCE');
+      }
+      if (types.goal.size > 0 && [...types.goal].some((id) => !scored.has(id))) {
+        throw conflict('Chưa chấm đủ chỉ số nhóm Mục tiêu', 'EVAL_INCOMPLETE_GOAL');
+      }
+    }
+
     const performanceRatio = simpleAverage(input.criteriaScores, types.performance);
     const goalRatio = simpleAverage(input.criteriaScores, types.goal);
 

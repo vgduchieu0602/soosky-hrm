@@ -22,6 +22,7 @@ import { employeeRepository } from '@features/employee/repositories/employee.rep
 import { employeeProfileRepository } from '@features/employee/repositories/employee-profile.repository';
 import { employeeHistoryService } from '@features/employee/services/employee-history.service';
 import { auditService } from '@features/iam/services/audit.service';
+import { sessionRepository } from '@features/iam/repositories/session.repository';
 
 import type { CreateEmployeeDto } from '@features/employee/dto/create-employee.dto';
 import type { UpdateEmployeeDto } from '@features/employee/dto/update-employee.dto';
@@ -270,6 +271,16 @@ export const employeeService = {
       status: 'terminated',
       terminationDate: input.terminationDate,
     });
+
+    // Revoke system access on off-boarding: disable the linked login account,
+    // kill all live sessions, and detach the account from the employee so a
+    // terminated person can no longer authenticate (login + refresh both check
+    // user.status === 'active').
+    if (employee.userId) {
+      await User.updateOne({ _id: employee.userId }, { $set: { status: 'disabled' } });
+      await sessionRepository.revokeAllForUser(String(employee.userId));
+      await Employee.updateOne({ _id: id }, { $unset: { userId: '' } });
+    }
 
     await employeeHistoryService.record({
       employeeId: id,

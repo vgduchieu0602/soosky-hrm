@@ -420,7 +420,10 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     ),
   );
   const totalDeductions = insurance.insurance + tax + unionFee + otherDeductions;
-  const netSalary = grossSalary - insurance.insurance - tax - unionFee - otherDeductions;
+  // Net can never be negative: if total deductions exceed gross (e.g. an
+  // over-large fixed/percentage deduction was entered), floor at 0 rather than
+  // emitting a negative payslip.
+  const netSalary = Math.max(0, grossSalary - insurance.insurance - tax - unionFee - otherDeductions);
 
   return {
     ...effective,
