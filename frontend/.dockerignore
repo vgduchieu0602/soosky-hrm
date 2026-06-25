@@ -1,0 +1,11 @@
+# Không gửi vào build context (xem giải thích ở backend/.dockerignore).
+node_modules
+dist
+.env
+.env.*
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+coverage

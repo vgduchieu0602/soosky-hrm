@@ -1,0 +1,21 @@
+# .dockerignore — những thứ KHÔNG gửi vào Docker build context.
+#
+# TƯ TƯỞNG: mọi file trong thư mục này bị "loại" trước khi Docker bắt đầu build.
+# Lợi ích:
+#   - Build nhanh hơn (không copy node_modules khổng lồ / file rác).
+#   - Image sạch hơn, không lẫn secret (.env) hay artefact local.
+#   - Tránh ghi đè node_modules của container bằng node_modules của máy Windows
+#     (native module biên dịch theo OS -> dễ lỗi nếu mang nhầm).
+
+node_modules
+dist
+.env
+.env.*
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+coverage
+tests
+**/*.spec.ts
