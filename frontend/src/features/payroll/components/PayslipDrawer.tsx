@@ -1,9 +1,11 @@
-import { Check, Loader2, RotateCcw, X } from "lucide-react";
+import { Check, Loader2, Printer, RotateCcw, X } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/shared/utils/cn";
 import { parseDecimal, fmtVND } from "@/shared/utils/money";
+import { printPayslip } from "@features/payroll/utils/payslip-print";
 import type { PayrollRecord, PayrollStatus } from "@features/payroll/types/payroll.types";
 
 export interface EmpInfo {
@@ -33,6 +35,10 @@ interface Props {
 
 export function PayslipDrawer({ p, emp, periodName, busy, onApprove, onRevert, onClose }: Props) {
   const st = STATUS[p.status];
+  const handlePrint = () => {
+    const ok = printPayslip(p, emp, periodName);
+    if (!ok) toast.error("Trình duyệt chặn cửa sổ in. Hãy cho phép pop-up rồi thử lại.");
+  };
   const deductionRows = [
     { label: "BHXH (8%)", value: parseDecimal(p.socialInsurance) },
     { label: "BHYT (1.5%)", value: parseDecimal(p.healthInsurance) },
@@ -59,7 +65,10 @@ export function PayslipDrawer({ p, emp, periodName, busy, onApprove, onRevert, o
       <div className="absolute inset-0 bg-secondary-900/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative flex h-full w-[540px] max-w-[94vw] flex-col bg-background shadow-2xl animate-[slideOver_.28s_cubic-bezier(.2,.8,.2,1)]">
         <div className="relative shrink-0 overflow-hidden px-6 pb-5 pt-6 text-white" style={{ background: "linear-gradient(135deg,#1B3A74,#163985 55%,#11295C)" }}>
-          <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white"><X className="size-4" /></button>
+          <div className="absolute right-4 top-4 flex items-center gap-1.5">
+            <button onClick={handlePrint} title="Lưu thành PDF / In phiếu lương" className="flex h-8 items-center gap-1.5 rounded-lg bg-white/10 px-2.5 text-[12.5px] font-medium text-white/90 transition hover:bg-white/20 hover:text-white"><Printer className="size-3.5" /> Lưu PDF</button>
+            <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white"><X className="size-4" /></button>
+          </div>
           <div className="flex items-center gap-4">
             <span className="flex size-14 items-center justify-center rounded-full bg-white/10 text-[18px] font-medium ring-2 ring-white/20">{emp.initials}</span>
             <div className="min-w-0">
