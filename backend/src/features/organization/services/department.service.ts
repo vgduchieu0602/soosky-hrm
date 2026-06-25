@@ -93,7 +93,7 @@ export const departmentService = {
         lastName?: string;
         avatarUrl?: string;
       }>([
-        { $match: { _id: { $in: managerIds } } },
+        { $match: { _id: { $in: managerIds }, status: { $ne: 'terminated' } } },
         {
           $lookup: {
             from: 'employeeProfiles',
