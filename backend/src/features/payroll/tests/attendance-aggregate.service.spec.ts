@@ -2,6 +2,7 @@
 import {
   summarizeAttendance,
   toPayrollWorkDays,
+  dedupeByDay,
   type AttendanceRow,
 } from '@features/payroll/services/attendance-aggregate.service';
 
@@ -75,6 +76,48 @@ describe('summarizeAttendance', () => {
     const s = summarizeAttendance([]);
     expect(s.actualWorkDays).toBe(0);
     expect(s.recordCount).toBe(0);
+  });
+});
+
+describe('dedupeByDay (double-count guard)', () => {
+  const dayRow = (
+    date: string,
+    status: AttendanceRow['status'],
+    session: AttendanceRow['session'] = 'full_day',
+  ): AttendanceRow & { date: Date } => ({ date: new Date(date), status, session });
+
+  it('collapses a full-day leave that coexists with a punch on the same day', () => {
+    // A present punch (real shiftId) and a leave_paid row (shiftId:null) can both
+    // exist for one day — without dedupe the day counts as 2 paid days.
+    const rows = [
+      dayRow('2026-06-01', 'present'),
+      dayRow('2026-06-01', 'leave_paid'),
+    ];
+    const s = summarizeAttendance(dedupeByDay(rows));
+    expect(s.actualWorkDays).toBe(1);
+    expect(s.workedDays).toBe(0);
+    expect(s.paidLeaveDays).toBe(1);
+  });
+
+  it('leaves distinct days untouched', () => {
+    const rows = [
+      dayRow('2026-06-01', 'present'),
+      dayRow('2026-06-02', 'leave_paid'),
+      dayRow('2026-06-03', 'present'),
+    ];
+    const s = summarizeAttendance(dedupeByDay(rows));
+    expect(s.actualWorkDays).toBe(3);
+    expect(s.workedDays).toBe(2);
+    expect(s.paidLeaveDays).toBe(1);
+  });
+
+  it('does not collapse when no full-day leave/holiday override is present', () => {
+    const rows = [
+      dayRow('2026-06-01', 'present', 'morning'),
+      dayRow('2026-06-01', 'present', 'afternoon'),
+    ];
+    const s = summarizeAttendance(dedupeByDay(rows));
+    expect(s.workedDays).toBe(1); // 0.5 + 0.5, two legitimate half-day sessions
   });
 });
 

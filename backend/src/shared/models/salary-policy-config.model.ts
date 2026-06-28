@@ -28,8 +28,13 @@ export interface ISalaryPolicyConfig {
   /** Union fee (đoàn phí công đoàn) as a percent of socialInsuranceSalary. */
   unionFeeRate: number;
   unionFeeEnabled: boolean;
-  /** Probation/internship pay as a PERCENT of contract salary (default 85). */
+  /** Probation pay as a PERCENT of contract salary (default 85). */
   probationPayRate: number;
+  /** @deprecated No longer used to compute intern pay. Interns are now paid their
+   *  FULL contract salary, attendance-prorated only (no perf/goal split, no
+   *  compulsory insurance) — see payroll-run.service. Kept for back-compat /
+   *  historical records; safe to drop in a future migration. */
+  internStipend: mongoose.Types.Decimal128;
   /** Weights for the 20/60/20 effective base salary formula. */
   salaryComponentWeights: ISalaryComponentWeights;
   createdBy?: Types.ObjectId | null;
@@ -66,6 +71,7 @@ const salaryPolicyConfigSchema = new Schema<ISalaryPolicyConfig>(
     unionFeeRate: { type: Number, default: 1 },
     unionFeeEnabled: { type: Boolean, default: true },
     probationPayRate: { type: Number, default: 85, min: 0, max: 100 },
+    internStipend: { type: Schema.Types.Decimal128, default: () => mongoose.Types.Decimal128.fromString('1500000') },
     salaryComponentWeights: {
       type: salaryComponentWeightsSchema,
       default: () => ({ attendance: 20, performance: 60, goal: 20 }),

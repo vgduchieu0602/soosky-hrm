@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '@shared/middlewares/authenticate';
 import { requireRoles } from '@shared/middlewares/require-role';
+import { selfOrHr } from '@shared/middlewares/self-or-hr';
 import { validate } from '@shared/middlewares/validate';
 
 import { employeeController } from '@features/employee/controllers/employee.controller';
@@ -46,58 +47,64 @@ router.get('/employees/reminders', authenticate, hrOrAdmin, employeeController.r
 router.post('/admin/employees/reminders/run', authenticate, hrOrAdmin, employeeController.runReminders);
 router.get('/employees/export', authenticate, employeeController.exportCsv);
 router.get('/employees/me', authenticate, employeeController.getMe);
-router.get('/employees/:id', authenticate, employeeController.getById);
-router.get('/employees/:id/account', authenticate, employeeController.getAccount);
-router.get('/employees/:id/completeness', authenticate, employeeController.completeness);
-router.get('/employees/:id/profile', authenticate, employeeController.getProfile);
+router.get('/employees/:id', authenticate, selfOrHr(), employeeController.getById);
+router.get('/employees/:id/account', authenticate, selfOrHr(), employeeController.getAccount);
+router.get('/employees/:id/completeness', authenticate, selfOrHr(), employeeController.completeness);
+router.get('/employees/:id/profile', authenticate, selfOrHr(), employeeController.getProfile);
 router.patch(
   '/employees/:id/profile',
   authenticate,
+  selfOrHr(),
   validate(updateProfileDto, 'body'),
   employeeController.updateProfile,
 );
 
-// Sub-resources — read accessible to any authenticated user (HR & self)
-router.get('/employees/:id/documents', authenticate, documentController.list);
-router.get('/employees/:id/contacts', authenticate, contactController.list);
-router.get('/employees/:id/bank-accounts', authenticate, bankAccountController.list);
-router.get('/employees/:id/contracts', authenticate, contractController.list);
-router.get('/employees/:id/assets', authenticate, assetController.list);
-router.get('/employees/:id/history', authenticate, historyController.list);
+// Sub-resources — read accessible to the owner employee or HR/Admin
+router.get('/employees/:id/documents', authenticate, selfOrHr(), documentController.list);
+router.get('/employees/:id/contacts', authenticate, selfOrHr(), contactController.list);
+router.get('/employees/:id/bank-accounts', authenticate, selfOrHr(), bankAccountController.list);
+router.get('/employees/:id/contracts', authenticate, selfOrHr(), contractController.list);
+router.get('/employees/:id/assets', authenticate, selfOrHr(), assetController.list);
+router.get('/employees/:id/history', authenticate, selfOrHr(), historyController.list);
 
-// Sub-resource writes accessible to self or HR (no role gate here — service can refine)
+// Sub-resource writes accessible to the owner employee or HR/Admin
 router.post(
   '/employees/:id/documents',
   authenticate,
+  selfOrHr(),
   validate(createDocumentDto, 'body'),
   documentController.create,
 );
 router.post(
   '/employees/:id/contacts',
   authenticate,
+  selfOrHr(),
   validate(createContactDto, 'body'),
   contactController.create,
 );
 router.patch(
   '/employees/:id/contacts/:contactId',
   authenticate,
+  selfOrHr(),
   validate(updateContactDto, 'body'),
   contactController.update,
 );
-router.delete('/employees/:id/contacts/:contactId', authenticate, contactController.remove);
+router.delete('/employees/:id/contacts/:contactId', authenticate, selfOrHr(), contactController.remove);
 router.post(
   '/employees/:id/bank-accounts',
   authenticate,
+  selfOrHr(),
   validate(createBankAccountDto, 'body'),
   bankAccountController.create,
 );
 router.patch(
   '/employees/:id/bank-accounts/:accountId',
   authenticate,
+  selfOrHr(),
   validate(updateBankAccountDto, 'body'),
   bankAccountController.update,
 );
-router.delete('/employees/:id/bank-accounts/:accountId', authenticate, bankAccountController.remove);
+router.delete('/employees/:id/bank-accounts/:accountId', authenticate, selfOrHr(), bankAccountController.remove);
 
 // ---------- Admin / HR-only mutations ----------
 router.post(

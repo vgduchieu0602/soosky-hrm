@@ -193,7 +193,7 @@ docker network ls | grep hrm-net
 docker run --rm -it \
   --network <NET> \
   --env-file .env \
-  -e MONGO_URI="mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGO_DB_NAME}?replicaSet=replicaset&authSource=admin" \
+  -e MONGO_URI="mongodb://mongodb:27017/${MONGO_DB_NAME}?replicaSet=rs0" \
   -v "$PWD/backend:/app" -w /app \
   node:22-alpine sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm seed"
 ```
@@ -295,25 +295,20 @@ docker compose exec backend sh
 **Backup thủ công:**
 
 ```bash
-docker compose exec mongodb mongodump \
-  --username "$MONGO_ROOT_USER" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --db "$MONGO_DB_NAME" \
-  --archive=/tmp/hrm-backup.archive
+docker compose exec mongodb mongodump --db "$MONGO_DB_NAME" --archive=/tmp/hrm-backup.archive
 docker compose cp mongodb:/tmp/hrm-backup.archive ./hrm-$(date +%F).archive
 ```
 
 **Backup tự động hằng ngày** — thêm vào crontab (`crontab -e`):
 
 ```cron
-0 2 * * * cd /home/deploy/hrm && docker compose exec -T mongodb mongodump --username "$MONGO_ROOT_USER" --password "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin --db soosky_hrm --archive | gzip > /home/deploy/backups/hrm-$(date +\%F).archive.gz
+0 2 * * * cd /home/deploy/apps/hrm && docker compose exec -T mongodb mongodump --db soosky_hrm --archive | gzip > /home/deploy/backups/hrm-$(date +\%F).archive.gz
 ```
 
 **Phục hồi:**
 
 ```bash
-gunzip < hrm-2026-06-25.archive.gz | docker compose exec -T mongodb mongorestore \
-  --username "$MONGO_ROOT_USER" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --archive --drop
+gunzip < hrm-2026-06-25.archive.gz | docker compose exec -T mongodb mongorestore --archive --drop
 ```
 
 ---

@@ -73,8 +73,8 @@ export const contactController = {
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
-      const { contactId } = req.params as { contactId: string };
-      res.json({ data: await employeeContactService.remove(contactId, user.userId) });
+      const { id, contactId } = req.params as { id: string; contactId: string };
+      res.json({ data: await employeeContactService.remove(id, contactId, user.userId) });
     } catch (err) { next(err); }
   },
 };

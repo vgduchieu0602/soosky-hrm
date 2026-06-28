@@ -11,14 +11,16 @@ export const employeeContactRepository = {
     return EmployeeContact.create(input);
   },
 
-  updateById(id: string, patch: Partial<IEmployeeContact>) {
-    if (!Types.ObjectId.isValid(id)) return null;
-    return EmployeeContact.findByIdAndUpdate(id, patch, { new: true });
+  // Scoped by employeeId so a caller can only touch contacts that actually
+  // belong to the employee in the URL (prevents cross-employee id tampering).
+  updateById(employeeId: string, id: string, patch: Partial<IEmployeeContact>) {
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(employeeId)) return null;
+    return EmployeeContact.findOneAndUpdate({ _id: id, employeeId }, patch, { new: true });
   },
 
-  deleteById(id: string) {
-    if (!Types.ObjectId.isValid(id)) return null;
-    return EmployeeContact.findByIdAndDelete(id);
+  deleteById(employeeId: string, id: string) {
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(employeeId)) return null;
+    return EmployeeContact.findOneAndDelete({ _id: id, employeeId });
   },
 
   clearPrimary(employeeId: string) {

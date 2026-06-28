@@ -40,7 +40,7 @@ export const employeeContactService = {
     if (input.isPrimary) {
       await employeeContactRepository.clearPrimary(employeeId);
     }
-    const updated = await employeeContactRepository.updateById(contactId, input);
+    const updated = await employeeContactRepository.updateById(employeeId, contactId, input);
     if (!updated) throw new HttpError(404, 'Contact not found', 'EMP_005');
     await auditService.record({
       userId: auditUserId,
@@ -52,8 +52,8 @@ export const employeeContactService = {
     return updated.toJSON();
   },
 
-  async remove(contactId: string, auditUserId: string) {
-    const deleted = await employeeContactRepository.deleteById(contactId);
+  async remove(employeeId: string, contactId: string, auditUserId: string) {
+    const deleted = await employeeContactRepository.deleteById(employeeId, contactId);
     if (!deleted) throw new HttpError(404, 'Contact not found', 'EMP_005');
     await auditService.record({
       userId: auditUserId,

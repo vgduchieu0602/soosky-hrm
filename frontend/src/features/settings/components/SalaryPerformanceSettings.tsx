@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, Wallet, Gauge, Target, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
+import { fmtVND } from "@/shared/utils/money";
 import { settingsService } from "@features/settings/services/settings.service";
 import { SalaryPolicyDialog } from "@features/settings/components/SalaryPolicyDialog";
 import { SettingsSection, CountBadge } from "@features/settings/components/SettingsSection";
@@ -40,7 +41,7 @@ export function SalaryPerformanceSettings({ canManage, canManagePolicy }: Props)
         icon={Wallet}
         tone="cyan"
         title="Cấu hình lương"
-        description={`Lương cơ bản chia 3 cấu phần: ngày công · hiệu suất · mục tiêu.${latest ? ` Lương cơ sở ${Number(latest.baseSalary).toLocaleString("vi-VN")}đ.` : ""}`}
+        description={`Lương cơ bản chia 3 cấu phần: ngày công · hiệu suất · mục tiêu.${latest ? ` Lương cơ sở ${fmtVND(latest.baseSalary)}đ.` : ""}`}
         action={canManagePolicy && (
           <Button variant="outline" size="sm" onClick={() => setPolicyDlg(true)} className="h-8 gap-1.5 rounded-lg text-[12.5px]">
             {latest ? <><Pencil className="size-3.5" /> Sửa chính sách</> : <><Plus className="size-3.5" /> Tạo chính sách</>}

@@ -112,6 +112,16 @@ async function syncLeaveAttendance(
     : enumerateDays(req.startDate, req.endDate).filter((d) => !isWeekend(d) && !isHoliday(d));
 
   for (const day of days) {
+    // A full-day approved leave supersedes any punch/manual record for that day,
+    // otherwise the leave row (shiftId:null, outside the unique index) coexists
+    // with a `present` row and payroll counts the day twice. Half-day leave only
+    // covers one session, so the other half's record is kept.
+    if (!req.halfDaySession) {
+      await Attendance.deleteMany(
+        { employeeId: req.employeeId, date: day, leaveRequestId: { $ne: req._id } },
+        { session },
+      );
+    }
     await Attendance.updateOne(
       { employeeId: req.employeeId, date: day, leaveRequestId: req._id },
       {
@@ -344,11 +354,15 @@ export const leaveService = {
         await req.save({ session });
 
         const year = vnDateKey(req.startDate).getUTCFullYear();
-        await LeaveBalance.updateOne(
+        // Restore the used balance, but never let it go negative (e.g. if HR
+        // manually reset `used` after the leave was approved).
+        const bal = await LeaveBalance.findOne(
           { employeeId: req.employeeId, leaveType: req.leaveType, year },
-          { $inc: { used: -req.days } },
-          { session },
-        );
+        ).session(session);
+        if (bal) {
+          bal.used = Math.max(0, bal.used - req.days);
+          await bal.save({ session });
+        }
         await clearLeaveAttendance(req._id, session);
 
         await auditService.record({

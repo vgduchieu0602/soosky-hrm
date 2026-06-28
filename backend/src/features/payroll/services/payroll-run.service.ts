@@ -82,6 +82,8 @@ export interface PayrollRunContext {
   /** Other post-tax deductions (recurring + one-off for the period). */
   deductions: { type: 'fixed' | 'percentage'; amount: number }[];
   overtimePay: number;
+  /** PIT-exempt portion of overtimePay (the premium above the normal wage). */
+  overtimeNonTaxablePay: number;
   totalBonuses: number;
   totalNonTaxableBonuses: number;
 
@@ -115,6 +117,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     unionFee: ctx.unionFee,
     deductions: ctx.deductions,
     overtimePay: ctx.overtimePay,
+    overtimeNonTaxablePay: ctx.overtimeNonTaxablePay,
     totalBonuses: ctx.totalBonuses,
     totalNonTaxableBonuses: ctx.totalNonTaxableBonuses,
     socialHealthCeiling: ctx.socialHealthCeiling,
@@ -280,20 +283,25 @@ async function resolveContext(
   // Attendance summary over the period.
   const summary = await aggregatePeriodAttendance(employeeId, period.startDate, period.endDate);
 
-  // Probation / internship contracts: paid 85% of the agreed salary, NOT
-  // subject to compulsory insurance or union fee. Official contracts contribute
-  // insurance on a FIXED company-wide salary (mức đóng BHXH), continuously while
-  // employed (no ≥14-day exemption — that is handled via báo giảm / status).
-  // Tình trạng (not loại HĐLĐ) decides insurance + 85% pay.
-  const isProbation =
-    contract.employmentStatus === 'probation' || contract.employmentStatus === 'internship';
+  // Employment status (tình trạng, not loại HĐLĐ) decides pay base + insurance:
+  //   • internship → FULL contract salary, attendance-prorated only, NO insurance.
+  //   • probation  → 85% of the agreed salary, NO insurance.
+  //   • official   → full agreed salary, contributes compulsory insurance on a
+  //                  FIXED company-wide salary (mức đóng BHXH) + union fee.
+  // Interns/probation are attendance-prorated only (no 60/20 perf/goal split).
+  const isIntern = contract.employmentStatus === 'internship';
+  const isProbation = contract.employmentStatus === 'probation';
+  const isInsuranceExempt = isIntern || isProbation;
+
   const probationRate = (policy.probationPayRate ?? PROBATION_PAY_RATE * 100) / 100;
+  // Intern pay follows the contract salary (chỉ chịu ảnh hưởng của chấm công);
+  // probation is paid a fraction of it; official gets the full amount.
   const effectiveBase = isProbation ? Math.round(baseSalary * probationRate) : baseSalary;
 
   const fixedInsuranceSalary = toNum(policy.socialInsuranceSalary) || baseSalary;
-  const insuranceBaseSalary = isProbation ? 0 : fixedInsuranceSalary;
+  const insuranceBaseSalary = isInsuranceExempt ? 0 : fixedInsuranceSalary;
   const unionFee =
-    !isProbation && policy.unionFeeEnabled
+    !isInsuranceExempt && policy.unionFeeEnabled
       ? Math.round((fixedInsuranceSalary * (policy.unionFeeRate ?? 0)) / 100)
       : 0;
 
@@ -347,10 +355,10 @@ async function resolveContext(
 
     performanceRatio: evaluation?.performanceRatio ?? 0,
     goalRatio: evaluation?.goalRatio ?? 0,
-    // Probation/internship pay is purely attendance-prorated:
-    //   (base × 85%) / standardWorkDays × actualWorkDays
-    // i.e. no 60/40 performance/goal split — model it as a 100% attendance weight.
-    weights: isProbation
+    // Intern/probation pay is purely attendance-prorated (no perf/goal split):
+    //   effectiveBase / standardWorkDays × actualWorkDays
+    // model it as a 100% attendance weight.
+    weights: isInsuranceExempt
       ? { attendance: 100, performance: 0, goal: 0 }
       : policy.salaryComponentWeights,
 
@@ -359,14 +367,16 @@ async function resolveContext(
     totalNonTaxableAllowances: allowances.nonTaxable,
     insuranceBaseSalary,
     // Allowances flagged isInsuranceBase add to the BHXH base — except for
-    // probation/internship, who are not on compulsory insurance.
-    insuranceBaseAllowances: isProbation ? 0 : allowances.insuranceBase,
+    // intern/probation, who are not on compulsory insurance.
+    insuranceBaseAllowances: isInsuranceExempt ? 0 : allowances.insuranceBase,
     unionFee,
     deductions,
     // OT is disabled by company policy (companyConfig.overtimeEnabled = false):
     // the OT engine (computeOvertimePay) exists but pay stays 0. To enable,
-    // source OT hours per employee and call computeOvertimePay here.
+    // source OT hours per employee and call computeOvertimePayBreakdown here,
+    // feeding `.total` to overtimePay and `.nonTaxable` to overtimeNonTaxablePay.
     overtimePay: 0,
+    overtimeNonTaxablePay: 0,
     totalBonuses,
     totalNonTaxableBonuses,
 

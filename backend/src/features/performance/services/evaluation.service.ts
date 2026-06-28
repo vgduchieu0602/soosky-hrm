@@ -21,6 +21,7 @@ import {
   type MonthlyEvaluationDoc,
 } from '@shared/models/monthly-evaluation.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
+import { Payroll } from '@shared/models/payroll.model';
 import { auditService } from '@features/iam/services/audit.service';
 import { computePerformanceRatio } from '@shared/utils/salary.util';
 import type { DirectEvaluateDto } from '@features/performance/dto/evaluation.dto';
@@ -226,6 +227,20 @@ export const evaluationService = {
   async reopen(id: string, hrUserId: string, reason?: string) {
     const doc = await load(id);
     if (doc.status !== 'approved') throw conflict('Chỉ mở lại bản đã duyệt', 'EVAL_NOT_APPROVED');
+    // Refuse if payroll has already locked this evaluation's ratios into a
+    // finalized payslip — reopening would let HR change scores that an
+    // approved/paid payroll already snapshotted, silently diverging the two.
+    const lockedPayroll = await Payroll.findOne({
+      payrollPeriodId: doc.payrollPeriodId,
+      employeeId: doc.employeeId,
+      status: { $in: ['approved', 'paid'] },
+    }).select('_id status').lean();
+    if (lockedPayroll) {
+      throw conflict(
+        `Bảng lương của kỳ này đã ${lockedPayroll.status === 'paid' ? 'thanh toán' : 'duyệt'} — không thể mở lại đánh giá. Hãy hoàn tác bảng lương trước.`,
+        'EVAL_PAYROLL_LOCKED',
+      );
+    }
     doc.status = 'draft';
     doc.approvedAt = null;
     await doc.save();

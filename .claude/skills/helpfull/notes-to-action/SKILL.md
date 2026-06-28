@@ -42,5 +42,3 @@ description: >
 
 # Step 5: Quyết định và kết luận
 
-  Liệt kê rõ: 
-  - Quyết định đã được chốt 

@@ -139,8 +139,35 @@ export async function aggregatePeriodAttendance(
   start: Date,
   end: Date,
 ): Promise<AttendanceSummary> {
-  const rows = await Attendance.find({ employeeId, date: { $gte: start, $lte: end } })
-    .select('session status workHours')
-    .lean<AttendanceRow[]>();
-  return summarizeAttendance(rows);
+  const raw = await Attendance.find({ employeeId, date: { $gte: start, $lte: end } })
+    .select('session status workHours date')
+    .lean<Array<AttendanceRow & { date: Date }>>();
+  return summarizeAttendance(dedupeByDay(raw));
+}
+
+const FULL_DAY_OVERRIDE: ReadonlySet<AttendanceStatus> = new Set([
+  'leave_paid',
+  'leave_unpaid',
+  'holiday',
+]);
+
+/**
+ * Defence-in-depth against double-counting: a full-day leave/holiday row (which
+ * has shiftId:null and thus escapes the per-shift unique index) can coexist with
+ * a `present` punch on the same day. When that happens the full-day leave/holiday
+ * supersedes every other record for that calendar day, so payroll counts the day
+ * once. Days without such an override pass through unchanged.
+ */
+export function dedupeByDay<T extends AttendanceRow & { date: Date }>(rows: T[]): AttendanceRow[] {
+  const overrideByDay = new Map<number, T>();
+  for (const r of rows) {
+    if (r.session === 'full_day' && FULL_DAY_OVERRIDE.has(r.status)) {
+      overrideByDay.set(r.date.getTime(), r);
+    }
+  }
+  if (overrideByDay.size === 0) return rows;
+  return rows.filter((r) => {
+    const override = overrideByDay.get(r.date.getTime());
+    return !override || r === override;
+  });
 }

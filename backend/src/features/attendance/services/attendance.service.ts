@@ -105,6 +105,20 @@ export const attendanceService = {
     const now = new Date();
     const dateKey = vnDateKey(now, policy.timezone);
     await assertAttendanceUnlocked(dateKey);
+
+    // Block punching on a day already covered by an approved full-day leave —
+    // otherwise this `present` row coexists with the leave row and payroll
+    // counts the day twice.
+    const onLeave = await Attendance.findOne({
+      employeeId: employee._id,
+      date: dateKey,
+      source: 'leave',
+      session: 'full_day',
+    }).select('_id').lean();
+    if (onLeave) {
+      throw new HttpError(409, 'Bạn đang có đơn nghỉ phép đã duyệt trong ngày này', 'ATT_007');
+    }
+
     const window: ShiftWindow = { startTime: shift.startTime, endTime: shift.endTime, breakMinutes: shift.breakMinutes };
 
     const existing = await Attendance.findOne({ employeeId: employee._id, date: dateKey, shiftId: shift._id });

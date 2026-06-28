@@ -26,6 +26,7 @@ const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => ({
   unionFee: 0,
   deductions: [],
   overtimePay: 0,
+  overtimeNonTaxablePay: 0,
   totalBonuses: 0,
   totalNonTaxableBonuses: 0,
   socialHealthCeiling: 46_800_000,
@@ -116,11 +117,10 @@ describe('buildPayrollDoc', () => {
       }),
     );
     expect(doc.attendanceRatio).toBe(0.5);
-    // attendance component halved: 0.2*30m*0.5 = 3m ; perf 6m ; goal... wait full perf/goal
-    // proRated = 3m + 6m(0.6*30m*1) ... actually performanceRatio 100 → 18m, goal 6m
-    // 0.2*30m*0.5=3m + 0.6*30m=18m + 0.2*30m=6m = 27m
-    expect(num(doc.proRatedBaseSalary)).toBe(27_000_000);
-    expect(num(doc.grossSalary)).toBe(27_000_000);
+    // Every component is prorated by attendance (absence reduces the whole pay):
+    //   attendance 0.2*30m*0.5 = 3m ; perf 0.6*30m*1*0.5 = 9m ; goal 0.2*30m*1*0.5 = 3m
+    expect(num(doc.proRatedBaseSalary)).toBe(15_000_000);
+    expect(num(doc.grossSalary)).toBe(15_000_000);
   });
 
   it('keeps the net invariant: net = gross - insurance - tax', () => {

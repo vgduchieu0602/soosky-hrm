@@ -1,4 +1,8 @@
-import axios from "axios";
+import axios, {
+  AxiosError,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from "axios";
 import { useAuthStore } from "@core/store/auth.store";
 
 const api = axios.create({
@@ -13,16 +17,68 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+function forceLogout() {
+  useAuthStore.getState().logout();
+  if (!window.location.pathname.startsWith("/auth/")) {
+    window.location.href = "/auth/login";
+  }
+}
+
+// Single-flight refresh: concurrent 401s share one /auth/refresh call and
+// retry once it resolves, instead of each triggering its own logout.
+let refreshing: Promise<string> | null = null;
+
+function refreshToken(): Promise<string> {
+  if (!refreshing) {
+    refreshing = axios
+      .post<{ data: { accessToken: string } }>(
+        "/auth/refresh",
+        undefined,
+        { baseURL: api.defaults.baseURL, withCredentials: true },
+      )
+      .then((res) => {
+        const token = res.data.data.accessToken;
+        useAuthStore.getState().setToken(token);
+        return token;
+      })
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+}
+
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      const path = window.location.pathname;
-      if (!path.startsWith("/auth/")) {
-        useAuthStore.getState().logout();
-        window.location.href = "/auth/login";
+  async (err: AxiosError) => {
+    const original = err.config as
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
+      | undefined;
+    const status = err.response?.status;
+    const url = original?.url ?? "";
+
+    // Don't try to refresh the refresh/login calls themselves, or when we've
+    // already retried this request once.
+    const isAuthCall =
+      url.includes("/auth/refresh") || url.includes("/auth/login");
+
+    if (status === 401 && original && !original._retry && !isAuthCall) {
+      original._retry = true;
+      try {
+        const token = await refreshToken();
+        original.headers = original.headers ?? {};
+        original.headers.Authorization = `Bearer ${token}`;
+        return api(original as AxiosRequestConfig);
+      } catch {
+        forceLogout();
+        return Promise.reject(err);
       }
     }
+
+    if (status === 401 && !isAuthCall) {
+      forceLogout();
+    }
+
     return Promise.reject(err);
   },
 );

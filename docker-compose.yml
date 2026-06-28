@@ -1,50 +1,63 @@
 # =============================================================================
-# docker-compose.yml — Soosky HRM (Dự án 1)
-# Chuẩn "NHIỀU DỰ ÁN TRÊN 1 VPS": dùng chung 1 Caddy reverse proxy.
+# docker-compose.yml — Soosky HRM
+# Bộ Docker TỰ CHỨA: chạy được ngay bằng "docker compose up -d --build".
 # -----------------------------------------------------------------------------
 # TƯ TƯỞNG:
 #
-#   VPS này chạy nhiều dự án. Không dự án nào được giành cổng 80/443. Thay vào đó:
+#   3 container ghép thành 1 hệ thống:
 #
-#     - Có MỘT Caddy proxy dùng chung (cài 1 lần ở ~/infra) lắng nghe 80/443.
-#     - Mỗi dự án KHÔNG mở cổng ra Internet. Frontend của dự án chỉ gắn vào mạng
-#       chung "web" và DÁN NHÃN (label) khai báo domain. Caddy đọc nhãn này, tự
-#       định tuyến đúng domain về đúng container và tự cấp HTTPS.
+#        Internet
+#           │  cổng ${WEB_PORT} (mặc định 80)
+#           ▼
+#      ┌──────────┐   /api    ┌──────────┐         ┌──────────┐
+#      │ frontend │ ────────► │ backend  │ ──────► │ mongodb  │
+#      │  (nginx) │  proxy    │ (node)   │ mongoose│ (replSet)│
+#      └──────────┘           └──────────┘         └──────────┘
+#        public                internal             internal
 #
-#   Nhờ vậy thêm dự án mới = copy mẫu + đổi domain, KHÔNG đụng dự án đang chạy.
+#   BẢO MẬT: chỉ frontend mở cổng ra ngoài. backend + mongodb chỉ sống trong
+#   mạng nội bộ "hrm-net" -> Internet không gọi thẳng vào API/DB được.
 #
-#   "name: hrm" -> đặt tên stack cố định để network/volume của dự án này được
-#   gắn tiền tố "hrm_", không lẫn với 4 dự án kia.
+#   NHIỀU DỰ ÁN TRÊN 1 VPS (không cần tên miền):
+#   mỗi dự án đặt WEB_PORT khác nhau trong .env -> truy cập http://IP:port.
+#     HRM   -> WEB_PORT=80     -> http://<IP>
+#     DA2   -> WEB_PORT=8081   -> http://<IP>:8081
+#     DA3   -> WEB_PORT=8082   -> http://<IP>:8082 ...
+#   (Khi nào có tên miền + HTTPS, xem phần Caddy trong DEPLOY-DOCKER.md.)
+#
+#   "name: hrm" -> network/volume được gắn tiền tố "hrm_", không đụng dự án khác.
 # =============================================================================
 name: hrm
 
 services:
   # ---------------------------------------------------------------------------
-  # MongoDB — replica set 1 node (app dùng transactions nên bắt buộc replSet)
-  # CHỈ ở mạng nội bộ "hrm-net" -> không dự án khác và không Internet thấy được.
+  # MongoDB — replica set 1 node (app dùng transactions nên BẮT BUỘC replSet).
+  # Image chính chủ mongo:7. Không mật khẩu nhưng đóng kín mạng nội bộ (không
+  # "ports:") -> chỉ backend cùng dự án với tới được. Replica set tự khởi tạo
+  # qua healthcheck ở lần chạy đầu, không cần thao tác tay.
   # ---------------------------------------------------------------------------
   mongodb:
-    image: bitnami/mongodb:7.0
+    image: mongo:7
     restart: unless-stopped
-    environment:
-      MONGODB_REPLICA_SET_MODE: primary
-      MONGODB_ADVERTISED_HOSTNAME: mongodb
-      MONGODB_ROOT_USER: ${MONGO_ROOT_USER}
-      MONGODB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      MONGODB_REPLICA_SET_KEY: ${MONGO_REPLICA_SET_KEY}
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
-      - mongo_data:/bitnami/mongodb
+      - mongo_data:/data/db          # dữ liệu còn nguyên khi build/restart lại
     networks:
       - hrm-net
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        - "CMD-SHELL"
+        - >
+          mongosh --quiet --eval
+          "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }"
+          | grep -q 1
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
 
   # ---------------------------------------------------------------------------
-  # Backend — Express API. CHỈ ở mạng nội bộ. Không lộ cổng, không vào "web".
+  # Backend — Express API. Chỉ ở mạng nội bộ, không lộ cổng ra ngoài.
   # ---------------------------------------------------------------------------
   backend:
     build:
@@ -53,11 +66,11 @@ services:
     restart: unless-stopped
     depends_on:
       mongodb:
-        condition: service_healthy
+        condition: service_healthy   # chờ Mongo sẵn sàng rồi mới khởi động API
     environment:
       NODE_ENV: production
       PORT: 3000
-      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGO_DB_NAME}?replicaSet=replicaset&authSource=admin
+      MONGO_URI: mongodb://mongodb:27017/${MONGO_DB_NAME}?replicaSet=rs0
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL}
@@ -86,37 +99,27 @@ services:
 
   # ---------------------------------------------------------------------------
   # Frontend — Nginx phục vụ React + proxy /api sang backend.
-  # Đây là CỬA NGÕ của dự án: nó vừa ở "hrm-net" (để gọi backend) vừa ở "web"
-  # (để Caddy proxy chung nhìn thấy). KHÔNG mở "ports:" — Caddy lo việc đó.
+  # Đây là CỬA NGÕ duy nhất lộ ra ngoài, qua cổng ${WEB_PORT}.
   # ---------------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: /api/v1
+        VITE_API_BASE_URL: /api/v1   # đường dẫn tương đối -> nginx proxy về backend
     restart: unless-stopped
     depends_on:
       - backend
+    ports:
+      # "${WEB_PORT:-80}" = lấy WEB_PORT trong .env, không có thì mặc định 80.
+      # Trái = cổng trên VPS, phải = cổng 80 bên trong nginx.
+      - "${WEB_PORT:-80}:80"
     networks:
-      - hrm-net   # để gọi được "backend"
-      - web       # để Caddy proxy chung tiếp cận được
-    labels:
-      # Caddy proxy chung đọc các nhãn này (qua docker socket) để tự cấu hình:
-      #   - "caddy": domain công khai của dự án (lấy từ .env).
-      #   - reverse_proxy {{upstreams 80}}: chuyển traffic về cổng 80 của container này.
-      # Caddy tự xin SSL Let's Encrypt cho domain này.
-      caddy: ${PUBLIC_DOMAIN}
-      caddy.reverse_proxy: "{{upstreams 80}}"
+      - hrm-net
 
 networks:
-  # Mạng nội bộ riêng của dự án HRM (backend <-> mongo <-> frontend).
   hrm-net:
     driver: bridge
-  # Mạng DÙNG CHUNG với Caddy proxy. "external: true" nghĩa là mạng này được tạo
-  # SẴN bên ngoài (lúc setup ~/infra), compose chỉ tham chiếu tới chứ không tạo.
-  web:
-    external: true
 
 volumes:
   mongo_data:

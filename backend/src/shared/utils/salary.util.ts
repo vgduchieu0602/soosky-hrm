@@ -54,6 +54,14 @@ export interface EffectiveBaseInput {
   /** 0–100 */
   goalRatio: number;
   weights?: SalaryComponentWeights;
+  /**
+   * When true (default), the performance & goal components are ALSO scaled by
+   * `attendanceRatio`, so unpaid absence reduces the whole salary proportionally
+   * — an employee absent the entire month earns ~0, not 80% of base. Set to
+   * false to keep the legacy behaviour where only the attendance component
+   * tracks days worked.
+   */
+  prorateByAttendance?: boolean;
 }
 
 export interface EffectiveBaseResult {
@@ -71,15 +79,18 @@ export function computeAttendanceRatio(actualWorkDays: number, standardWorkDays:
 
 export function computeEffectiveBaseSalary(input: EffectiveBaseInput): EffectiveBaseResult {
   const weights = input.weights ?? DEFAULT_COMPONENT_WEIGHTS;
+  // By default every component is prorated by attendance: absence reduces the
+  // entire pay, not just the 20% attendance slice. Opt out for the legacy split.
+  const qualityAttendanceFactor = input.prorateByAttendance === false ? 1 : input.attendanceRatio;
 
   const attendanceComponent = Math.round(
     (weights.attendance / 100) * input.baseSalary * input.attendanceRatio,
   );
   const performanceComponent = Math.round(
-    (weights.performance / 100) * input.baseSalary * (input.performanceRatio / 100),
+    (weights.performance / 100) * input.baseSalary * (input.performanceRatio / 100) * qualityAttendanceFactor,
   );
   const goalComponent = Math.round(
-    (weights.goal / 100) * input.baseSalary * (input.goalRatio / 100),
+    (weights.goal / 100) * input.baseSalary * (input.goalRatio / 100) * qualityAttendanceFactor,
   );
 
   return {
@@ -94,8 +105,10 @@ export function computeEffectiveBaseSalary(input: EffectiveBaseInput): Effective
 // Social insurance (BHXH) · health (BHYT) · unemployment (BHTN)
 //
 // Contribution rates (percent of the relevant base):
-//   employee:  social 8   · health 1.5 · unemployment 1
-//   employer:  social 17.5 · health 3   · unemployment 1
+//   employee:  social 8 · health 1.5 · unemployment 1                     (= 10.5%)
+//   employer:  social 17 · health 3 · unemployment 1 · occupational 0.5   (= 21.5%)
+//   (employer "social 17.5" in the law = 17 retirement/survivor + 0.5 TNLĐ-BNN,
+//    modelled here as separate `social` and `occupational` fields.)
 //
 // Two separate bases, each capped:
 //   - social + health base   = min(grossSalary, socialHealthCeiling)
@@ -272,6 +285,41 @@ export function computeOvertimePay(
   return Math.round(total);
 }
 
+export interface OvertimePayBreakdown {
+  /** Full overtime pay added to gross (taxable + nonTaxable). */
+  total: number;
+  /** Normal-wage equivalent (rate × 1 × hours) — this part IS subject to PIT. */
+  taxable: number;
+  /** Premium above the normal wage (rate × (multiplier − 1) × hours) — PIT-exempt
+   *  under Vietnamese law. */
+  nonTaxable: number;
+}
+
+/**
+ * Overtime pay split into its taxable base and its tax-exempt premium.
+ *
+ * Vietnamese PIT exempts the EXTRA paid for overtime over the normal hourly
+ * wage. With a ×1.5 weekday multiplier, the 1.0× portion is taxable and the
+ * 0.5× portion is exempt; ×2.0 weekend → 1.0× taxable + 1.0× exempt; etc.
+ */
+export function computeOvertimePayBreakdown(
+  baseSalary: number,
+  standardWorkDays: number,
+  entries: OvertimeEntry[],
+): OvertimePayBreakdown {
+  const rate = hourlyRate(baseSalary, standardWorkDays);
+  let taxable = 0;
+  let nonTaxable = 0;
+  for (const e of entries) {
+    const multiplier = VN_OVERTIME_MULTIPLIER[e.dayType];
+    taxable += rate * 1 * e.hours;
+    nonTaxable += rate * (multiplier - 1) * e.hours;
+  }
+  taxable = Math.round(taxable);
+  nonTaxable = Math.round(nonTaxable);
+  return { total: taxable + nonTaxable, taxable, nonTaxable };
+}
+
 // ---------------------------------------------------------------------------
 // Full payroll assembly: effective base → gross → insurance → tax → net.
 // All inputs/outputs are plain integer VND; convert at the Decimal128 boundary.
@@ -284,6 +332,8 @@ export interface ComputePayrollInput {
   performanceRatio: number;
   goalRatio: number;
   weights?: SalaryComponentWeights;
+  /** Scale performance & goal components by attendance too (default true). */
+  prorateByAttendance?: boolean;
   // additive gross components
   totalTaxableAllowances?: number;
   totalNonTaxableAllowances?: number;
@@ -296,6 +346,9 @@ export interface ComputePayrollInput {
    *  compulsory insurance. */
   insuranceBaseAllowances?: number;
   overtimePay?: number;
+  /** Portion of overtimePay exempt from PIT — the premium above the normal hourly
+   *  wage (see `computeOvertimePayBreakdown`). Excluded from assessable income. */
+  overtimeNonTaxablePay?: number;
   totalBonuses?: number;
   /** Portion of totalBonuses that is non-taxable — excluded from assessable income. */
   totalNonTaxableBonuses?: number;
@@ -325,6 +378,7 @@ export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResu
   totalNonTaxableAllowances: number;
   totalAllowances: number;
   overtimePay: number;
+  overtimeNonTaxablePay: number;
   totalBonuses: number;
   grossSalary: number;
   /** Salary amount actually subject to compulsory insurance (pre-cap). */
@@ -356,12 +410,14 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     performanceRatio: input.performanceRatio,
     goalRatio: input.goalRatio,
     weights: input.weights,
+    prorateByAttendance: input.prorateByAttendance,
   });
 
   const totalTaxableAllowances = input.totalTaxableAllowances ?? 0;
   const totalNonTaxableAllowances = input.totalNonTaxableAllowances ?? 0;
   const totalAllowances = totalTaxableAllowances + totalNonTaxableAllowances;
   const overtimePay = input.overtimePay ?? 0;
+  const overtimeNonTaxablePay = Math.min(input.overtimeNonTaxablePay ?? 0, overtimePay);
   const totalBonuses = input.totalBonuses ?? 0;
 
   const grossSalary =
@@ -383,15 +439,23 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     rates: input.insuranceRates,
   });
 
-  // Non-taxable allowances AND non-taxable bonuses are excluded from assessable income.
-  const taxableIncome =
-    grossSalary - insurance.insurance - totalNonTaxableAllowances - (input.totalNonTaxableBonuses ?? 0);
   const dependentsCount = input.dependentsCount ?? 0;
 
   // Tax residents get personal + dependent deductions and the progressive
   // brackets. Non-residents are taxed at a flat rate on assessable income with
   // NO deductions (Vietnamese PIT rule).
   const isResident = input.isResident !== false;
+
+  // Assessable income excludes non-taxable allowances, non-taxable bonuses and
+  // the PIT-exempt overtime premium. Compulsory employee insurance is a PIT
+  // relief for RESIDENTS only — non-residents are taxed on gross assessable
+  // income (they still pay insurance, but it is not deductible).
+  const assessableIncome =
+    grossSalary -
+    totalNonTaxableAllowances -
+    (input.totalNonTaxableBonuses ?? 0) -
+    overtimeNonTaxablePay;
+  const taxableIncome = isResident ? assessableIncome - insurance.insurance : assessableIncome;
   let personalDeduction: number;
   let totalDependentDeduction: number;
   let taxableIncomeAfterDeduction: number;
@@ -435,6 +499,7 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     totalNonTaxableAllowances,
     totalAllowances,
     overtimePay,
+    overtimeNonTaxablePay,
     totalBonuses,
     grossSalary,
     taxableIncome,

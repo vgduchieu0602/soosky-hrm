@@ -5,8 +5,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
+import { parseDecimal, type DecimalLike } from "@/shared/utils/money";
 import type { SalaryPolicy } from "@features/settings/types/settings.types";
 
 interface Props {
@@ -16,7 +18,9 @@ interface Props {
   onSaved: () => void;
 }
 
-const num = (v: string | number | undefined, d = 0) => Number(v ?? d) || d;
+// Money fields arrive as Decimal128 (`{ $numberDecimal }`), string, or number.
+// Use parseDecimal so editing pre-fills the real value (not the default).
+const num = (v: DecimalLike, d = 0) => (v == null ? d : parseDecimal(v) || d);
 const fmt = (n: number) => (n ? n.toLocaleString("vi-VN") : "0");
 
 const VN_TAX_BRACKETS = [
@@ -177,7 +181,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
                 <Input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="h-9 text-[13px]" />
               </Field>
               <Field label="Hiệu lực từ">
-                <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="h-9 text-[13px]" />
+                <DateField value={effectiveFrom} onChange={setEffectiveFrom} className={fieldCls} />
               </Field>
               <Field label="Lương cơ sở tính BHXH" hint="Trần BHXH/BHYT = ×20">
                 <MoneyInput value={baseSalary} onChange={setBaseSalary} />

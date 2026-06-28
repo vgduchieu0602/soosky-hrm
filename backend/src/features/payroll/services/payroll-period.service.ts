@@ -86,6 +86,20 @@ export const payrollPeriodService = {
     if (period.status === 'paid') {
       throw new HttpError(409, 'Kỳ lương đã thanh toán', 'PAY_PERIOD_LOCKED');
     }
+    // Refuse to close while draft rows remain: a closed period can't be run
+    // (assertPeriodOpen) and can't be paid (PAY_DRAFT_REMAINING), so closing
+    // with drafts strands the period until someone reopens it.
+    const draftRemaining = await Payroll.countDocuments({
+      payrollPeriodId: id,
+      status: 'draft',
+    });
+    if (draftRemaining > 0) {
+      throw new HttpError(
+        409,
+        `Còn ${draftRemaining} bản lương chưa duyệt — duyệt hoặc hoàn tác hết trước khi chốt kỳ`,
+        'PAY_DRAFT_REMAINING',
+      );
+    }
     const updated = await payrollPeriodRepository.updateById(id, {
       status: 'closed',
       closedAt: new Date(),
@@ -151,11 +165,29 @@ export const payrollPeriodService = {
     return updated!.toJSON();
   },
 
-  /** Re-open a closed/paid period so it can be recomputed (correction). Admin. */
+  /**
+   * Re-open a closed period so it can be recomputed (correction). Admin.
+   * Reverts every `approved` row back to `draft` so the period is actually
+   * runnable again — otherwise `runPayrollForEmployee` rejects non-draft rows
+   * and the reopen is a no-op. A `paid` period is refused: money has been
+   * disbursed, so payments must be reverted through a dedicated flow first.
+   */
   async reopen(id: string, auditUserId: string) {
     const period = await payrollPeriodRepository.findById(id);
     if (!period) throw new NotFoundError('Payroll period');
     if (period.status === 'open') return period.toJSON();
+    if (period.status === 'paid') {
+      throw new HttpError(
+        409,
+        'Kỳ lương đã thanh toán — không thể mở lại. Hãy hoàn tác thanh toán trước.',
+        'PAY_PERIOD_PAID',
+      );
+    }
+
+    const reverted = await Payroll.updateMany(
+      { payrollPeriodId: id, status: 'approved' },
+      { $set: { status: 'draft' }, $unset: { approvedBy: '' } },
+    );
     const updated = await payrollPeriodRepository.updateById(id, {
       status: 'open',
       closedAt: null,
@@ -163,9 +195,9 @@ export const payrollPeriodService = {
     });
     await auditService.record({
       userId: auditUserId, resource: 'payrollPeriod', action: 'update', resourceId: id,
-      changes: { reopened: true, from: period.status },
+      changes: { reopened: true, from: period.status, revertedRows: reverted.modifiedCount },
     });
-    log.info({ action: 'reopen', periodId: id });
+    log.info({ action: 'reopen', periodId: id, revertedRows: reverted.modifiedCount });
     return updated!.toJSON();
   },
 

@@ -4,6 +4,7 @@ import {
   computeEffectiveBaseSalary,
   computeInsurance,
   computeOvertimePay,
+  computeOvertimePayBreakdown,
   computePayroll,
   computePerformanceRatio,
   computeProgressiveTax,
@@ -98,17 +99,41 @@ describe('computeEffectiveBaseSalary', () => {
     expect(result.proRatedBaseSalary).toBe(10_000_000);
   });
 
-  it('prorates each branch independently (plan verification case)', () => {
+  it('prorates each branch independently when prorateByAttendance=false (legacy)', () => {
+    const result = computeEffectiveBaseSalary({
+      baseSalary: 10_000_000,
+      attendanceRatio: 0.5,
+      performanceRatio: 80,
+      goalRatio: 90,
+      prorateByAttendance: false,
+    });
+    expect(result.attendanceComponent).toBe(1_000_000);
+    expect(result.performanceComponent).toBe(4_800_000);
+    expect(result.goalComponent).toBe(1_800_000);
+    expect(result.proRatedBaseSalary).toBe(7_600_000);
+  });
+
+  it('by default scales performance & goal by attendance too', () => {
     const result = computeEffectiveBaseSalary({
       baseSalary: 10_000_000,
       attendanceRatio: 0.5,
       performanceRatio: 80,
       goalRatio: 90,
     });
-    expect(result.attendanceComponent).toBe(1_000_000);
-    expect(result.performanceComponent).toBe(4_800_000);
-    expect(result.goalComponent).toBe(1_800_000);
-    expect(result.proRatedBaseSalary).toBe(7_600_000);
+    expect(result.attendanceComponent).toBe(1_000_000); // 0.2 × 10m × 0.5
+    expect(result.performanceComponent).toBe(2_400_000); // 0.6 × 10m × 0.8 × 0.5
+    expect(result.goalComponent).toBe(900_000); // 0.2 × 10m × 0.9 × 0.5
+    expect(result.proRatedBaseSalary).toBe(4_300_000);
+  });
+
+  it('zero attendance → zero pay even with full performance/goal', () => {
+    const result = computeEffectiveBaseSalary({
+      baseSalary: 10_000_000,
+      attendanceRatio: 0,
+      performanceRatio: 100,
+      goalRatio: 100,
+    });
+    expect(result.proRatedBaseSalary).toBe(0);
   });
 
   it('uses the default 20/60/20 weights', () => {
@@ -224,8 +249,9 @@ describe('computePayroll — non-resident flat tax', () => {
       dependentsCount: 2,
       isResident: false,
     });
-    // taxableIncome = gross - insurance - nonTaxable(0)
+    // Non-residents: insurance is NOT a deduction → taxableIncome = gross assessable.
     const expectedTax = Math.round(r.taxableIncome * 0.2);
+    expect(r.taxableIncome).toBe(r.grossSalary); // no insurance/non-taxable subtracted
     expect(r.personalDeduction).toBe(0);
     expect(r.dependentDeduction).toBe(0);
     expect(r.taxableIncomeAfterDeduction).toBe(r.taxableIncome);
@@ -292,9 +318,62 @@ describe('computePayroll — E1 parallel-run case', () => {
       dependentDeduction: 4_400_000,
       dependentsCount: 0,
     });
-    // attendance 0.2*30m*0.5=3m ; perf 0.6*30m*0.8=14.4m ; goal 0.2*30m*0.9=5.4m
-    expect(half.proRatedBaseSalary).toBe(22_800_000);
-    expect(half.grossSalary).toBe(22_800_000);
+    // attendance 0.2*30m*0.5=3m ; perf 0.6*30m*0.8*0.5=7.2m ; goal 0.2*30m*0.9*0.5=2.7m
+    expect(half.proRatedBaseSalary).toBe(12_900_000);
+    expect(half.grossSalary).toBe(12_900_000);
+  });
+});
+
+describe('computeOvertimePayBreakdown — VN PIT-exempt premium', () => {
+  // hourly = 22M / (22 × 8) = 125,000
+  const base = 22_000_000;
+
+  it('weekday ×1.5: 1.0× taxable, 0.5× exempt', () => {
+    const r = computeOvertimePayBreakdown(base, 22, [{ hours: 2, dayType: 'weekday' }]);
+    expect(r.total).toBe(375_000); // 125k × 1.5 × 2
+    expect(r.taxable).toBe(250_000); // 125k × 1 × 2
+    expect(r.nonTaxable).toBe(125_000); // 125k × 0.5 × 2
+  });
+
+  it('weekend ×2.0 and holiday ×3.0 split correctly', () => {
+    const weekend = computeOvertimePayBreakdown(base, 22, [{ hours: 1, dayType: 'weekend' }]);
+    expect(weekend).toEqual({ total: 250_000, taxable: 125_000, nonTaxable: 125_000 });
+    const holiday = computeOvertimePayBreakdown(base, 22, [{ hours: 1, dayType: 'holiday' }]);
+    expect(holiday).toEqual({ total: 375_000, taxable: 125_000, nonTaxable: 250_000 });
+  });
+
+  it('total matches the legacy computeOvertimePay', () => {
+    const entries = [
+      { hours: 2, dayType: 'weekday' as const },
+      { hours: 1, dayType: 'holiday' as const },
+    ];
+    expect(computeOvertimePayBreakdown(base, 22, entries).total).toBe(
+      computeOvertimePay(base, 22, entries),
+    );
+  });
+});
+
+describe('computePayroll — overtime tax exemption', () => {
+  it('excludes the exempt OT premium from taxable income but keeps it in gross', () => {
+    const withOt = computePayroll({
+      baseSalary: 20_000_000,
+      attendanceRatio: 1,
+      performanceRatio: 100,
+      goalRatio: 100,
+      overtimePay: 1_500_000,
+      overtimeNonTaxablePay: 500_000, // exempt premium
+      socialHealthCeiling: 46_800_000,
+      unemploymentCeiling: 99_200_000,
+      personalDeduction: 11_000_000,
+      dependentDeduction: 4_400_000,
+      dependentsCount: 0,
+    });
+    // gross includes full OT; taxable income excludes the 500k exempt premium
+    expect(withOt.grossSalary).toBe(21_500_000);
+    expect(withOt.overtimeNonTaxablePay).toBe(500_000);
+    expect(withOt.taxableIncome).toBe(
+      withOt.grossSalary - withOt.insurance - 500_000,
+    );
   });
 });
 

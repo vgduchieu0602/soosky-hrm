@@ -288,6 +288,41 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     expect(num(payroll.unionFee)).toBe(0);
   });
 
+  it('intern: full contract salary, attendance-prorated only, no insurance, no union fee', async () => {
+    await seedCompanyPolicy();
+    const criteria = await seedCriteria();
+    const employee = await Employee.create({
+      employeeCode: 'EMP-INTERN', departmentId: oid(), positionId: oid(),
+      hireDate: utc('2024-01-01'), employeeType: 'intern', status: 'active', salaryZone: 'zone1',
+    });
+    const employeeId = String(employee._id);
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'fixed_term', employmentStatus: 'internship', contractNumber: 'HD-INTERN',
+      startDate: utc('2024-01-01'), baseSalary: dec(20_000_000), status: 'active',
+    });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    const period = await PayrollPeriod.create({
+      name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+    });
+    for (let d = 1; d <= 22; d += 1) {
+      await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
+    }
+    await MonthlyEvaluation.create({
+      employeeId, payrollPeriodId: period._id,
+      criteriaScores: criteria.map((criterionId) => ({ criterionId, score: 100 })),
+      performanceRatio: 100, goalResult: 100, goalRatio: 100, status: 'approved',
+    });
+
+    const payroll = await runPayrollForEmployee(String(period._id), employeeId);
+    // Intern pay follows the contract salary, attendance-prorated only (no perf/goal,
+    // no insurance/union fee). Full attendance on the 20M contract → 20,000,000.
+    expect(num(payroll.proRatedBaseSalary)).toBe(20_000_000);
+    expect(num(payroll.grossSalary)).toBe(20_000_000);
+    expect(num(payroll.insurance)).toBe(0);
+    expect(num(payroll.unionFee)).toBe(0);
+  });
+
   it('refuses to run when the evaluation is not approved', async () => {
     await seedPolicy();
     await seedCriteria();
