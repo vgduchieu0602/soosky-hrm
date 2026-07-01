@@ -85,7 +85,12 @@ export const authController = {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthenticated', 'IAM_002');
       const { currentPassword, newPassword } = req.body as ChangePasswordDto;
-      const result = await authService.changePassword(req.user.userId, currentPassword, newPassword);
+      const result = await authService.changePassword(
+        req.user.userId,
+        currentPassword,
+        newPassword,
+        req.user.sessionId,
+      );
       res.json({ data: result, message: 'Đổi mật khẩu thành công' });
     } catch (err) {
       next(err);

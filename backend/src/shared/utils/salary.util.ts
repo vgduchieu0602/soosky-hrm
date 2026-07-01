@@ -57,9 +57,9 @@ export interface EffectiveBaseInput {
   /**
    * When true (default), the performance & goal components are ALSO scaled by
    * `attendanceRatio`, so unpaid absence reduces the whole salary proportionally
-   * — an employee absent the entire month earns ~0, not 80% of base. Set to
-   * false to keep the legacy behaviour where only the attendance component
-   * tracks days worked.
+   * — an employee absent the entire month earns ~0, not 80% of base. Default
+   * (false/undefined): only the 20% attendance component tracks days worked;
+   * performance & goal are paid in full per their ratios.
    */
   prorateByAttendance?: boolean;
 }
@@ -79,9 +79,11 @@ export function computeAttendanceRatio(actualWorkDays: number, standardWorkDays:
 
 export function computeEffectiveBaseSalary(input: EffectiveBaseInput): EffectiveBaseResult {
   const weights = input.weights ?? DEFAULT_COMPONENT_WEIGHTS;
-  // By default every component is prorated by attendance: absence reduces the
-  // entire pay, not just the 20% attendance slice. Opt out for the legacy split.
-  const qualityAttendanceFactor = input.prorateByAttendance === false ? 1 : input.attendanceRatio;
+  // Default (business rule): ONLY the 20% attendance component tracks days
+  // worked; the performance (60%) and goal (20%) components are paid in full
+  // per their ratios regardless of attendance. Opt in with
+  // `prorateByAttendance: true` to also scale perf/goal by attendance.
+  const qualityAttendanceFactor = input.prorateByAttendance === true ? input.attendanceRatio : 1;
 
   const attendanceComponent = Math.round(
     (weights.attendance / 100) * input.baseSalary * input.attendanceRatio,
@@ -332,7 +334,8 @@ export interface ComputePayrollInput {
   performanceRatio: number;
   goalRatio: number;
   weights?: SalaryComponentWeights;
-  /** Scale performance & goal components by attendance too (default true). */
+  /** Scale performance & goal components by attendance too (default false —
+   *  only the attendance component is prorated). */
   prorateByAttendance?: boolean;
   // additive gross components
   totalTaxableAllowances?: number;

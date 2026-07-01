@@ -1,6 +1,6 @@
 import {
   Pencil, Archive, CornerDownRight, UserCog, Move, ArrowRightLeft, GitMerge,
-  Plus, Briefcase, Trash2, Clock, Mail, MapPin, Wallet, UserCircle2,
+  Plus, Briefcase, Trash2, Clock, UserCircle2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -93,13 +93,6 @@ export function DepartmentDetailTabs({
 
         <TabsContent value="overview" className="flex flex-col gap-4">
           <HeadCard node={node} />
-          {(node.costCenter || node.location || node.email) && (
-            <div className="flex flex-col gap-1.5 rounded-xl border p-3 text-[12.5px]">
-              {node.costCenter && <Attr icon={Wallet} value={node.costCenter} />}
-              {node.location && <Attr icon={MapPin} value={node.location} />}
-              {node.email && <Attr icon={Mail} value={node.email} />}
-            </div>
-          )}
           <div className="grid grid-cols-3 gap-3">
             <Stat label="Trực tiếp" value={node.headcount} />
             <Stat label="Tổng nhánh" value={subtreeHeadcount(node)} />
@@ -228,15 +221,6 @@ function HeadCard({ node }: { node: DepartmentNode }) {
           {node.head?.name || "Chưa bổ nhiệm"}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Attr({ icon: Icon, value }: { icon: typeof Mail; value: string }) {
-  return (
-    <div className="flex items-center gap-2 text-muted-foreground">
-      <Icon className="size-3.5" />
-      <span className="text-foreground">{value}</span>
     </div>
   );
 }

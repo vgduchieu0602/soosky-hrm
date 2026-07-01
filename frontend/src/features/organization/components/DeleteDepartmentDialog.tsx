@@ -41,7 +41,7 @@ export function DeleteDepartmentDialog({
       const message =
         (err as { response?: { data?: { error?: { message?: string } } } })
           ?.response?.data?.error?.message ??
-        "Không thể lưu trữ phòng ban. Vui lòng thử lại.";
+        "Không thể xóa phòng ban. Vui lòng thử lại.";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -59,13 +59,15 @@ export function DeleteDepartmentDialog({
               <AlertTriangle className="size-4.5" strokeWidth={2} />
             </span>
             <div>
-              <DialogTitle>Lưu trữ phòng ban</DialogTitle>
+              <DialogTitle>Xóa phòng ban</DialogTitle>
               <DialogDescription className="mt-1">
-                Bạn có chắc muốn lưu trữ{" "}
+                Bạn có chắc muốn xóa{" "}
                 <span className="font-semibold text-foreground">
                   {target?.name}
                 </span>
-                ? Phòng ban sẽ được đánh dấu là “đã lưu trữ”.
+                ? Hành động này xóa vĩnh viễn phòng ban và không thể hoàn tác.
+                Nếu phòng ban còn nhân viên, vị trí hoặc phòng ban con, hệ thống
+                sẽ báo và không cho xóa.
               </DialogDescription>
             </div>
           </div>
@@ -101,7 +103,7 @@ export function DeleteDepartmentDialog({
             onClick={handleConfirm}
             disabled={submitting}
           >
-            {submitting ? "Đang lưu trữ…" : "Lưu trữ"}
+            {submitting ? "Đang xóa…" : "Xóa vĩnh viễn"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -41,6 +41,13 @@ export const departmentController = {
       res.json({ data: await departmentService.archive(id, user.userId) });
     } catch (err) { next(err); }
   },
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await departmentService.remove(id, user.userId) });
+    } catch (err) { next(err); }
+  },
   async assignHead(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);

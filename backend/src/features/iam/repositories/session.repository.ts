@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { Session, type SessionDoc } from '@shared/models/session.model';
 import { hashRefreshToken } from '@shared/utils/hash.util';
 
@@ -53,9 +53,23 @@ export const sessionRepository = {
     );
   },
 
-  revokeAllForUser(userId: string) {
+  revokeAllForUser(userId: string, session?: ClientSession) {
     return Session.updateMany(
       { userId: new Types.ObjectId(userId), revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+      session ? { session } : {},
+    );
+  },
+
+  /** Revoke every live session for a user except the one given (e.g. keep the
+   *  current device signed in after a self-service password change). */
+  revokeAllForUserExcept(userId: string, exceptSessionId: string) {
+    return Session.updateMany(
+      {
+        userId: new Types.ObjectId(userId),
+        _id: { $ne: new Types.ObjectId(exceptSessionId) },
+        revokedAt: { $exists: false },
+      },
       { $set: { revokedAt: new Date() } },
     );
   },

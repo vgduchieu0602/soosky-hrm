@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Calculator, Loader2, ArrowRight } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { fmtVND } from "@/shared/utils/money";
@@ -44,15 +42,25 @@ export function GrossUpCalculatorDialog({ open, onOpenChange }: Props) {
       .finally(() => setLoading(false));
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Calculator className="size-4 text-primary" /> Quy đổi NET → GROSS</DialogTitle>
-          <DialogDescription>Nhập lương thực nhận mong muốn; hệ thống suy ra lương gross theo BHXH + thuế TNCN hiện hành.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Đóng</Button>
+      <Button size="sm" disabled={loading || net <= 0} onClick={calculate} className="gap-1.5">
+        {loading ? <Loader2 className="size-4 animate-spin" /> : <Calculator className="size-4" />} Tính GROSS
+      </Button>
+    </>
+  );
 
-        <div className="flex flex-col gap-4 py-1">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Quy đổi NET → GROSS"
+      subtitle="Nhập lương thực nhận mong muốn; hệ thống suy ra lương gross theo BHXH + thuế TNCN hiện hành."
+      maxWidth={560}
+      footer={footer}
+    >
+      <div className="flex flex-col gap-4 py-1">
           <div className="grid grid-cols-2 gap-x-4 gap-y-4">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label className="text-[12px]">Lương NET mong muốn (₫)</Label>
@@ -109,15 +117,7 @@ export function GrossUpCalculatorDialog({ open, onOpenChange }: Props) {
 
           {error && <p className="text-[12.5px] text-destructive">{error}</p>}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Đóng</Button>
-          <Button size="sm" disabled={loading || net <= 0} onClick={calculate} className="gap-1.5">
-            {loading ? <Loader2 className="size-4 animate-spin" /> : <Calculator className="size-4" />} Tính GROSS
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }
 

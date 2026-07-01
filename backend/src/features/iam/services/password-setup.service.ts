@@ -12,6 +12,7 @@ import {
   type SetupTokenPurpose,
 } from '@shared/models/password-setup-token.model';
 import { auditService } from '@features/iam/services/audit.service';
+import { sessionRepository } from '@features/iam/repositories/session.repository';
 
 const log = logger.child({ feature: 'iam', module: 'password-setup' });
 
@@ -105,6 +106,9 @@ export const passwordSetupService = {
     await record.save();
     // Invalidate any sibling tokens.
     await PasswordSetupToken.deleteMany({ userId: user._id, usedAt: null });
+    // A password (re)set must kill any pre-existing sessions — e.g. an attacker
+    // holding a live refresh token after the legitimate user resets.
+    await sessionRepository.revokeAllForUser(user._id.toString());
 
     await auditService.record({
       userId: user._id.toString(),

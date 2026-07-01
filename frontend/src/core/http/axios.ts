@@ -79,6 +79,15 @@ api.interceptors.response.use(
       forceLogout();
     }
 
+    // Server enforces a forced password change (IAM_013) — route the user to
+    // the change-password page instead of surfacing a generic error.
+    const code = (err.response?.data as { error?: { code?: string } } | undefined)?.error?.code;
+    if (status === 403 && code === "IAM_013") {
+      if (!window.location.pathname.startsWith("/auth/")) {
+        window.location.href = "/auth/change-password";
+      }
+    }
+
     return Promise.reject(err);
   },
 );

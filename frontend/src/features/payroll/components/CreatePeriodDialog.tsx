@@ -1,7 +1,5 @@
 import { useState } from "react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,15 +48,22 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Tạo kỳ lương</DialogTitle>
-          <DialogDescription>Mỗi kỳ tương ứng một tháng lương, vd 2026-06.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
+      <Button type="submit" form="period-form" size="sm" disabled={submitting}>{submitting ? "Đang tạo…" : "Tạo kỳ lương"}</Button>
+    </>
+  );
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Tạo kỳ lương"
+      subtitle="Mỗi kỳ tương ứng một tháng lương, vd 2026-06."
+      footer={footer}
+    >
+        <form id="period-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="p-name">Mã kỳ (YYYY-MM) *</Label>
@@ -97,13 +102,7 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
           {error && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>
           )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
-            <Button type="submit" size="sm" disabled={submitting}>{submitting ? "Đang tạo…" : "Tạo kỳ lương"}</Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

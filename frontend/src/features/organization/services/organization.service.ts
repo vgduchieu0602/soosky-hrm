@@ -57,8 +57,10 @@ export const organizationService = {
     return data.data;
   },
 
-  async archiveDepartment(id: string): Promise<DepartmentRecord> {
-    const { data } = await api.delete<ApiEnvelope<DepartmentRecord>>(
+  /** Hard-delete a department. Server returns 409 (ORG_DEPT_HAS_DATA) if any
+   *  employee / position / sub-department still references it. */
+  async deleteDepartment(id: string): Promise<{ id: string; deleted: boolean }> {
+    const { data } = await api.delete<ApiEnvelope<{ id: string; deleted: boolean }>>(
       `/admin/departments/${id}`,
     );
     return data.data;

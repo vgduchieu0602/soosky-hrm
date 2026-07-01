@@ -14,7 +14,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { cn } from "@/shared/utils/cn";
+import { apiErrorMessage } from "@shared/utils/apiError";
 import { useAuthStore } from "@core/store/auth.store";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
@@ -176,21 +178,35 @@ export default function DepartmentsPage() {
   }
 
   async function handleSubmit(input: CreateDepartmentInput | UpdateDepartmentInput) {
-    if (formMode === "create") {
-      const created = await organizationService.createDepartment(input as CreateDepartmentInput);
-      await loadTree();
-      setSelectedId(created._id);
-    } else if (formTarget) {
-      await organizationService.updateDepartment(formTarget.id, input as UpdateDepartmentInput);
-      await loadTree();
+    try {
+      if (formMode === "create") {
+        const created = await organizationService.createDepartment(input as CreateDepartmentInput);
+        await loadTree();
+        setSelectedId(created._id);
+        toast.success("Đã tạo phòng ban");
+      } else if (formTarget) {
+        await organizationService.updateDepartment(formTarget.id, input as UpdateDepartmentInput);
+        await loadTree();
+        toast.success("Đã cập nhật phòng ban");
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Không thể lưu phòng ban"));
+      throw err; // let the dialog show the inline error + stay open
     }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    await organizationService.archiveDepartment(deleteTarget.id);
-    if (selectedId === deleteTarget.id) setSelectedId(null);
-    await loadTree();
+    try {
+      await organizationService.deleteDepartment(deleteTarget.id);
+      if (selectedId === deleteTarget.id) setSelectedId(null);
+      await loadTree();
+      toast.success("Đã xóa phòng ban");
+    } catch (err) {
+      // 409 ORG_DEPT_HAS_DATA → dependency warning surfaced as a toast.
+      toast.error(apiErrorMessage(err, "Không thể xóa phòng ban"));
+      throw err;
+    }
   }
 
   // --- Lifecycle ops --------------------------------------------------------

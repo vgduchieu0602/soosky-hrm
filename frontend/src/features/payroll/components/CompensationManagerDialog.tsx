@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
@@ -100,14 +98,20 @@ export function CompensationManagerDialog({ open, onOpenChange, employees, onCha
     return run(() => payrollService.deleteDeduction(it._id));
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Quản lý cấu phần lương</DialogTitle>
-          <DialogDescription>Xem, sửa hoặc xóa phụ cấp / thưởng / khấu trừ của nhân viên.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Đóng</Button>
+  );
 
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Quản lý cấu phần lương"
+      subtitle="Xem, sửa hoặc xóa phụ cấp / thưởng / khấu trừ của nhân viên."
+      maxWidth={640}
+      footer={footer}
+    >
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={fieldCls}>
             <option value="">— Chọn nhân viên —</option>
@@ -152,11 +156,7 @@ export function CompensationManagerDialog({ open, onOpenChange, employees, onCha
             </div>
           ))}
         </div>
-
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Đóng</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </FormModal>
   );
 }

@@ -148,7 +148,9 @@ export default function LoginPage() {
                 password,
               });
               setAuth(accessToken, user);
-              navigate("/dashboard", { replace: true });
+              navigate(user.mustChangePassword ? "/auth/change-password" : "/dashboard", {
+                replace: true,
+              });
             } catch (err) {
               setError(extractErrorMessage(err));
             } finally {

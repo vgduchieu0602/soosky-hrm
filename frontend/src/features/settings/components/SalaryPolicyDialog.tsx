@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
@@ -166,15 +164,23 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
     <span className={cn("text-[12px] font-semibold tabular-nums", ok ? "text-emerald-600" : "text-amber-600")}>{label}</span>
   );
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px]">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Sửa chính sách lương" : "Tạo chính sách lương (VN)"}</DialogTitle>
-          <DialogDescription>Tham số BHXH · thuế TNCN · trần đóng và trọng số 20/60/20 dùng để tính lương.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
+      <Button type="submit" form="salary-policy-form" size="sm" disabled={submitting || !weightOk}>{submitting ? "Đang lưu…" : isEdit ? "Lưu thay đổi" : "Tạo chính sách"}</Button>
+    </>
+  );
 
-        <form onSubmit={handleSubmit} className="flex max-h-[66vh] flex-col gap-7 overflow-y-auto px-0.5 py-1">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={isEdit ? "Sửa chính sách lương" : "Tạo chính sách lương (VN)"}
+      subtitle="Tham số BHXH · thuế TNCN · trần đóng và trọng số 20/60/20 dùng để tính lương."
+      maxWidth={760}
+      footer={footer}
+    >
+        <form id="salary-policy-form" onSubmit={handleSubmit} className="flex flex-col gap-7 px-0.5 py-1">
           <Section title="Kỳ áp dụng & mức lương">
             <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
               <Field label="Năm áp dụng">
@@ -265,13 +271,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
               <AlertCircle className="size-4 shrink-0" /> {error}
             </p>
           )}
-
-          <DialogFooter className="sticky bottom-0 -mx-0.5 border-t bg-background/95 px-0.5 pt-3 backdrop-blur">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
-            <Button type="submit" size="sm" disabled={submitting || !weightOk}>{submitting ? "Đang lưu…" : isEdit ? "Lưu thay đổi" : "Tạo chính sách"}</Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

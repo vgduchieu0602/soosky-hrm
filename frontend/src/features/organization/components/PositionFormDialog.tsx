@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,21 +94,40 @@ export function PositionFormDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "create" ? "Thêm chức vụ" : "Chỉnh sửa chức vụ"}
-          </DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? `Thêm chức vụ mới vào phòng ban “${departmentName}”.`
-              : `Cập nhật chức vụ trong phòng ban “${departmentName}”.`}
-          </DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onOpenChange(false)}
+        disabled={submitting}
+      >
+        Hủy
+      </Button>
+      <Button type="submit" form="position-form" size="sm" disabled={!canSubmit || submitting}>
+        {submitting
+          ? "Đang lưu…"
+          : mode === "create"
+            ? "Thêm chức vụ"
+            : "Lưu thay đổi"}
+      </Button>
+    </>
+  );
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={mode === "create" ? "Thêm chức vụ" : "Chỉnh sửa chức vụ"}
+      subtitle={
+        mode === "create"
+          ? `Thêm chức vụ mới vào phòng ban “${departmentName}”.`
+          : `Cập nhật chức vụ trong phòng ban “${departmentName}”.`
+      }
+      footer={footer}
+    >
+        <form id="position-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="pos-title">Tên chức vụ *</Label>
@@ -183,27 +195,7 @@ export function PositionFormDialog({
               {error}
             </p>
           )}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Hủy
-            </Button>
-            <Button type="submit" size="sm" disabled={!canSubmit || submitting}>
-              {submitting
-                ? "Đang lưu…"
-                : mode === "create"
-                  ? "Thêm chức vụ"
-                  : "Lưu thay đổi"}
-            </Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

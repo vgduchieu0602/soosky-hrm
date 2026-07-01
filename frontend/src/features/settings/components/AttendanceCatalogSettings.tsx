@@ -25,6 +25,27 @@ function fmtDMY(iso?: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
+/** ISO → `dd/mm` (recurring holidays — year is a sentinel). */
+function fmtDM(iso?: string): string {
+  if (!iso) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}` : iso;
+}
+
+/** The 8 attendance statuses a symbol can render for (grid/legend). */
+const ATT_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "present", label: "Đủ công" },
+  { value: "late", label: "Đi muộn" },
+  { value: "early_leave", label: "Về sớm" },
+  { value: "incomplete", label: "Thiếu chấm" },
+  { value: "absent", label: "Vắng" },
+  { value: "leave_paid", label: "Nghỉ phép" },
+  { value: "leave_unpaid", label: "Nghỉ không lương" },
+  { value: "holiday", label: "Nghỉ lễ" },
+];
+const CHIP_COLORS = ["emerald", "amber", "rose", "violet", "cyan", "indigo", "blue"];
+const attStatusLabel = (v?: string) => ATT_STATUS_OPTIONS.find((o) => o.value === v)?.label;
+
 /** Toggle row for the weekdays a shift applies to. */
 function WeekdayPicker({ value, disabled, onChange }: { value: number[]; disabled?: boolean; onChange: (days: number[]) => void }) {
   const toggle = (iso: number) => {
@@ -84,8 +105,8 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
   const [shiftForm, setShiftForm] = useState<{ name: string; startTime: string; endTime: string; breakMinutes: string; workingDays: number[] }>(
     { name: "", startTime: "08:00", endTime: "12:00", breakMinutes: "0", workingDays: DEFAULT_WORKING_DAYS },
   );
-  const [holidayForm, setHolidayForm] = useState({ name: "", date: "" });
-  const [symbolForm, setSymbolForm] = useState({ code: "", label: "" });
+  const [holidayForm, setHolidayForm] = useState({ name: "", recurring: true, date: "", day: "", month: "" });
+  const [symbolForm, setSymbolForm] = useState({ code: "", label: "", appliesTo: "", color: "" });
 
   function addShift() {
     settingsService.createShift({
@@ -99,13 +120,24 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
       .catch(() => {});
   }
   function addHoliday() {
-    settingsService.createHoliday({ name: holidayForm.name.trim(), date: holidayForm.date })
-      .then(() => { setHolidayForm({ name: "", date: "" }); reload(); })
+    // Recurring (fixed-date) holidays like 8/3, 20/10 have no meaningful year —
+    // store a sentinel leap year (2000) so 29/02 is valid; the payroll/leave
+    // engine matches recurring holidays by month-day only.
+    const date = holidayForm.recurring
+      ? `2000-${holidayForm.month.padStart(2, "0")}-${holidayForm.day.padStart(2, "0")}`
+      : holidayForm.date;
+    settingsService.createHoliday({ name: holidayForm.name.trim(), date, isRecurring: holidayForm.recurring })
+      .then(() => { setHolidayForm({ name: "", recurring: true, date: "", day: "", month: "" }); reload(); })
       .catch(() => {});
   }
   function addSymbol() {
-    settingsService.createSymbol({ code: symbolForm.code.trim(), label: symbolForm.label.trim() })
-      .then(() => { setSymbolForm({ code: "", label: "" }); reload(); })
+    settingsService.createSymbol({
+      code: symbolForm.code.trim(),
+      label: symbolForm.label.trim(),
+      ...(symbolForm.appliesTo ? { appliesTo: symbolForm.appliesTo } : {}),
+      ...(symbolForm.color ? { color: symbolForm.color } : {}),
+    })
+      .then(() => { setSymbolForm({ code: "", label: "", appliesTo: "", color: "" }); reload(); })
       .catch(() => {});
   }
 
@@ -179,10 +211,30 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
         badge={<CountBadge tone="rose">{holidays.length}</CountBadge>}
       >
         {canManage && (
-          <div className="mb-4 grid grid-cols-[2fr_1fr_auto] items-end gap-3">
-            <input className={inputCls} placeholder="Tên ngày lễ" value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} />
-            <DateField key={`new-holiday-${rk}`} className={inputCls} value={holidayForm.date} onChange={(v) => setHolidayForm({ ...holidayForm, date: v })} />
-            <Button size="sm" disabled={!holidayForm.name.trim() || !holidayForm.date} onClick={addHoliday} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm</Button>
+          <div className="mb-4 flex flex-col gap-2.5">
+            <div className="grid grid-cols-[2fr_1.4fr_auto] items-center gap-3">
+              <input className={inputCls} placeholder="Tên ngày lễ (VD: Quốc tế Phụ nữ)" value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} />
+              {holidayForm.recurring ? (
+                <div className="flex items-center gap-2">
+                  <select className={cn(inputCls, "w-[72px]")} value={holidayForm.day} onChange={(e) => setHolidayForm({ ...holidayForm, day: e.target.value })}>
+                    <option value="">Ngày</option>
+                    {Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}
+                  </select>
+                  <span className="text-muted-foreground">/</span>
+                  <select className={cn(inputCls, "w-[84px]")} value={holidayForm.month} onChange={(e) => setHolidayForm({ ...holidayForm, month: e.target.value })}>
+                    <option value="">Tháng</option>
+                    {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={String(i + 1)}>Th {i + 1}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <DateField key={`new-holiday-${rk}`} className={inputCls} value={holidayForm.date} onChange={(v) => setHolidayForm({ ...holidayForm, date: v })} />
+              )}
+              <Button size="sm" disabled={!holidayForm.name.trim() || (holidayForm.recurring ? !(holidayForm.day && holidayForm.month) : !holidayForm.date)} onClick={addHoliday} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm</Button>
+            </div>
+            <label className="flex w-fit cursor-pointer items-center gap-2 text-[12.5px] text-muted-foreground">
+              <input type="checkbox" checked={holidayForm.recurring} onChange={(e) => setHolidayForm({ ...holidayForm, recurring: e.target.checked })} className="size-4 accent-primary-500" />
+              Lặp lại hằng năm (ngày lễ cố định như 8/3, 20/10, 2/9…)
+            </label>
           </div>
         )}
         <List rows={holidays} empty="Chưa có ngày lễ." render={(h) => (
@@ -192,8 +244,13 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
             ) : (
               <span className="flex-1 font-medium text-foreground">{h.name}</span>
             )}
-            {canManage ? (
-              <DateField className={cn(inputCls, "w-[150px]")} value={h.date?.slice(0, 10)} onChange={(v) => { if (v && v !== h.date?.slice(0, 10)) settingsService.updateHoliday(h._id, { date: v }).then(reload).catch(() => {}); }} />
+            {h.isRecurring ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="font-mono text-[12px] text-muted-foreground">{fmtDM(h.date)}</span>
+                <CountBadge tone="violet">Hằng năm</CountBadge>
+              </span>
+            ) : canManage ? (
+              <DateField className={cn(inputCls, "w-[190px]")} value={h.date?.slice(0, 10)} onChange={(v) => { if (v && v !== h.date?.slice(0, 10)) settingsService.updateHoliday(h._id, { date: v }).then(reload).catch(() => {}); }} />
             ) : (
               <span className="font-mono text-[12px] text-muted-foreground">{fmtDMY(h.date)}</span>
             )}
@@ -213,21 +270,36 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
         badge={<CountBadge tone="indigo">{symbols.length}</CountBadge>}
       >
         {canManage && (
-          <div className="mb-4 grid grid-cols-[120px_2fr_auto] items-end gap-3">
+          <div className="mb-4 grid grid-cols-[90px_1.4fr_1.3fr_100px_auto] items-end gap-3">
             <input className={cn(inputCls, "font-mono")} placeholder="Mã (X, P…)" value={symbolForm.code} onChange={(e) => setSymbolForm({ ...symbolForm, code: e.target.value })} />
             <input className={inputCls} placeholder="Ý nghĩa" value={symbolForm.label} onChange={(e) => setSymbolForm({ ...symbolForm, label: e.target.value })} />
+            <select className={inputCls} value={symbolForm.appliesTo} onChange={(e) => setSymbolForm({ ...symbolForm, appliesTo: e.target.value })}>
+              <option value="">— Trạng thái áp dụng —</option>
+              {ATT_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select className={cn(inputCls, "capitalize")} value={symbolForm.color} onChange={(e) => setSymbolForm({ ...symbolForm, color: e.target.value })}>
+              <option value="">Màu</option>
+              {CHIP_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
             <Button size="sm" disabled={!symbolForm.code.trim() || !symbolForm.label.trim()} onClick={addSymbol} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm</Button>
           </div>
         )}
         <List rows={symbols} empty="Chưa có ký hiệu." render={(s) => (
           <div key={s._id} className="flex items-center gap-3 rounded-lg border p-3 text-[13px]">
-            <span className="flex size-7 items-center justify-center rounded-md bg-muted font-mono font-bold text-foreground">{s.code}</span>
+            <span className="flex size-7 items-center justify-center rounded-md font-mono font-bold" style={s.color ? { background: `var(--chip-${s.color}-bg)`, color: `var(--chip-${s.color}-ink)` } : { background: "var(--muted)", color: "var(--foreground)" }}>{s.code}</span>
             {canManage ? (
               <input className={cn(inputCls, "flex-1")} defaultValue={s.label} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.label) settingsService.updateSymbol(s._id, { label: v }).then(reload).catch(() => {}); }} />
             ) : (
               <span className="flex-1 text-foreground">{s.label}</span>
             )}
-            <span className="text-[11px] text-muted-foreground">{s.paidStatus}{s.affectsPayroll ? " · ảnh hưởng lương" : ""}</span>
+            {canManage ? (
+              <select className={cn(inputCls, "w-[150px]")} value={s.appliesTo ?? ""} onChange={(e) => settingsService.updateSymbol(s._id, { appliesTo: e.target.value || null }).then(reload).catch(() => {})}>
+                <option value="">— Không gán —</option>
+                {ATT_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">{attStatusLabel(s.appliesTo) ?? "—"}</span>
+            )}
             {canManage && (
               <Button variant="ghost" size="icon" onClick={() => settingsService.deleteSymbol(s._id).then(reload).catch(() => {})} className="size-8 text-muted-foreground hover:text-rose-600" aria-label="Xoá ký hiệu"><Trash2 className="size-4" /></Button>
             )}

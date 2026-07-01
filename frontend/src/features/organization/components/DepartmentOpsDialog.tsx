@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { DepartmentNode } from "@features/organization/types/organization.types";
@@ -137,14 +130,31 @@ export function DepartmentOpsDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{TITLES[mode]}</DialogTitle>
-          <DialogDescription>{DESCRIPTIONS[mode]}</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onOpenChange(false)}
+        disabled={submitting}
+      >
+        Hủy
+      </Button>
+      <Button type="button" size="sm" disabled={!canSubmit || submitting} onClick={handleConfirm}>
+        {submitting ? "Đang xử lý…" : "Xác nhận"}
+      </Button>
+    </>
+  );
 
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={TITLES[mode]}
+      subtitle={DESCRIPTIONS[mode]}
+      footer={footer}
+    >
         <div className="flex flex-col gap-4">
           {mode === "head" && (
             <div className="flex flex-col gap-1.5">
@@ -219,22 +229,6 @@ export function DepartmentOpsDialog({
             </p>
           )}
         </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Hủy
-          </Button>
-          <Button type="button" size="sm" disabled={!canSubmit || submitting} onClick={handleConfirm}>
-            {submitting ? "Đang xử lý…" : "Xác nhận"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

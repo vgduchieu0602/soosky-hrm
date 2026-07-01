@@ -220,7 +220,12 @@ export const authService = {
     });
   },
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    currentSessionId?: string,
+  ) {
     const user = await User.findById(userId).select('+password');
     if (!user) throw new HttpError(401, 'User not found', 'IAM_002');
 
@@ -234,6 +239,14 @@ export const authService = {
     user.password = await hashPassword(newPassword);
     user.mustChangePassword = false;
     await user.save();
+
+    // Kill every other live session so a previously-stolen refresh token dies
+    // with the old password; keep the current device signed in.
+    if (currentSessionId) {
+      await sessionRepository.revokeAllForUserExcept(userId, currentSessionId);
+    } else {
+      await sessionRepository.revokeAllForUser(userId);
+    }
 
     eventBus.emit('iam.user.password-changed', { userId });
     await auditService.record({

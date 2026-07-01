@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, FileText, Briefcase, Laptop, History, IdCard, Plus,
   Key, RefreshCw, Send, Power, Pencil, ChevronDown, Check, Trash2, RotateCcw,
-  Paperclip, Download, Loader2, Camera, Landmark,
+  Paperclip, Download, Loader2, Camera, Landmark, Eye, Filter,
   type LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import type {
   EmployeeDocumentRecord, EmployeeHistoryRecord, EmployeeProfile,
   EmployeeStatus, EmployeeView,
 } from "@features/employee/types/employee.types";
+import { bankService, type Bank } from "@features/settings/services/bank.service";
 
 const CHIP = (c: string) => ({ background: `var(--chip-${c}-bg)`, color: `var(--chip-${c}-ink)` });
 const inputCls =
@@ -347,6 +348,59 @@ function DownloadLink({ fileKey, label }: { fileKey: string; label?: string }) {
       {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
       {label ?? "Tải tệp"}
     </button>
+  );
+}
+
+const PREVIEW_IMG = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
+
+/** Inline preview of an uploaded file (image / PDF) via a short-lived signed URL. */
+function FilePreview({ fileKey }: { fileKey: string }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const ext = (fileKey.split(".").pop() ?? "").toLowerCase();
+  const isImg = PREVIEW_IMG.includes(ext);
+  const isPdf = ext === "pdf";
+
+  function view() {
+    setOpen(true);
+    if (url) return;
+    setBusy(true);
+    signDownload(fileKey).then(setUrl).catch(() => {}).finally(() => setBusy(false));
+  }
+
+  return (
+    <>
+      <button type="button" onClick={view}
+        className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium text-primary-600 hover:underline">
+        <Eye className="size-3.5" /> Xem trước
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-secondary-900/60 backdrop-blur-[2px]" onClick={() => setOpen(false)} style={{ animation: "fadeIn .2s ease" }} />
+          <div className="relative flex max-h-[90vh] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl" style={{ animation: "fadeIn .2s ease" }}>
+            <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+              <span className="text-[13px] font-semibold text-foreground">Xem trước tài liệu</span>
+              <button type="button" onClick={() => setOpen(false)} className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="size-4" /></button>
+            </div>
+            <div className="flex min-h-[320px] flex-1 items-center justify-center overflow-auto bg-muted/30 p-3">
+              {busy || !url ? (
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              ) : isImg ? (
+                <img src={url} alt="preview" className="max-h-[76vh] max-w-full object-contain" />
+              ) : isPdf ? (
+                <iframe src={url} title="preview" className="h-[76vh] w-full rounded-lg bg-white" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-[13px] text-muted-foreground">
+                  Không thể xem trước định dạng này.
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 hover:underline">Tải xuống để xem</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -748,6 +802,10 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeBankAccountRecord>(() => employeeService.bankAccounts(employeeId), `${employeeId}:${rk}`);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  useEffect(() => {
+    bankService.list().then((bs) => setBanks(bs.filter((b) => b.status === "active"))).catch(() => {});
+  }, []);
   const emptyForm = { bankName: "", branch: "", accountNumber: "", accountHolder: "", isPrimary: false };
   const [f, setF] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -791,7 +849,14 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
     <Panel title="Tài khoản ngân hàng" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
-          <LabeledInput label="Ngân hàng"><input className={inputCls} value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} placeholder="VD: Vietcombank" /></LabeledInput>
+          <LabeledInput label="Ngân hàng">
+            <select className={inputCls} value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })}>
+              <option value="">— Chọn ngân hàng —</option>
+              {f.bankName && !banks.some((b) => b.name === f.bankName) && <option value={f.bankName}>{f.bankName}</option>}
+              {banks.map((b) => <option key={b._id} value={b.name}>{b.name}{b.code ? ` (${b.code})` : ""}</option>)}
+            </select>
+            {banks.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">Chưa có ngân hàng. Tạo trong Cài đặt → Ngân hàng.</p>}
+          </LabeledInput>
           <LabeledInput label="Chi nhánh"><input className={inputCls} value={f.branch} onChange={(e) => setF({ ...f, branch: e.target.value })} placeholder="VD: CN Hà Nội" /></LabeledInput>
           <LabeledInput label="Số tài khoản"><input className={cn(inputCls, "font-mono")} value={f.accountNumber} onChange={(e) => setF({ ...f, accountNumber: e.target.value.replace(/[^\d]/g, "") })} inputMode="numeric" /></LabeledInput>
           <LabeledInput label="Chủ tài khoản"><input className={inputCls} value={f.accountHolder} onChange={(e) => setF({ ...f, accountHolder: e.target.value })} placeholder="Tên in trên thẻ" /></LabeledInput>
@@ -926,7 +991,7 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
                     Số: <span className="font-mono">{d.documentNumber}</span>
                     {d.issuedDate ? ` · Cấp ${formatDate(d.issuedDate)}` : ""}{d.expiryDate ? ` · HH ${formatDate(d.expiryDate)}` : ""}
                   </div>
-                  {d.fileUrl && <div className="mt-1.5"><DownloadLink fileKey={d.fileUrl} /></div>}
+                  {d.fileUrl && <div className="mt-1.5 flex items-center gap-4"><FilePreview fileKey={d.fileUrl} /><DownloadLink fileKey={d.fileUrl} /></div>}
                 </div>
                 {canManage && (
                   <>
@@ -1188,27 +1253,128 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
 }
 
 // ===================== History =====================
+const HIST_FIELD_LABEL: Record<string, string> = {
+  status: "Trạng thái", departmentId: "Phòng ban", positionId: "Vị trí",
+  hireDate: "Ngày vào làm", terminationDate: "Ngày nghỉ việc",
+  contractNumber: "Số hợp đồng", contractType: "Loại hợp đồng",
+  baseSalary: "Lương cơ bản", employmentStatus: "Tình trạng làm việc",
+  managerId: "Quản lý", email: "Email",
+};
+const histFieldLabel = (k: string) => HIST_FIELD_LABEL[k] ?? k;
+
+function histFmt(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Có" : "Không";
+  if (typeof v === "string") {
+    // ISO date-ish → friendly date
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) return formatDate(v);
+    return v;
+  }
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+const TIME_RANGES: { id: string; label: string; days: number | null }[] = [
+  { id: "all", label: "Tất cả thời gian", days: null },
+  { id: "7", label: "7 ngày qua", days: 7 },
+  { id: "30", label: "30 ngày qua", days: 30 },
+  { id: "90", label: "90 ngày qua", days: 90 },
+];
+
 function HistoryTab({ employeeId }: { employeeId: string }) {
   const { loading, items, error } = useResource<EmployeeHistoryRecord>(() => employeeService.history(employeeId), employeeId);
+  const [range, setRange] = useState("all");
+  const [action, setAction] = useState("all");
+  const [dataCat, setDataCat] = useState("all");
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // Filter option sets derived from the loaded records.
+  const actionTypes = Array.from(new Set(items.map((h) => h.eventType)));
+  const dataKeys = Array.from(
+    new Set(items.flatMap((h) => [...Object.keys(h.fromValue ?? {}), ...Object.keys(h.toValue ?? {})])),
+  );
+
+  const cutoff = (() => {
+    const days = TIME_RANGES.find((r) => r.id === range)?.days;
+    if (!days) return null;
+    return Date.now() - days * 86_400_000;
+  })();
+
+  const filtered = items.filter((h) => {
+    if (cutoff && new Date(h.effectiveDate).getTime() < cutoff) return false;
+    if (action !== "all" && h.eventType !== action) return false;
+    if (dataCat !== "all") {
+      const keys = [...Object.keys(h.fromValue ?? {}), ...Object.keys(h.toValue ?? {})];
+      if (!keys.includes(dataCat)) return false;
+    }
+    return true;
+  });
+
+  const selCls = "h-9 rounded-lg border border-input bg-card px-2.5 text-[12.5px] focus-visible:outline-none focus-visible:border-primary-500";
+
   return (
-    <Panel title="Lịch sử nhân sự">
+    <Panel title="Lịch sử thao tác">
+      {/* Minimal filter bar */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground"><Filter className="size-3.5" /> Lọc:</span>
+        <select className={selCls} value={range} onChange={(e) => setRange(e.target.value)}>
+          {TIME_RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+        <select className={selCls} value={action} onChange={(e) => setAction(e.target.value)}>
+          <option value="all">Mọi hành động</option>
+          {actionTypes.map((t) => <option key={t} value={t}>{HIST_EVENT[t] ?? t}</option>)}
+        </select>
+        <select className={selCls} value={dataCat} onChange={(e) => setDataCat(e.target.value)}>
+          <option value="all">Mọi loại dữ liệu</option>
+          {dataKeys.map((k) => <option key={k} value={k}>{histFieldLabel(k)}</option>)}
+        </select>
+      </div>
+
       {loading ? <TabLoading /> : error ? <TabEmpty text="Không tải được lịch sử." /> :
-        items.length === 0 ? <TabEmpty text="Chưa có sự kiện nào." /> : (
-          <ol className="relative">
-            <span className="pointer-events-none absolute bottom-2 left-[15px] top-2 w-px bg-border" />
-            {items.map((h) => (
-              <li key={h._id} className="relative flex items-start gap-3 py-2.5">
-                <span className="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-primary-600"><History className="size-3.5" strokeWidth={1.8} /></span>
-                <div className="flex-1 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-foreground">{HIST_EVENT[h.eventType] ?? h.eventType}</span>
-                    <span className="text-[11.5px] tabular-nums text-muted-foreground">{formatDate(h.effectiveDate)}</span>
+        items.length === 0 ? <TabEmpty text="Chưa có sự kiện nào." /> :
+        filtered.length === 0 ? <TabEmpty text="Không có bản ghi khớp bộ lọc." /> : (
+          <div className="flex flex-col gap-2">
+            {filtered.map((h) => {
+              const keys = Array.from(new Set([...Object.keys(h.fromValue ?? {}), ...Object.keys(h.toValue ?? {})]));
+              const hasDiff = keys.length > 0;
+              const open = openId === h._id;
+              return (
+                <div key={h._id} className="overflow-hidden rounded-xl border">
+                  <button type="button" disabled={!hasDiff} onClick={() => setOpenId(open ? null : h._id)}
+                    className={cn("flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors", hasDiff && "hover:bg-muted/40 cursor-pointer")}>
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-primary-600"><History className="size-3.5" strokeWidth={1.8} /></span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold text-foreground">{HIST_EVENT[h.eventType] ?? h.eventType}</span>
+                        <span className="text-[11.5px] tabular-nums text-muted-foreground">{formatDate(h.effectiveDate)}</span>
+                      </div>
+                      {h.note && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{h.note}</div>}
+                    </div>
+                    {hasDiff && <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-180")} />}
+                  </button>
+                  {/* Accordion: old → new comparison slides down on click */}
+                  <div className="grid transition-[grid-template-rows] duration-200 ease-out" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
+                    <div className="overflow-hidden">
+                      <div className="border-t bg-muted/20 px-3.5 py-3">
+                        <div className="flex flex-col gap-2">
+                          {keys.map((k) => (
+                            <div key={k} className="grid grid-cols-[120px_1fr] gap-2 text-[12.5px]">
+                              <span className="font-medium text-muted-foreground">{histFieldLabel(k)}</span>
+                              <span className="flex items-center gap-2">
+                                <span className="rounded bg-rose-50 px-1.5 py-0.5 text-rose-600 line-through">{histFmt(h.fromValue?.[k])}</span>
+                                <ChevronDown className="size-3 -rotate-90 text-muted-foreground" />
+                                <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700">{histFmt(h.toValue?.[k])}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  {h.note && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{h.note}</div>}
                 </div>
-              </li>
-            ))}
-          </ol>
+              );
+            })}
+          </div>
         )}
     </Panel>
   );

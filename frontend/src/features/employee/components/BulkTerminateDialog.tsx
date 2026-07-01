@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,25 +43,33 @@ export function BulkTerminateDialog({ open, onOpenChange, employeeIds, onDone }:
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <div className="flex items-start gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-              <AlertTriangle className="size-4.5" strokeWidth={2} />
-            </span>
-            <div>
-              <DialogTitle>Cho nghỉ việc hàng loạt</DialogTitle>
-              <DialogDescription className="mt-1">
-                Cho <span className="font-semibold text-foreground">{employeeIds.length}</span> nhân viên đã chọn
-                nghỉ việc. Nhân viên đã nghỉ trước đó sẽ được bỏ qua.
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
+      <Button type="button" size="sm" onClick={handleConfirm} disabled={submitting}>
+        {submitting ? "Đang xử lý…" : `Cho nghỉ ${employeeIds.length} người`}
+      </Button>
+    </>
+  );
 
-        <div className="flex flex-col gap-4">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Cho nghỉ việc hàng loạt"
+      maxWidth={448}
+      footer={footer}
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+            <AlertTriangle className="size-4.5" strokeWidth={2} />
+          </span>
+          <p className="text-[13px] text-muted-foreground">
+            Cho <span className="font-semibold text-foreground">{employeeIds.length}</span> nhân viên đã chọn
+            nghỉ việc. Nhân viên đã nghỉ trước đó sẽ được bỏ qua.
+          </p>
+        </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bt-date">Ngày nghỉ việc</Label>
             <Input id="bt-date" type="date" value={terminationDate} onChange={(e) => setTerminationDate(e.target.value)} />
@@ -74,14 +80,6 @@ export function BulkTerminateDialog({ open, onOpenChange, employeeIds, onDone }:
           </div>
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
-          <Button type="button" size="sm" onClick={handleConfirm} disabled={submitting}>
-            {submitting ? "Đang xử lý…" : `Cho nghỉ ${employeeIds.length} người`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

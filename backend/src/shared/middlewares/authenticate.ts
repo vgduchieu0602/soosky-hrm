@@ -24,8 +24,21 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
       mustChangePassword: payload.mustChangePassword,
       sessionId: payload.sessionId,
     };
+
+    // Enforce forced password change server-side: a user flagged
+    // mustChangePassword may only change their password, read self, or log out —
+    // every other API is blocked until they resolve it (UI gating is not enough).
+    if (payload.mustChangePassword && !isPasswordChangeAllowed(req.path)) {
+      return next(new HttpError(403, 'Phải đổi mật khẩu trước khi tiếp tục', 'IAM_013'));
+    }
     next();
   } catch {
     next(new HttpError(401, 'Access token invalid or expired', 'IAM_002'));
   }
+}
+
+const MUST_CHANGE_ALLOWLIST = ['/auth/change-password', '/auth/logout', '/auth/me'];
+
+function isPasswordChangeAllowed(path: string): boolean {
+  return MUST_CHANGE_ALLOWLIST.some((p) => path === p || path.endsWith(p));
 }

@@ -9,6 +9,8 @@ import {
   updateSalaryPolicyDto,
   createCriterionDto,
   updateCriterionDto,
+  createBankDto,
+  updateBankDto,
 } from '@features/settings/dto/settings.dto';
 
 const router = Router();
@@ -63,6 +65,29 @@ router.delete(
   authenticate,
   hrOrAdmin,
   settingsController.archiveCriterion,
+);
+
+// ---- Banks ----
+router.get('/settings/banks', authenticate, settingsController.listBanks);
+router.post(
+  '/admin/settings/banks',
+  authenticate,
+  hrOrAdmin,
+  validate(createBankDto, 'body'),
+  settingsController.createBank,
+);
+router.patch(
+  '/admin/settings/banks/:id',
+  authenticate,
+  hrOrAdmin,
+  validate(updateBankDto, 'body'),
+  settingsController.updateBank,
+);
+router.delete(
+  '/admin/settings/banks/:id',
+  authenticate,
+  hrOrAdmin,
+  settingsController.archiveBank,
 );
 
 export default router;

@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, Check } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { attendanceService } from "@features/attendance/services/attendance.service";
@@ -82,14 +80,24 @@ export function LeaveBalanceDialog({ open, onOpenChange }: Props) {
       .finally(() => setSaving(false));
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle>Hạn mức nghỉ phép</DialogTitle>
-          <DialogDescription>Thiết lập số ngày phép (entitled) theo từng loại cho nhân viên. Nghỉ không lương không cần hạn mức.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Đóng</Button>
+      <Button size="sm" disabled={saving || !employeeId} onClick={save} className="gap-1.5">
+        {saving ? <Loader2 className="size-4 animate-spin" /> : null} Lưu hạn mức
+      </Button>
+    </>
+  );
 
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Hạn mức nghỉ phép"
+      subtitle="Thiết lập số ngày phép (entitled) theo từng loại cho nhân viên. Nghỉ không lương không cần hạn mức."
+      maxWidth={520}
+      footer={footer}
+    >
         <div className="flex flex-col gap-4 py-1">
           <div className="grid grid-cols-[1fr_110px] gap-3">
             <div className="flex flex-col gap-1.5">
@@ -128,14 +136,6 @@ export function LeaveBalanceDialog({ open, onOpenChange }: Props) {
             {msg && <span className="flex items-center gap-1.5 text-emerald-600"><Check className="size-4" /> {msg}</span>}
           </div>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Đóng</Button>
-          <Button size="sm" disabled={saving || !employeeId} onClick={save} className="gap-1.5">
-            {saving ? <Loader2 className="size-4 animate-spin" /> : null} Lưu hạn mức
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

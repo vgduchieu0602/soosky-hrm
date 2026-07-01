@@ -92,3 +92,21 @@ export const updateCriterionDto = z
   })
   .strict();
 export type UpdateCriterionDto = z.infer<typeof updateCriterionDto>;
+
+// ---------- Bank ----------
+export const createBankDto = z
+  .object({
+    name: z.string().min(1).max(120).trim(),
+    code: z.string().max(20).trim().optional(),
+  })
+  .strict();
+export type CreateBankDto = z.infer<typeof createBankDto>;
+
+export const updateBankDto = z
+  .object({
+    name: z.string().min(1).max(120).trim().optional(),
+    code: z.string().max(20).trim().optional(),
+    status: z.enum(['active', 'archived']).optional(),
+  })
+  .strict();
+export type UpdateBankDto = z.infer<typeof updateBankDto>;

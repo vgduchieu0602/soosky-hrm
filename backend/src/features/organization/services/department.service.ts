@@ -4,7 +4,7 @@ import { HttpError } from '@shared/errors/http-error';
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeHistory } from '@shared/models/employee-history.model';
 import { Position } from '@shared/models/position.model';
-import type { IDepartment } from '@shared/models/department.model';
+import { Department, type IDepartment } from '@shared/models/department.model';
 import { departmentRepository } from '@features/organization/repositories/department.repository';
 import { auditService } from '@features/iam/services/audit.service';
 import type {
@@ -32,9 +32,6 @@ interface DeptNode {
   parentDepartmentId: string | null;
   managerId: string | null;
   head: DeptHead | null;
-  costCenter?: string;
-  location?: string;
-  email?: string;
   description?: string;
   status: string;
   headcount: number;
@@ -125,9 +122,6 @@ export const departmentService = {
       parentDepartmentId: d.parentDepartmentId ? d.parentDepartmentId.toString() : null,
       managerId: d.managerId ? d.managerId.toString() : null,
       head: d.managerId ? (headMap.get(d.managerId.toString()) ?? null) : null,
-      costCenter: d.costCenter,
-      location: d.location,
-      email: d.email,
       description: d.description,
       status: d.status,
       headcount: countMap.get(d._id.toString()) ?? 0,
@@ -407,6 +401,48 @@ export const departmentService = {
       throw new HttpError(400, 'Invalid department id', 'ORG_001');
     }
     return auditService.list({ resource: 'department', resourceId: id });
+  },
+
+  /**
+   * Hard-delete a department — ONLY when nothing still references it. If any
+   * employee, position or sub-department still points here, refuse with a
+   * warning listing what remains so the caller clears those first.
+   */
+  async remove(id: string, auditUserId: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new HttpError(400, 'Invalid department id', 'ORG_001');
+    }
+    const deptId = new Types.ObjectId(id);
+    const [employees, positions, children] = await Promise.all([
+      Employee.countDocuments({ departmentId: deptId }),
+      Position.countDocuments({ departmentId: deptId }),
+      Department.countDocuments({ parentDepartmentId: deptId }),
+    ]);
+
+    if (employees > 0 || positions > 0 || children > 0) {
+      const parts: string[] = [];
+      if (employees > 0) parts.push(`${employees} nhân viên`);
+      if (positions > 0) parts.push(`${positions} vị trí`);
+      if (children > 0) parts.push(`${children} phòng ban con`);
+      throw new HttpError(
+        409,
+        `Không thể xoá: phòng ban vẫn còn ${parts.join(', ')}. Hãy chuyển hoặc xoá các dữ liệu này trước.`,
+        'ORG_DEPT_HAS_DATA',
+      );
+    }
+
+    const deleted = await departmentRepository.deleteById(id);
+    if (!deleted) throw new HttpError(404, 'Department not found', 'ORG_001');
+
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'department',
+      action: 'delete',
+      resourceId: id,
+      changes: { hardDeleted: true, name: deleted.name, code: deleted.code },
+    });
+    log.info({ departmentId: id }, 'department hard-deleted');
+    return { id, deleted: true };
   },
 
   async archive(id: string, auditUserId: string) {

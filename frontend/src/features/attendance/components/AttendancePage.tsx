@@ -11,9 +11,12 @@ import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
 import type { ChipColor } from "@features/dashboard/data";
 import { attendanceService } from "@features/attendance/services/attendance.service";
+import { settingsService } from "@features/settings/services/settings.service";
+import type { AttendanceSymbol } from "@features/settings/types/settings.types";
 import type {
   AdminGrid,
   AttendanceRecord,
+  AttendanceStatus,
   RosterEmployee,
   ShiftOption,
 } from "@features/attendance/types/attendance.types";
@@ -90,6 +93,10 @@ export default function AttendancePage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [edit, setEdit] = useState<EditTarget | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [display, setDisplay] = useState<"dot" | "text">(
+    () => (localStorage.getItem("att-display") as "dot" | "text") || "dot",
+  );
+  function pickDisplay(m: "dot" | "text") { setDisplay(m); localStorage.setItem("att-display", m); }
 
   useEffect(() => {
     let active = true;
@@ -99,6 +106,22 @@ export default function AttendancePage() {
       .catch(() => { if (active) { setGrid({ month, employees: [], shifts: [], records: [] }); setLoading(false); } });
     return () => { active = false; };
   }, [month, reloadKey]);
+
+  // Attendance symbols configured in Settings, mapped by the status they apply
+  // to — overrides the built-in label/code/color for the legend + grid.
+  const [symbols, setSymbols] = useState<AttendanceSymbol[]>([]);
+  useEffect(() => { settingsService.listSymbols().then(setSymbols).catch(() => {}); }, []);
+  const symMap = useMemo(() => {
+    const m: Partial<Record<AttendanceStatus, { code: string; label: string; color: ChipColor }>> = {};
+    for (const s of symbols) {
+      if (s.appliesTo && s.appliesTo in STATUS_META) {
+        const st = s.appliesTo as AttendanceStatus;
+        m[st] = { code: s.code, label: s.label, color: (s.color as ChipColor) || STATUS_META[st].color };
+      }
+    }
+    return m;
+  }, [symbols]);
+  const meta = (st: AttendanceStatus) => symMap[st] ?? STATUS_META[st];
 
   const days = useMemo(() => monthDays(month), [month]);
   const shifts = useMemo(() => grid?.shifts ?? [], [grid]);
@@ -179,12 +202,24 @@ export default function AttendancePage() {
                   <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm theo tên, mã NV…" className="h-9 pl-10 text-[13px]" />
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]">
-                  {(["present", "late", "leave_paid", "holiday", "absent"] as const).map((k) => (
+                  {(["present", "late", "leave_paid", "holiday", "absent"] as const).map((k) => {
+                    const mk = meta(k);
+                    return (
                     <span key={k} className="inline-flex items-center gap-1.5">
-                      <span className="block size-2 rounded-full" style={{ background: `var(--chip-${STATUS_META[k].color}-ink)` }} />
-                      <span className="text-muted-foreground">{STATUS_META[k].label}</span>
+                      {display === "dot" ? (
+                        <span className="block size-2 rounded-full" style={{ background: `var(--chip-${mk.color}-ink)` }} />
+                      ) : (
+                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] font-bold" style={{ background: `var(--chip-${mk.color}-bg)`, color: `var(--chip-${mk.color}-ink)` }}>{mk.code}</span>
+                      )}
+                      <span className="text-muted-foreground">{mk.label}</span>
                     </span>
-                  ))}
+                    );
+                  })}
+                </div>
+                {/* Display mode: dot vs text (code) */}
+                <div className="inline-flex overflow-hidden rounded-lg border text-[12px]">
+                  <button type="button" onClick={() => pickDisplay("dot")} className={cn("px-2.5 py-1 transition", display === "dot" ? "bg-primary-500 text-white" : "text-muted-foreground hover:bg-muted")}>Chấm</button>
+                  <button type="button" onClick={() => pickDisplay("text")} className={cn("px-2.5 py-1 transition", display === "text" ? "bg-primary-500 text-white" : "text-muted-foreground hover:bg-muted")}>Chữ</button>
                 </div>
               </div>
 
@@ -222,7 +257,7 @@ export default function AttendancePage() {
                           }
                           const title = shifts
                             .filter((s) => records[s._id])
-                            .map((s) => `${s.name}: ${STATUS_META[records[s._id]!.status].label}`)
+                            .map((s) => `${s.name}: ${meta(records[s._id]!.status).label}`)
                             .join(" · ");
                           return (
                             <td key={d.key} className={cn("px-0 py-2 text-center", d.weekend && "bg-slate-50/40")}>
@@ -236,11 +271,12 @@ export default function AttendancePage() {
                                 ) : (
                                   shifts.map((s) => {
                                     const rec = records[s._id];
-                                    const meta = rec ? STATUS_META[rec.status] : null;
-                                    return meta ? (
-                                      <span key={s._id} className="block size-2 rounded-full" style={{ background: `var(--chip-${meta.color}-ink)` }} />
+                                    const cm = rec ? meta(rec.status) : null;
+                                    if (!cm) return <span key={s._id} className="block size-2 rounded-full opacity-0 ring-1 ring-inset ring-border group-hover:opacity-100" />;
+                                    return display === "dot" ? (
+                                      <span key={s._id} className="block size-2 rounded-full" style={{ background: `var(--chip-${cm.color}-ink)` }} />
                                     ) : (
-                                      <span key={s._id} className="block size-2 rounded-full opacity-0 ring-1 ring-inset ring-border group-hover:opacity-100" />
+                                      <span key={s._id} className="inline-flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[10px] font-bold leading-none" style={{ background: `var(--chip-${cm.color}-bg)`, color: `var(--chip-${cm.color}-ink)` }}>{cm.code}</span>
                                     );
                                   })
                                 )}

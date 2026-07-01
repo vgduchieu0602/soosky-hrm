@@ -11,9 +11,6 @@ export interface DepartmentNode {
   parentDepartmentId: string | null;
   managerId?: string | null;
   head?: DepartmentHead | null;
-  costCenter?: string;
-  location?: string;
-  email?: string;
   description?: string;
   status: "active" | "archived";
   headcount: number;
@@ -49,9 +46,6 @@ export interface CreateDepartmentInput {
   code: string;
   parentDepartmentId?: string | null;
   managerId?: string | null;
-  costCenter?: string;
-  location?: string;
-  email?: string;
   description?: string;
 }
 
@@ -60,9 +54,6 @@ export interface UpdateDepartmentInput {
   code?: string;
   parentDepartmentId?: string | null;
   managerId?: string | null;
-  costCenter?: string;
-  location?: string;
-  email?: string;
   description?: string;
   status?: "active" | "archived";
 }

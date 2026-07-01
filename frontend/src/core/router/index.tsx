@@ -3,6 +3,7 @@ import MainLayout from "@layouts/MainLayout";
 import AuthLayout from "@layouts/AuthLayout";
 import LoginPage from "@pages/LoginPage";
 import SetPasswordPage from "@pages/SetPasswordPage";
+import ChangePasswordPage from "@pages/ChangePasswordPage";
 import DashboardPage from "@pages/DashboardPage";
 import EmployeesPage from "@pages/EmployeesPage";
 import DepartmentsPage from "@pages/DepartmentsPage";
@@ -17,6 +18,7 @@ import SettingsPage from "@pages/SettingsPage";
 import SystemSettingsPage from "@features/settings/components/SystemSettingsPage";
 import NotFoundPage from "@pages/NotFoundPage";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { MustChangePasswordRoute } from "./MustChangePasswordRoute";
 import { RoleRoute } from "./RoleRoute";
 
 export const router = createBrowserRouter([
@@ -26,12 +28,16 @@ export const router = createBrowserRouter([
     children: [
       { path: "login", element: <LoginPage /> },
       { path: "set-password", element: <SetPasswordPage /> },
+      { path: "change-password", element: <ChangePasswordPage /> },
     ],
   },
   {
     path: "/",
     element: <ProtectedRoute />,
     children: [
+      {
+        element: <MustChangePasswordRoute />,
+        children: [
       {
         element: <MainLayout />,
         children: [
@@ -54,6 +60,8 @@ export const router = createBrowserRouter([
               { path: "settings", element: <SystemSettingsPage /> },
             ],
           },
+        ],
+      },
         ],
       },
     ],

@@ -3,6 +3,7 @@ import {
   companyConfigService,
   salaryPolicyService,
   performanceCriterionService,
+  bankService,
 } from '@features/settings/services/settings.service';
 
 function requireUser(req: Request) {
@@ -69,6 +70,33 @@ export const settingsController = {
       const user = requireUser(req);
       const { id } = req.params as { id: string };
       res.json({ data: await performanceCriterionService.archive(id, user.userId) });
+    } catch (err) { next(err); }
+  },
+
+  // ---- banks ----
+  async listBanks(_req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await bankService.list() });
+    } catch (err) { next(err); }
+  },
+  async createBank(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      res.status(201).json({ data: await bankService.create(req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async updateBank(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await bankService.update(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async archiveBank(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await bankService.archive(id, user.userId) });
     } catch (err) { next(err); }
   },
 };

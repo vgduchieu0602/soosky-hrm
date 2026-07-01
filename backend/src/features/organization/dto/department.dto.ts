@@ -8,9 +8,6 @@ export const createDepartmentDto = z
     code: z.string().min(1).max(20).trim(),
     parentDepartmentId: objectId.nullable().optional(),
     managerId: objectId.nullable().optional(),
-    costCenter: z.string().max(50).trim().optional(),
-    location: z.string().max(120).trim().optional(),
-    email: z.string().email().max(120).optional(),
     description: z.string().max(500).optional(),
   })
   .strict();
@@ -22,9 +19,6 @@ export const updateDepartmentDto = z
     code: z.string().min(1).max(20).trim().optional(),
     parentDepartmentId: objectId.nullable().optional(),
     managerId: objectId.nullable().optional(),
-    costCenter: z.string().max(50).trim().optional(),
-    location: z.string().max(120).trim().optional(),
-    email: z.string().email().max(120).optional(),
     description: z.string().max(500).optional(),
     status: z.enum(['active', 'archived']).optional(),
   })

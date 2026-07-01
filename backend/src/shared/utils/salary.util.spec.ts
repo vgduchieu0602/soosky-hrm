@@ -99,21 +99,7 @@ describe('computeEffectiveBaseSalary', () => {
     expect(result.proRatedBaseSalary).toBe(10_000_000);
   });
 
-  it('prorates each branch independently when prorateByAttendance=false (legacy)', () => {
-    const result = computeEffectiveBaseSalary({
-      baseSalary: 10_000_000,
-      attendanceRatio: 0.5,
-      performanceRatio: 80,
-      goalRatio: 90,
-      prorateByAttendance: false,
-    });
-    expect(result.attendanceComponent).toBe(1_000_000);
-    expect(result.performanceComponent).toBe(4_800_000);
-    expect(result.goalComponent).toBe(1_800_000);
-    expect(result.proRatedBaseSalary).toBe(7_600_000);
-  });
-
-  it('by default scales performance & goal by attendance too', () => {
+  it('by default only the attendance component is prorated (perf & goal paid in full)', () => {
     const result = computeEffectiveBaseSalary({
       baseSalary: 10_000_000,
       attendanceRatio: 0.5,
@@ -121,17 +107,43 @@ describe('computeEffectiveBaseSalary', () => {
       goalRatio: 90,
     });
     expect(result.attendanceComponent).toBe(1_000_000); // 0.2 × 10m × 0.5
+    expect(result.performanceComponent).toBe(4_800_000); // 0.6 × 10m × 0.8 (no attendance scaling)
+    expect(result.goalComponent).toBe(1_800_000); // 0.2 × 10m × 0.9 (no attendance scaling)
+    expect(result.proRatedBaseSalary).toBe(7_600_000);
+  });
+
+  it('opt-in prorateByAttendance=true scales performance & goal by attendance too', () => {
+    const result = computeEffectiveBaseSalary({
+      baseSalary: 10_000_000,
+      attendanceRatio: 0.5,
+      performanceRatio: 80,
+      goalRatio: 90,
+      prorateByAttendance: true,
+    });
+    expect(result.attendanceComponent).toBe(1_000_000); // 0.2 × 10m × 0.5
     expect(result.performanceComponent).toBe(2_400_000); // 0.6 × 10m × 0.8 × 0.5
     expect(result.goalComponent).toBe(900_000); // 0.2 × 10m × 0.9 × 0.5
     expect(result.proRatedBaseSalary).toBe(4_300_000);
   });
 
-  it('zero attendance → zero pay even with full performance/goal', () => {
+  it('zero attendance → only the 20% attendance component drops to 0 (perf/goal still paid)', () => {
     const result = computeEffectiveBaseSalary({
       baseSalary: 10_000_000,
       attendanceRatio: 0,
       performanceRatio: 100,
       goalRatio: 100,
+    });
+    expect(result.attendanceComponent).toBe(0);
+    expect(result.proRatedBaseSalary).toBe(8_000_000); // 60% + 20% paid in full
+  });
+
+  it('opt-in: zero attendance → zero pay even with full performance/goal', () => {
+    const result = computeEffectiveBaseSalary({
+      baseSalary: 10_000_000,
+      attendanceRatio: 0,
+      performanceRatio: 100,
+      goalRatio: 100,
+      prorateByAttendance: true,
     });
     expect(result.proRatedBaseSalary).toBe(0);
   });
@@ -318,9 +330,10 @@ describe('computePayroll — E1 parallel-run case', () => {
       dependentDeduction: 4_400_000,
       dependentsCount: 0,
     });
-    // attendance 0.2*30m*0.5=3m ; perf 0.6*30m*0.8*0.5=7.2m ; goal 0.2*30m*0.9*0.5=2.7m
-    expect(half.proRatedBaseSalary).toBe(12_900_000);
-    expect(half.grossSalary).toBe(12_900_000);
+    // Only the attendance component is prorated by days worked:
+    //   attendance 0.2*30m*0.5=3m ; perf 0.6*30m*0.8=14.4m ; goal 0.2*30m*0.9=5.4m
+    expect(half.proRatedBaseSalary).toBe(22_800_000);
+    expect(half.grossSalary).toBe(22_800_000);
   });
 });
 

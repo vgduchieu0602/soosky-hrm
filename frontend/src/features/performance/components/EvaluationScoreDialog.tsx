@@ -1,7 +1,5 @@
 import { useState } from "react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,15 +85,27 @@ export function EvaluationScoreDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Đánh giá nhân viên</DialogTitle>
-          <DialogDescription>{employeeName} · chấm 0–100 từng chỉ số. "Lưu nháp" để sửa sau, "Duyệt" để chốt.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => save(false)}>
+        {submitting ? "Đang lưu…" : "Lưu nháp"}
+      </Button>
+      <Button type="submit" form="evaluation-form" size="sm" disabled={submitting}>
+        {submitting ? "Đang lưu…" : "Duyệt"}
+      </Button>
+    </>
+  );
 
-        <form onSubmit={(e) => { e.preventDefault(); save(true); }} className="flex max-h-[64vh] flex-col gap-4 overflow-y-auto pr-1">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Đánh giá nhân viên"
+      subtitle={`${employeeName} · chấm 0–100 từng chỉ số. "Lưu nháp" để sửa sau, "Duyệt" để chốt.`}
+      maxWidth={640}
+      footer={footer}
+    >
+        <form id="evaluation-form" onSubmit={(e) => { e.preventDefault(); save(true); }} className="flex flex-col gap-4">
           <ScoreGroup title="Chỉ số Hiệu suất (60%)" items={perf} scores={scores} setScores={setScores} />
           <ScoreGroup title="Chỉ số Mục tiêu (20%)" items={goal} scores={scores} setScores={setScores} />
 
@@ -145,18 +155,8 @@ export function EvaluationScoreDialog({
           )}
 
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => save(false)}>
-              {submitting ? "Đang lưu…" : "Lưu nháp"}
-            </Button>
-            <Button type="submit" size="sm" disabled={submitting}>
-              {submitting ? "Đang lưu…" : "Duyệt"}
-            </Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }
 

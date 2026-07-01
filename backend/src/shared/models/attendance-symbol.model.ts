@@ -1,4 +1,5 @@
 import mongoose, { Schema, type HydratedDocument } from 'mongoose';
+import { ATTENDANCE_STATUS, type AttendanceStatus } from '@shared/models/attendance.model';
 
 const DB_NAME = 'attendanceSymbol';
 const COLLECTION_NAME = 'attendanceSymbols';
@@ -13,6 +14,8 @@ export interface IAttendanceSymbol {
   affectsPayroll: boolean;
   leaveType?: string;
   color?: string;
+  /** Which attendance status this symbol renders for in the grid/legend. */
+  appliesTo?: AttendanceStatus;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -27,6 +30,7 @@ const attendanceSymbolSchema = new Schema<IAttendanceSymbol>(
     affectsPayroll: { type: Boolean, default: false },
     leaveType: { type: String, trim: true },
     color: { type: String, trim: true },
+    appliesTo: { type: String, enum: ATTENDANCE_STATUS },
   },
   {
     collection: COLLECTION_NAME,

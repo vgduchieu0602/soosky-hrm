@@ -5,15 +5,15 @@ import type {
   LeaveTypeKey,
 } from "@features/attendance/types/attendance.types";
 
-export const STATUS_META: Record<AttendanceStatus, { label: string; color: ChipColor }> = {
-  present: { label: "Đủ công", color: "emerald" },
-  late: { label: "Đi muộn", color: "amber" },
-  early_leave: { label: "Về sớm", color: "amber" },
-  incomplete: { label: "Thiếu chấm", color: "indigo" },
-  absent: { label: "Vắng", color: "rose" },
-  leave_paid: { label: "Nghỉ phép", color: "violet" },
-  leave_unpaid: { label: "Không lương", color: "rose" },
-  holiday: { label: "Nghỉ lễ", color: "cyan" },
+export const STATUS_META: Record<AttendanceStatus, { label: string; color: ChipColor; code: string }> = {
+  present: { label: "Đủ công", color: "emerald", code: "X" },
+  late: { label: "Đi muộn", color: "amber", code: "M" },
+  early_leave: { label: "Về sớm", color: "amber", code: "S" },
+  incomplete: { label: "Thiếu chấm", color: "indigo", code: "?" },
+  absent: { label: "Vắng", color: "rose", code: "V" },
+  leave_paid: { label: "Nghỉ phép", color: "violet", code: "P" },
+  leave_unpaid: { label: "Không lương", color: "rose", code: "Ro" },
+  holiday: { label: "Nghỉ lễ", color: "cyan", code: "NL" },
 };
 
 export const LEAVE_TYPE_META: Record<LeaveTypeKey, { label: string; color: ChipColor }> = {

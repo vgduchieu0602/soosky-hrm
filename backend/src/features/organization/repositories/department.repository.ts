@@ -28,4 +28,9 @@ export const departmentRepository = {
     if (!Types.ObjectId.isValid(id)) return null;
     return Department.findByIdAndUpdate(id, patch, { new: true, session });
   },
+
+  deleteById(id: string) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return Department.findByIdAndDelete(id);
+  },
 };

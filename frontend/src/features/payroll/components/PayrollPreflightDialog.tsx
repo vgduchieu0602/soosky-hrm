@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, Wallet } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { payrollService } from "@features/payroll/services/payroll.service";
@@ -38,17 +36,25 @@ export function PayrollPreflightDialog({ open, onOpenChange, periodId, periodNam
   const blocked = data?.items.filter((i) => i.blockers.length > 0) ?? [];
   const warned = data?.items.filter((i) => i.blockers.length === 0 && i.warnings.length > 0) ?? [];
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Kiểm tra trước khi tính lương · {periodName}</DialogTitle>
-          <DialogDescription>
-            Rà soát nhân viên trước khi chạy. Nhân viên bị "chặn" sẽ không được tính cho đến khi bổ sung.
-          </DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={running}>Đóng</Button>
+      <Button type="button" size="sm" onClick={run} disabled={running || loading} className="gap-1.5">
+        <Wallet className="size-3.5" /> {running ? "Đang tính…" : `Tính lương (${data?.ready ?? 0} người)`}
+      </Button>
+    </>
+  );
 
-        <div className="flex flex-col gap-3">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={`Kiểm tra trước khi tính lương · ${periodName}`}
+      subtitle='Rà soát nhân viên trước khi chạy. Nhân viên bị "chặn" sẽ không được tính cho đến khi bổ sung.'
+      maxWidth={512}
+      footer={footer}
+    >
+      <div className="flex flex-col gap-3">
           {loading && <p className="py-6 text-center text-[13px] text-muted-foreground">Đang kiểm tra…</p>}
           {!loading && data && (
             <>
@@ -80,15 +86,7 @@ export function PayrollPreflightDialog({ open, onOpenChange, periodId, periodNam
             </>
           )}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={running}>Đóng</Button>
-          <Button type="button" size="sm" onClick={run} disabled={running || loading} className="gap-1.5">
-            <Wallet className="size-3.5" /> {running ? "Đang tính…" : `Tính lương (${data?.ready ?? 0} người)`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }
 

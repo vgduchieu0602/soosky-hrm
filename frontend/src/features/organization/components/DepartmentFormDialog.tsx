@@ -1,12 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,13 +61,6 @@ export function DepartmentFormDialog({
   const [parentId, setParentId] = useState<string>(() =>
     isEdit ? (target.parentDepartmentId ?? "") : (presetParentId ?? ""),
   );
-  const [costCenter, setCostCenter] = useState(() =>
-    isEdit ? (target.costCenter ?? "") : "",
-  );
-  const [location, setLocation] = useState(() =>
-    isEdit ? (target.location ?? "") : "",
-  );
-  const [email, setEmail] = useState(() => (isEdit ? (target.email ?? "") : ""));
   const [description, setDescription] = useState(() =>
     isEdit ? (target.description ?? "") : "",
   );
@@ -97,7 +83,7 @@ export function DepartmentFormDialog({
     e.preventDefault();
     if (submitting) return;
     const errs = fieldErrors(departmentFormSchema, {
-      name, code, parentDepartmentId: parentId, costCenter, location, email, description, status,
+      name, code, parentDepartmentId: parentId, description, status,
     });
     if (errs) { setFErrors(errs); return; }
     setFErrors({});
@@ -108,9 +94,6 @@ export function DepartmentFormDialog({
       name: name.trim(),
       code: code.trim().toUpperCase(),
       parentDepartmentId: parentId || null,
-      costCenter: costCenter.trim() || undefined,
-      location: location.trim() || undefined,
-      email: email.trim() || undefined,
       description: description.trim() || undefined,
     };
     const payload: CreateDepartmentInput | UpdateDepartmentInput =
@@ -130,22 +113,44 @@ export function DepartmentFormDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "create" ? "Tạo phòng ban" : "Chỉnh sửa phòng ban"}
-          </DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Thêm một phòng ban / đơn vị mới vào sơ đồ tổ chức."
-              : "Cập nhật thông tin phòng ban."}
-          </DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onOpenChange(false)}
+        disabled={submitting}
+        className="rounded-xl"
+      >
+        Hủy
+      </Button>
+      <Button
+        type="submit"
+        form="department-form"
+        size="sm"
+        disabled={!canSubmit || submitting}
+        className="rounded-xl"
+      >
+        {submitting ? "Đang lưu…" : mode === "create" ? "Tạo phòng ban" : "Lưu thay đổi"}
+      </Button>
+    </>
+  );
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={mode === "create" ? "Tạo phòng ban" : "Chỉnh sửa phòng ban"}
+      subtitle={
+        mode === "create"
+          ? "Thêm một phòng ban / đơn vị mới vào sơ đồ tổ chức."
+          : "Cập nhật thông tin phòng ban."
+      }
+      footer={footer}
+    >
+      <form id="department-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="dept-name">Tên phòng ban *</Label>
               <Input
@@ -188,43 +193,6 @@ export function DepartmentFormDialog({
               </select>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dept-cost-center">Trung tâm chi phí</Label>
-              <Input
-                id="dept-cost-center"
-                value={costCenter}
-                onChange={(e) => setCostCenter(e.target.value)}
-                placeholder="VD: CC-ENG"
-                maxLength={50}
-              />
-              {fErrors.costCenter && <span className="text-[11px] text-destructive">{fErrors.costCenter}</span>}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dept-location">Địa điểm</Label>
-              <Input
-                id="dept-location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="VD: Hà Nội"
-                maxLength={120}
-              />
-              {fErrors.location && <span className="text-[11px] text-destructive">{fErrors.location}</span>}
-            </div>
-
-            <div className="col-span-2 flex flex-col gap-1.5">
-              <Label htmlFor="dept-email">Email phòng ban</Label>
-              <Input
-                id="dept-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="VD: engineering@soosky.co"
-                maxLength={120}
-              />
-              {fErrors.email && <span className="text-[11px] text-destructive">{fErrors.email}</span>}
-            </div>
-
             {mode === "edit" && (
               <div className="col-span-2 flex flex-col gap-1.5">
                 <Label htmlFor="dept-status">Trạng thái</Label>
@@ -259,27 +227,7 @@ export function DepartmentFormDialog({
               {error}
             </p>
           )}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Hủy
-            </Button>
-            <Button type="submit" size="sm" disabled={!canSubmit || submitting}>
-              {submitting
-                ? "Đang lưu…"
-                : mode === "create"
-                  ? "Tạo phòng ban"
-                  : "Lưu thay đổi"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      </form>
+    </FormModal>
   );
 }

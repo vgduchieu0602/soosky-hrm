@@ -4,10 +4,13 @@ import { HttpError } from '@shared/errors/http-error';
 import { CompanyConfig } from '@shared/models/company-config.model';
 import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
+import { Bank } from '@shared/models/bank.model';
 import { auditService } from '@features/iam/services/audit.service';
 import type {
+  CreateBankDto,
   CreateCriterionDto,
   CreateSalaryPolicyDto,
+  UpdateBankDto,
   UpdateCompanyConfigDto,
   UpdateCriterionDto,
   UpdateSalaryPolicyDto,
@@ -194,6 +197,56 @@ export const performanceCriterionService = {
     await auditService.record({
       userId: auditUserId,
       resource: 'performanceCriterion',
+      action: 'delete',
+      resourceId: id,
+      changes: { status: 'archived' },
+    });
+    return updated.toJSON();
+  },
+};
+
+// ============================ Banks ============================
+export const bankService = {
+  async list() {
+    return Bank.find({}).sort({ name: 1 }).lean();
+  },
+
+  async create(input: CreateBankDto, auditUserId: string) {
+    const doc = await Bank.create({
+      name: input.name,
+      ...(input.code !== undefined && { code: input.code }),
+      status: 'active',
+    });
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'bank',
+      action: 'create',
+      resourceId: doc._id.toString(),
+    });
+    return doc.toJSON();
+  },
+
+  async update(id: string, input: UpdateBankDto, auditUserId: string) {
+    if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Bank not found', 'SET_005');
+    const updated = await Bank.findByIdAndUpdate(id, input, { new: true });
+    if (!updated) throw new HttpError(404, 'Bank not found', 'SET_005');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'bank',
+      action: 'update',
+      resourceId: id,
+      changes: input as Record<string, unknown>,
+    });
+    return updated.toJSON();
+  },
+
+  async archive(id: string, auditUserId: string) {
+    if (!Types.ObjectId.isValid(id)) throw new HttpError(404, 'Bank not found', 'SET_005');
+    const updated = await Bank.findByIdAndUpdate(id, { status: 'archived' }, { new: true });
+    if (!updated) throw new HttpError(404, 'Bank not found', 'SET_005');
+    await auditService.record({
+      userId: auditUserId,
+      resource: 'bank',
       action: 'delete',
       resourceId: id,
       changes: { status: 'archived' },

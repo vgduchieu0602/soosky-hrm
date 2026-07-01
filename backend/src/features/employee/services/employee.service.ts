@@ -275,24 +275,43 @@ export const employeeService = {
       throw new HttpError(409, 'Employee already terminated', 'EMP_004');
     }
 
-    const updated = await employeeRepository.updateById(id, {
-      status: 'terminated',
-      terminationDate: input.terminationDate,
-    });
+    // Off-boarding must be atomic: setting status=terminated while leaving the
+    // login account active (or sessions live) would let a terminated person
+    // keep authenticating. Wrap the access-revoking writes in one transaction.
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await Employee.updateOne(
+          { _id: id },
+          { $set: { status: 'terminated', terminationDate: input.terminationDate } },
+          { session },
+        );
 
-    // Revoke system access on off-boarding: disable the linked login account,
-    // kill all live sessions, and detach the account from the employee so a
-    // terminated person can no longer authenticate (login + refresh both check
-    // user.status === 'active').
-    if (employee.userId) {
-      await User.updateOne({ _id: employee.userId }, { $set: { status: 'disabled' } });
-      await sessionRepository.revokeAllForUser(String(employee.userId));
-      await Employee.updateOne({ _id: id }, { $unset: { userId: '' } });
+        // Revoke system access: disable the linked login account, kill all live
+        // sessions, and detach the account so a terminated person can no longer
+        // authenticate (login + refresh both check user.status === 'active').
+        if (employee.userId) {
+          await User.updateOne(
+            { _id: employee.userId },
+            { $set: { status: 'disabled' } },
+            { session },
+          );
+          await sessionRepository.revokeAllForUser(String(employee.userId), session);
+          await Employee.updateOne({ _id: id }, { $unset: { userId: '' } }, { session });
+        }
+
+        // Detach this employee as a manager so subordinates don't keep a dangling
+        // managerId pointing at a terminated person.
+        await Employee.updateMany(
+          { managerId: new Types.ObjectId(id) },
+          { $unset: { managerId: '' } },
+          { session },
+        );
+      });
+    } finally {
+      await session.endSession();
     }
-
-    // Detach this employee as a manager so subordinates don't keep a dangling
-    // managerId pointing at a terminated person.
-    await Employee.updateMany({ managerId: new Types.ObjectId(id) }, { $unset: { managerId: '' } });
+    const updated = await employeeRepository.findById(id);
 
     await employeeHistoryService.record({
       employeeId: id,

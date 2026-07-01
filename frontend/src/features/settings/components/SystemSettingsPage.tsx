@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { Building2, Users, ShieldCheck, ScrollText, UserCog, CalendarClock, Wallet, Settings2, type LucideIcon } from "lucide-react";
+import { Building2, Users, ShieldCheck, ScrollText, UserCog, CalendarClock, Wallet, Landmark, Settings2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { useAuthStore } from "@core/store/auth.store";
@@ -9,14 +9,16 @@ import { TopBar } from "@features/dashboard/components/TopBar";
 import { CompanySettings } from "@features/settings/components/CompanySettings";
 import { SalaryPerformanceSettings } from "@features/settings/components/SalaryPerformanceSettings";
 import { AttendanceCatalogSettings } from "@features/settings/components/AttendanceCatalogSettings";
+import { BankCatalogSettings } from "@features/settings/components/BankCatalogSettings";
 import { UsersSettings, RolesSettings } from "@features/iam/components/UserAccessSettings";
 import { AuditLogSettings } from "@features/iam/components/AuditLogSettings";
 
-type TabId = "company" | "salary" | "attendance" | "users" | "roles" | "audit";
+type TabId = "company" | "salary" | "attendance" | "banks" | "users" | "roles" | "audit";
 const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
   { id: "company", label: "Chung", Icon: Building2 },
   { id: "salary", label: "Lương & Hiệu suất", Icon: Wallet },
   { id: "attendance", label: "Chấm công", Icon: CalendarClock },
+  { id: "banks", label: "Ngân hàng", Icon: Landmark },
   { id: "users", label: "Người dùng", Icon: Users },
   { id: "roles", label: "Vai trò & quyền", Icon: ShieldCheck },
   { id: "audit", label: "Nhật ký", Icon: ScrollText },
@@ -88,6 +90,7 @@ export default function SystemSettingsPage() {
             {tab === "company" && <CompanySettings canManage={isAdmin} />}
             {tab === "salary" && <SalaryPerformanceSettings canManage={isHrOrAdmin} canManagePolicy={isAdmin} />}
             {tab === "attendance" && <AttendanceCatalogSettings canManage={isHrOrAdmin} />}
+            {tab === "banks" && <BankCatalogSettings canManage={isHrOrAdmin} />}
             {tab === "users" && <UsersSettings canManage={isAdmin} />}
             {tab === "roles" && isAdmin && <RolesSettings />}
             {tab === "audit" && isAdmin && <AuditLogSettings />}

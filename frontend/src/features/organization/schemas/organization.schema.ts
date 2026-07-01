@@ -15,9 +15,6 @@ export const departmentFormSchema = z.object({
   name: z.string().trim().min(1, "Bắt buộc").max(120, "≤ 120 ký tự"),
   code: codeRule,
   parentDepartmentId: z.string(),
-  costCenter: z.string().max(50, "≤ 50 ký tự"),
-  location: z.string().max(120, "≤ 120 ký tự"),
-  email: z.union([z.literal(""), z.string().email("Email không hợp lệ")]),
   description: z.string().max(500, "≤ 500 ký tự"),
   status: z.enum(["active", "archived"]),
 });

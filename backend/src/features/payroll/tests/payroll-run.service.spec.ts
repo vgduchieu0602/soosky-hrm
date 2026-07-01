@@ -117,10 +117,11 @@ describe('buildPayrollDoc', () => {
       }),
     );
     expect(doc.attendanceRatio).toBe(0.5);
-    // Every component is prorated by attendance (absence reduces the whole pay):
-    //   attendance 0.2*30m*0.5 = 3m ; perf 0.6*30m*1*0.5 = 9m ; goal 0.2*30m*1*0.5 = 3m
-    expect(num(doc.proRatedBaseSalary)).toBe(15_000_000);
-    expect(num(doc.grossSalary)).toBe(15_000_000);
+    // Only the 20% attendance component is prorated by days worked; perf & goal
+    // are paid in full per their ratios:
+    //   attendance 0.2*30m*0.5 = 3m ; perf 0.6*30m*1 = 18m ; goal 0.2*30m*1 = 6m
+    expect(num(doc.proRatedBaseSalary)).toBe(27_000_000);
+    expect(num(doc.grossSalary)).toBe(27_000_000);
   });
 
   it('keeps the net invariant: net = gross - insurance - tax', () => {

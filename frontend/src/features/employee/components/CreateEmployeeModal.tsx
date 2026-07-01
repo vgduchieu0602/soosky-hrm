@@ -257,7 +257,7 @@ type SetFn = <K extends keyof FormState>(k: K, v: FormState[K]) => void;
 function Step1({ form, set }: { form: FormState; set: SetFn }) {
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <FormField label="Họ" required>
           <input className={inputCls} placeholder="Nguyễn" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
         </FormField>
@@ -267,6 +267,8 @@ function Step1({ form, set }: { form: FormState; set: SetFn }) {
         <FormField label="Tên" required>
           <input className={inputCls} placeholder="An" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
         </FormField>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         <FormField label="Ngày sinh">
           <DateField className={inputCls} value={form.dateOfBirth} onChange={(iso) => set("dateOfBirth", iso)} />
         </FormField>

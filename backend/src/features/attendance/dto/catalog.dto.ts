@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SHIFT_TYPE } from '@shared/models/shift.model';
 import { PAID_STATUS } from '@shared/models/attendance-symbol.model';
+import { ATTENDANCE_STATUS } from '@shared/models/attendance.model';
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Định dạng HH:mm');
 
@@ -46,9 +47,13 @@ export const createSymbolDto = z
     affectsPayroll: z.boolean().optional(),
     leaveType: z.string().max(40).optional(),
     color: z.string().max(20).optional(),
+    appliesTo: z.enum(ATTENDANCE_STATUS).optional(),
   })
   .strict();
 export type CreateSymbolDto = z.infer<typeof createSymbolDto>;
 
-export const updateSymbolDto = createSymbolDto.partial();
+export const updateSymbolDto = createSymbolDto.partial().extend({
+  // allow clearing the status assignment
+  appliesTo: z.enum(ATTENDANCE_STATUS).nullable().optional(),
+});
 export type UpdateSymbolDto = z.infer<typeof updateSymbolDto>;

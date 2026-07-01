@@ -79,4 +79,5 @@ export interface AttendanceSymbol {
   affectsPayroll: boolean;
   leaveType?: string;
   color?: string;
+  appliesTo?: string;
 }

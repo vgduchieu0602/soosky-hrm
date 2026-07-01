@@ -59,8 +59,13 @@ export async function countWorkingDays(
   end: Date,
   half?: string | null,
 ): Promise<number> {
-  if (half) return 0.5;
   const isHoliday = await resolveHolidayChecker(start, end);
+  // Half-day only counts if that single day is actually a working day —
+  // otherwise a half-day filed on a weekend/holiday would wrongly deduct 0.5.
+  if (half) {
+    const day = vnDateKey(start);
+    return isWeekend(day) || isHoliday(day) ? 0 : 0.5;
+  }
   let count = 0;
   for (const day of enumerateDays(start, end)) {
     if (isWeekend(day) || isHoliday(day)) continue;
@@ -107,9 +112,11 @@ async function syncLeaveAttendance(
   const status = req.leaveType === 'unpaid' ? 'leave_unpaid' : 'leave_paid';
   const attSession = req.halfDaySession ?? 'full_day';
   const isHoliday = await resolveHolidayChecker(req.startDate, req.endDate);
-  const days = req.halfDaySession
-    ? [vnDateKey(req.startDate)]
-    : enumerateDays(req.startDate, req.endDate).filter((d) => !isWeekend(d) && !isHoliday(d));
+  const days = (
+    req.halfDaySession
+      ? [vnDateKey(req.startDate)]
+      : enumerateDays(req.startDate, req.endDate)
+  ).filter((d) => !isWeekend(d) && !isHoliday(d));
 
   for (const day of days) {
     // A full-day approved leave supersedes any punch/manual record for that day,

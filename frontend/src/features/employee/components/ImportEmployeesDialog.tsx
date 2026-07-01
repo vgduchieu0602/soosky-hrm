@@ -1,9 +1,7 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { Download, FileUp, CheckCircle2, AlertCircle } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { employeeService } from "@features/employee/services/employee.service";
@@ -106,17 +104,31 @@ export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
 
   const errors = result?.results.filter((r) => r.status === "error") ?? [];
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[640px]">
-        <DialogHeader>
-          <DialogTitle>Nhập nhân viên từ Excel / CSV</DialogTitle>
-          <DialogDescription>
-            Mỗi dòng là một nhân viên. Cột bắt buộc: {REQUIRED.join(", ")}. Phòng ban &amp; chức vụ tham chiếu theo <b>mã</b>.
-          </DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>
+        {result ? "Đóng" : "Hủy"}
+      </Button>
+      {!result && (
+        <Button type="button" size="sm" onClick={submit} disabled={submitting || rows.length === 0}>
+          {submitting ? "Đang nhập…" : `Nhập ${rows.length || ""} nhân viên`}
+        </Button>
+      )}
+    </>
+  );
 
-        <div className="flex flex-col gap-4">
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Nhập nhân viên từ Excel / CSV"
+      maxWidth={640}
+      footer={footer}
+    >
+      <div className="flex flex-col gap-4">
+          <p className="text-[13px] text-muted-foreground">
+            Mỗi dòng là một nhân viên. Cột bắt buộc: {REQUIRED.join(", ")}. Phòng ban &amp; chức vụ tham chiếu theo <b>mã</b>.
+          </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2 rounded-lg">
               <Download className="size-3.5" /> Tải mẫu Excel
@@ -185,18 +197,6 @@ export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
             </div>
           )}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>
-            {result ? "Đóng" : "Hủy"}
-          </Button>
-          {!result && (
-            <Button type="button" size="sm" onClick={submit} disabled={submitting || rows.length === 0}>
-              {submitting ? "Đang nhập…" : `Nhập ${rows.length || ""} nhân viên`}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

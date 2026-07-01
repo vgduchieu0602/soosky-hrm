@@ -70,7 +70,7 @@ router.post(
   validate(mergeDepartmentDto, 'body'),
   departmentController.merge,
 );
-router.delete('/admin/departments/:id', authenticate, hrOrAdmin, departmentController.archive);
+router.delete('/admin/departments/:id', authenticate, hrOrAdmin, departmentController.remove);
 
 // Positions
 router.get('/positions', authenticate, positionController.list);

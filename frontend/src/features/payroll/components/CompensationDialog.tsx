@@ -1,7 +1,5 @@
 import { useState } from "react";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,16 +101,24 @@ export function CompensationDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Nhập cấu phần lương</DialogTitle>
-          <DialogDescription>Thêm phụ cấp, thưởng, khấu trừ hoặc hồ sơ thuế cho nhân viên.</DialogDescription>
-        </DialogHeader>
+  const footer = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
+      <Button type="submit" form="compensation-form" size="sm" disabled={submitting}>{submitting ? "Đang lưu…" : "Lưu"}</Button>
+    </>
+  );
 
+  return (
+    <FormModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Nhập cấu phần lương"
+      subtitle="Thêm phụ cấp, thưởng, khấu trừ hoặc hồ sơ thuế cho nhân viên."
+      maxWidth={640}
+      footer={footer}
+    >
         {/* kind tabs */}
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <div className="mb-4 flex gap-1 rounded-lg bg-muted p-1">
           {KINDS.map((kd) => (
             <button key={kd.value} type="button" onClick={() => { setKind(kd.value); setFErrors({}); }}
               className={cn("flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
@@ -122,7 +128,7 @@ export function CompensationDialog({
           ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="compensation-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="c-emp">Nhân viên *</Label>
             <select id="c-emp" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={fieldCls}>
@@ -235,13 +241,7 @@ export function CompensationDialog({
           )}
 
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
-            <Button type="submit" size="sm" disabled={submitting}>{submitting ? "Đang lưu…" : "Lưu"}</Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }
