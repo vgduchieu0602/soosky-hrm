@@ -1,4 +1,4 @@
-import type { AttendanceStatus } from '@shared/models/attendance.model';
+import type { AttendanceStatus, AttendanceSession } from '@shared/models/attendance.model';
 
 // Defaults (E2) — used only when no config is supplied. Actual values come
 // from CompanyConfig (timezone + grace), set by Admin/HR in Settings.
@@ -36,6 +36,9 @@ export interface ComputeResult {
   workHours: number | null;
   lateMinutes: number;
   earlyMinutes: number;
+  /** Worked session derived from time-in/out vs the shift's morning/afternoon
+   *  windows: full_day (1 công) · morning|afternoon (0.5 công) · null when N/A. */
+  session: AttendanceSession | null;
 }
 
 /** Minutes since local midnight (in tz), from a UTC instant (DST-safe). */
@@ -111,6 +114,41 @@ function round2(n: number): number {
 }
 
 /**
+ * Which worked session(s) a [checkIn, checkOut] interval covers, given the
+ * shift split into a morning half `[start, break]` and afternoon half
+ * `[break, end]`. A half counts as worked when the interval spans that half's
+ * midpoint. Returns full_day (both halves), morning|afternoon (one), or null.
+ */
+export function deriveWorkedSession(
+  shift: ShiftWindow,
+  checkIn?: Date | null,
+  checkOut?: Date | null,
+  policy: AttendancePolicy = DEFAULT_POLICY,
+): AttendanceSession | null {
+  if (!checkIn || !checkOut) return null;
+  const start = parseHHmm(shift.startTime);
+  const end = parseHHmm(shift.endTime);
+  const brk = shift.breakMinutes ?? 0;
+  const effIn = Math.max(minutesOfDayVN(checkIn, policy.timezone), start);
+  const effOut = Math.min(minutesOfDayVN(checkOut, policy.timezone), end);
+  if (effOut <= effIn) return null;
+
+  const mid = (start + end) / 2;
+  const morningEnd = mid - brk / 2; // lunch break centred on the midpoint
+  const afternoonStart = mid + brk / 2;
+  const morningMid = (start + morningEnd) / 2;
+  const afternoonMid = (afternoonStart + end) / 2;
+  const covers = (m: number) => effIn <= m && effOut >= m;
+
+  const morn = covers(morningMid);
+  const aft = covers(afternoonMid);
+  if (morn && aft) return 'full_day';
+  if (morn) return 'morning';
+  if (aft) return 'afternoon';
+  return null;
+}
+
+/**
  * Compute attendance status & worked hours from check-in/out times against a
  * shift. All time comparisons happen in VN local time. Leave/holiday/absent
  * statuses are decided by the service layer, not here.
@@ -123,7 +161,7 @@ export function computeAttendance(input: ComputeInput): ComputeResult {
   const brk = shift.breakMinutes ?? 0;
 
   if (!checkIn) {
-    return { status: 'absent', workHours: 0, lateMinutes: 0, earlyMinutes: 0 };
+    return { status: 'absent', workHours: 0, lateMinutes: 0, earlyMinutes: 0, session: null };
   }
 
   const inMin = minutesOfDayVN(checkIn, policy.timezone);
@@ -131,7 +169,7 @@ export function computeAttendance(input: ComputeInput): ComputeResult {
   const lateMinutes = isLate ? inMin - start : 0;
 
   if (!checkOut) {
-    return { status: 'incomplete', workHours: null, lateMinutes, earlyMinutes: 0 };
+    return { status: 'incomplete', workHours: null, lateMinutes, earlyMinutes: 0, session: null };
   }
 
   const outMin = minutesOfDayVN(checkOut, policy.timezone);
@@ -144,5 +182,8 @@ export function computeAttendance(input: ComputeInput): ComputeResult {
   const workHours = round2(worked / 60);
 
   const status: AttendanceStatus = isLate ? 'late' : isEarly ? 'early_leave' : 'present';
-  return { status, workHours, lateMinutes, earlyMinutes };
+  // Half vs full day auto-derived from the covered session(s); fall back to a
+  // full day when present but the interval is ambiguous.
+  const session = deriveWorkedSession(shift, checkIn, checkOut, policy) ?? 'full_day';
+  return { status, workHours, lateMinutes, earlyMinutes, session };
 }

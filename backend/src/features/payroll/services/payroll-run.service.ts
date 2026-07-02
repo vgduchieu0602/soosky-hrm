@@ -77,6 +77,10 @@ export interface PayrollRunContext {
   /** Fixed company salary the insurance is contributed on (0 = no insurance, e.g. probation). */
   insuranceBaseSalary: number;
   insuranceBaseAllowances: number;
+  /** Fixed BHXH amount entered by HR (overrides %-based insurance). */
+  fixedInsuranceAmount?: number;
+  /** Enable PIT (default off — simplified payroll). */
+  taxEnabled?: boolean;
   /** Union fee (đoàn phí) — fixed post-tax deduction. */
   unionFee: number;
   /** Other post-tax deductions (recurring + one-off for the period). */
@@ -114,6 +118,8 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     totalNonTaxableAllowances: ctx.totalNonTaxableAllowances,
     insuranceBaseSalary: ctx.insuranceBaseSalary,
     insuranceBaseAllowances: ctx.insuranceBaseAllowances,
+    fixedInsuranceAmount: ctx.fixedInsuranceAmount,
+    taxEnabled: ctx.taxEnabled,
     unionFee: ctx.unionFee,
     deductions: ctx.deductions,
     overtimePay: ctx.overtimePay,
@@ -369,6 +375,9 @@ async function resolveContext(
     // Allowances flagged isInsuranceBase add to the BHXH base — except for
     // intern/probation, who are not on compulsory insurance.
     insuranceBaseAllowances: isInsuranceExempt ? 0 : allowances.insuranceBase,
+    // Fixed BHXH amount entered by HR on the tax profile overrides the %-based
+    // computation. Intern/probation are insurance-exempt → 0.
+    fixedInsuranceAmount: isInsuranceExempt ? 0 : (taxProfile?.insuranceAmount ?? 0),
     unionFee,
     deductions,
     // OT is disabled by company policy (companyConfig.overtimeEnabled = false):

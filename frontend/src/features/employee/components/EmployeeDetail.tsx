@@ -203,38 +203,26 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
 }
 
 // ===================== StatusSelect =====================
+// Native <select> so the menu is rendered in the browser's own layer — it never
+// gets clipped by the header's overflow-hidden nor pushes the content below it
+// (which the previous absolutely-positioned custom dropdown did).
 function StatusSelect({ value, onChange }: { value: EmployeeStatus; onChange: (s: EmployeeStatus) => void }) {
-  const [open, setOpen] = useState(false);
   const st = EMP_STATUS[value];
-  const Item = ({ k }: { k: EmployeeStatus }) => (
-    <button type="button" onClick={() => { onChange(k); setOpen(false); }}
-      className={cn("flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-[12.5px] transition-colors hover:bg-muted", value === k && "bg-muted font-semibold")}>
-      <span className="inline-flex items-center gap-2">
-        <span className="size-2 rounded-full" style={{ background: `var(--chip-${EMP_STATUS[k].variant}-ink)` }} />
-        {EMP_STATUS[k].label}
-      </span>
-      {value === k && <Check className="size-3.5 text-primary-600" strokeWidth={2.4} />}
-    </button>
-  );
   return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <button type="button" onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold transition hover:ring-2 hover:ring-primary-200" style={CHIP(st.variant)}>
-        {st.label} <ChevronDown className="size-3 opacity-70" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-7 z-50 w-[210px] rounded-xl border bg-card p-1.5 text-left text-foreground shadow-md">
-            <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Đang hoạt động</div>
-            {STATUS_ACTIVE.map((k) => <Item key={k} k={k} />)}
-            <div className="my-1 h-px bg-border" />
-            <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-rose-500">Ngừng hoạt động</div>
-            {STATUS_INACTIVE.map((k) => <Item key={k} k={k} />)}
-          </div>
-        </>
-      )}
-    </div>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as EmployeeStatus)}
+      className="cursor-pointer appearance-none rounded-full border-0 py-0.5 pl-2.5 pr-6 text-[11.5px] font-semibold outline-none transition hover:ring-2 hover:ring-primary-200"
+      style={{ ...CHIP(st.variant), backgroundImage: "none" }}
+      title="Đổi trạng thái nhân viên"
+    >
+      <optgroup label="Đang hoạt động">
+        {STATUS_ACTIVE.map((k) => <option key={k} value={k}>{EMP_STATUS[k].label}</option>)}
+      </optgroup>
+      <optgroup label="Ngừng hoạt động">
+        {STATUS_INACTIVE.map((k) => <option key={k} value={k}>{EMP_STATUS[k].label}</option>)}
+      </optgroup>
+    </select>
   );
 }
 
@@ -489,6 +477,9 @@ function ProfileTab({ view, profile }: { view: EmployeeView; profile: EmployeePr
           <Field label="Email công ty" value={profile?.workEmail ?? view.email} />
           <Field label="Email cá nhân" value={profile?.email ?? view.personalEmail} />
           <div className="col-span-2"><Field label="Địa chỉ" value={profile?.address ?? view.address} /></div>
+          <Field label="Số sổ BHXH" value={profile?.socialInsuranceNo} mono />
+          <Field label="Mã số thuế" value={profile?.taxCode} mono />
+          <Field label="Biển số xe" value={profile?.vehiclePlate} mono />
         </div>
       </Panel>
       <Panel title="Thông tin công việc" icon={Briefcase} tone="indigo">

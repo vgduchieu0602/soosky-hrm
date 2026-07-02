@@ -35,6 +35,7 @@ const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => ({
   dependentDeduction: 4_400_000,
   dependentsCount: 1,
   isResident: true,
+  taxEnabled: true, // these specs verify the tax engine; production defaults to off
   ...over,
 });
 

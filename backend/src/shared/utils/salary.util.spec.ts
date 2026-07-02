@@ -33,7 +33,7 @@ describe('grossUpFromNet', () => {
   });
 
   it('round-trips within rounding tolerance even with PIT', () => {
-    const r = grossUpFromNet(25_000_000, VN_GROSSUP_PARAMS);
+    const r = grossUpFromNet(25_000_000, { ...VN_GROSSUP_PARAMS, taxEnabled: true });
     expect(Math.abs(r.net - 25_000_000)).toBeLessThanOrEqual(2);
     expect(r.gross).toBeGreaterThan(25_000_000);
     expect(r.tax).toBeGreaterThan(0);
@@ -260,6 +260,7 @@ describe('computePayroll — non-resident flat tax', () => {
       dependentDeduction: 4_400_000,
       dependentsCount: 2,
       isResident: false,
+      taxEnabled: true,
     });
     // Non-residents: insurance is NOT a deduction → taxableIncome = gross assessable.
     const expectedTax = Math.round(r.taxableIncome * 0.2);
@@ -286,6 +287,7 @@ describe('computePayroll — E1 parallel-run case', () => {
     personalDeduction: 11_000_000,
     dependentDeduction: 4_400_000,
     dependentsCount: 1,
+    taxEnabled: true,
   });
 
   it('assembles gross from effective base + allowances', () => {

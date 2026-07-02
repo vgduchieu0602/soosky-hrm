@@ -166,6 +166,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
       employeeId,
       isResident: true,
       dependentsCount: 0,
+      insuranceAmount: 3_150_000, // HR-entered fixed BHXH (simplified payroll)
       effectiveDate: utc('2024-01-01'),
     });
 
@@ -209,11 +210,12 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     expect(payroll.attendanceRatio).toBe(1);
     expect(num(payroll.proRatedBaseSalary)).toBe(30_000_000);
     expect(num(payroll.grossSalary)).toBe(30_000_000);
-    // insurance: 8% + 1.5% + 1% of 30M = 3,150,000
+    // insurance: fixed HR-entered amount (simplified payroll — no % computation)
     expect(num(payroll.insurance)).toBe(3_150_000);
-    // taxable 26,850,000 - 11,000,000 = 15,850,000 → tax 1,627,500
-    expect(num(payroll.tax)).toBe(1_627_500);
-    expect(num(payroll.netSalary)).toBe(25_222_500);
+    // tax is disabled system-wide → always 0
+    expect(num(payroll.tax)).toBe(0);
+    // net = gross − insurance − union fee (tax 0)
+    expect(num(payroll.netSalary)).toBe(30_000_000 - 3_150_000 - num(payroll.unionFee));
     expect(payroll.status).toBe('draft');
 
     // Persisted exactly once (idempotent unique index).
@@ -232,7 +234,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
       employeeId, contractType: 'indefinite', contractNumber: 'HD-OFFICIAL',
       startDate: utc('2024-01-01'), baseSalary: dec(15_000_000), status: 'active',
     });
-    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, insuranceAmount: 577_500, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-08', startDate: utc('2026-08-01'), endDate: utc('2026-08-31'),
       payDate: utc('2026-08-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
@@ -247,12 +249,14 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     });
 
     const payroll = await runPayrollForEmployee(String(period._id), employeeId);
-    // Insurance is on the fixed 5.5M base, regardless of the 15M salary.
-    expect(num(payroll.insurance)).toBe(577_500); // 10.5% × 5.5M
-    expect(num(payroll.employerSocialInsurance) + num(payroll.employerHealthInsurance) + num(payroll.employerUnemploymentInsurance) + num(payroll.employerOccupationalInsurance)).toBe(1_127_500); // 20.5% × 5.5M
-    expect(num(payroll.unionFee)).toBe(55_000); // 1% × 5.5M
-    // net = gross − insurance − tax − union fee
-    expect(num(payroll.netSalary)).toBe(num(payroll.grossSalary) - 577_500 - num(payroll.tax) - 55_000);
+    // Insurance is the fixed HR-entered amount (simplified payroll).
+    expect(num(payroll.insurance)).toBe(577_500);
+    // Employer insurance is not modelled with the fixed-amount approach.
+    expect(num(payroll.employerSocialInsurance) + num(payroll.employerHealthInsurance) + num(payroll.employerUnemploymentInsurance) + num(payroll.employerOccupationalInsurance)).toBe(0);
+    expect(num(payroll.unionFee)).toBe(55_000); // 1% × 5.5M (policy-based, unchanged)
+    expect(num(payroll.tax)).toBe(0); // tax disabled
+    // net = gross − insurance − union fee (tax 0)
+    expect(num(payroll.netSalary)).toBe(num(payroll.grossSalary) - 577_500 - 55_000);
   });
 
   it('probation: 85% pay, no insurance, no union fee', async () => {

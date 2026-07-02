@@ -33,7 +33,9 @@ export const LEAVE_STATUS_META: Record<LeaveStatusKey, { label: string; variant:
 };
 
 /** Days (1..n) and ISO date-keys (YYYY-MM-DD) for a "YYYY-MM" month. */
-export function monthDays(month: string): { day: number; key: string; weekend: boolean }[] {
+const WEEKDAY_VN = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+export function monthDays(month: string): { day: number; key: string; weekend: boolean; weekday: string }[] {
   const [y, m] = month.split("-").map(Number);
   const count = new Date(y, m, 0).getDate(); // last day of month
   return Array.from({ length: count }, (_, i) => {
@@ -44,6 +46,7 @@ export function monthDays(month: string): { day: number; key: string; weekend: b
       day,
       key: `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
       weekend: wd === 0 || wd === 6,
+      weekday: WEEKDAY_VN[wd],
     };
   });
 }

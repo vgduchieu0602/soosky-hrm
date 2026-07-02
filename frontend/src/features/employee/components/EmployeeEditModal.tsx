@@ -52,6 +52,9 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
       email: profile?.email ?? view.personalEmail ?? "",
       workEmail: profile?.workEmail ?? view.email ?? "",
       address: profile?.address ?? view.address ?? "",
+      socialInsuranceNo: profile?.socialInsuranceNo ?? "",
+      taxCode: profile?.taxCode ?? "",
+      vehiclePlate: profile?.vehiclePlate ?? "",
       employeeCode: view.code ?? "",
       fingerprintId: view.fingerprintId ?? "",
       departmentId: view.departmentId ?? "",
@@ -101,6 +104,9 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
         email: form.email || undefined,
         workEmail: form.workEmail || undefined,
         address: form.address || undefined,
+        socialInsuranceNo: form.socialInsuranceNo || undefined,
+        taxCode: form.taxCode || undefined,
+        vehiclePlate: form.vehiclePlate || undefined,
       });
       await employeeService.update(view.id, {
         employeeCode: form.employeeCode.trim(),
@@ -180,6 +186,15 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
             </Field>
             <Field label="Địa chỉ" span>
               <input className={inputCls} {...register("address")} />
+            </Field>
+            <Field label="Số sổ BHXH" error={errors.socialInsuranceNo?.message}>
+              <input className={inputCls} {...register("socialInsuranceNo")} />
+            </Field>
+            <Field label="Mã số thuế" error={errors.taxCode?.message}>
+              <input className={inputCls} {...register("taxCode")} />
+            </Field>
+            <Field label="Biển số xe" error={errors.vehiclePlate?.message}>
+              <input className={inputCls} {...register("vehiclePlate")} />
             </Field>
           </div>
 

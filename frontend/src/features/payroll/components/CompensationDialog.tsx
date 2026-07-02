@@ -54,6 +54,7 @@ export function CompensationDialog({
   const [recurring, setRecurring] = useState(true);
   const [dependentsCount, setDependentsCount] = useState(0);
   const [isResident, setIsResident] = useState(true);
+  const [insuranceAmount, setInsuranceAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fErrors, setFErrors] = useState<Record<string, string>>({});
@@ -87,7 +88,7 @@ export function CompensationDialog({
           payrollPeriodId: recurring ? null : (payrollPeriodId || null),
         });
       } else {
-        await payrollService.upsertTaxProfile({ employeeId, dependentsCount, isResident, effectiveDate });
+        await payrollService.upsertTaxProfile({ employeeId, dependentsCount, isResident, insuranceAmount, effectiveDate });
       }
       onSaved();
       onOpenChange(false);
@@ -225,10 +226,18 @@ export function CompensationDialog({
                 <Input id="c-eff" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
                 {fErrors.effectiveDate && <span className="text-[11px] text-destructive">{fErrors.effectiveDate}</span>}
               </div>
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="c-bhxh">Số tiền BHXH cố định / kỳ (VND)</Label>
+                <Input id="c-bhxh" type="number" min={0} value={insuranceAmount} onChange={(e) => setInsuranceAmount(Number(e.target.value))} />
+                <span className="text-[11px] text-muted-foreground">Số tiền BHXH trừ vào lương mỗi kỳ (HR nhập trực tiếp). Để 0 nếu không trừ BHXH.</span>
+              </div>
               <label className="col-span-2 flex items-center gap-2 text-[13px] text-foreground">
                 <input type="checkbox" checked={isResident} onChange={(e) => setIsResident(e.target.checked)} />
-                Cá nhân cư trú (thuế lũy tiến)
+                Cá nhân cư trú
               </label>
+              <p className="col-span-2 rounded-md bg-muted/40 px-3 py-2 text-[11.5px] text-muted-foreground">
+                Thuế TNCN đang <b>tắt</b> (lương tính đơn giản: Gross − BHXH − đoàn phí − khấu trừ). Số người phụ thuộc / cư trú chỉ để lưu hồ sơ.
+              </p>
             </div>
           )}
 

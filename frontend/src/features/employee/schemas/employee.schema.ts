@@ -24,6 +24,9 @@ export const editEmployeeSchema = z.object({
   email: emailOrEmpty, // personal
   workEmail: emailOrEmpty, // company
   address: z.string(),
+  socialInsuranceNo: z.string().trim().max(40),
+  taxCode: z.string().trim().max(40),
+  vehiclePlate: z.string().trim().max(20),
   // work info
   employeeCode: z.string().trim().min(3, "≥ 3 ký tự").max(40),
   fingerprintId: z.string().trim().max(40),

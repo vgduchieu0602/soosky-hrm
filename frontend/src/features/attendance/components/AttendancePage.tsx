@@ -134,6 +134,23 @@ export default function AttendancePage() {
     return m;
   }, [grid]);
 
+  // Per-employee monthly roll-up computed straight from the grid records.
+  const summaryMap = useMemo(() => {
+    const W: Record<string, number> = { full_day: 1, morning: 0.5, afternoon: 0.5 };
+    const m = new Map<string, { work: number; leave: number; holiday: number; regime: number }>();
+    for (const r of grid?.records ?? []) {
+      const cur = m.get(r.employeeId) ?? { work: 0, leave: 0, holiday: 0, regime: 0 };
+      const w = W[r.session] ?? 1;
+      if (r.status === "present" || r.status === "late" || r.status === "early_leave") cur.work += w;
+      else if (r.status === "leave_paid") cur.leave += w;
+      else if (r.status === "holiday") cur.holiday += w;
+      else if (r.status === "leave_unpaid") cur.regime += w;
+      m.set(r.employeeId, cur);
+    }
+    return m;
+  }, [grid]);
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
   const deptOptions = useMemo(() => {
     const set = new Set<string>();
     for (const e of grid?.employees ?? []) if (e.departmentName) set.add(e.departmentName);
@@ -231,8 +248,14 @@ export default function AttendancePage() {
                         NHÂN VIÊN
                       </th>
                       {days.map((d) => (
-                        <th key={d.key} className="sticky top-0 z-20 bg-card px-0 py-2.5 text-center align-bottom" style={{ minWidth: 34 }}>
-                          <div className={cn("text-[12px] font-semibold leading-none tabular-nums", d.weekend ? "text-rose-400" : "text-foreground/70")}>{d.day}</div>
+                        <th key={d.key} className="sticky top-0 z-20 bg-card px-0 py-2 text-center align-bottom" style={{ minWidth: 34 }}>
+                          <div className={cn("text-[9.5px] font-medium uppercase leading-none", d.weekend ? "text-rose-400" : "text-muted-foreground/70")}>{d.weekday}</div>
+                          <div className={cn("mt-0.5 text-[12px] font-semibold leading-none tabular-nums", d.weekend ? "text-rose-400" : "text-foreground/70")}>{d.day}</div>
+                        </th>
+                      ))}
+                      {SUMMARY_COLS.map((c, i) => (
+                        <th key={c.key} className={cn("sticky top-0 z-20 bg-muted/40 px-2 py-2 align-bottom text-center text-[10px] font-semibold leading-tight text-muted-foreground", i === 0 && "border-l-2 border-border")} style={{ minWidth: 58 }}>
+                          {c.label}
                         </th>
                       ))}
                     </tr>
@@ -245,7 +268,7 @@ export default function AttendancePage() {
                             <Avatar className="size-8 text-[11px]"><AvatarFallback>{e.fullName.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
                             <div className="min-w-0">
                               <div className="truncate text-[13px] font-medium text-foreground">{e.fullName || e.employeeCode}</div>
-                              <div className="truncate text-[11px] text-muted-foreground/80"><span className="font-mono">{e.employeeCode}</span> · {e.departmentName}</div>
+                              <div className="truncate text-[11px] text-muted-foreground/80"><span className="font-mono">{e.employeeCode}</span> · {e.departmentName}{typeof e.tenureMonths === "number" ? ` · ${e.tenureMonths} tháng` : ""}</div>
                             </div>
                           </div>
                         </td>
@@ -273,10 +296,15 @@ export default function AttendancePage() {
                                     const rec = records[s._id];
                                     const cm = rec ? meta(rec.status) : null;
                                     if (!cm) return <span key={s._id} className="block size-2 rounded-full opacity-0 ring-1 ring-inset ring-border group-hover:opacity-100" />;
+                                    // Half day (morning/afternoon session) → show a ½ marker.
+                                    const half = rec!.session === "morning" || rec!.session === "afternoon";
                                     return display === "dot" ? (
-                                      <span key={s._id} className="block size-2 rounded-full" style={{ background: `var(--chip-${cm.color}-ink)` }} />
+                                      <span key={s._id} className="relative inline-flex" title={half ? "Nửa công" : "1 công"}>
+                                        <span className="block size-2 rounded-full" style={{ background: `var(--chip-${cm.color}-ink)` }} />
+                                        {half && <span className="absolute -right-1.5 -top-1 text-[8px] font-bold leading-none text-muted-foreground">½</span>}
+                                      </span>
                                     ) : (
-                                      <span key={s._id} className="inline-flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[10px] font-bold leading-none" style={{ background: `var(--chip-${cm.color}-bg)`, color: `var(--chip-${cm.color}-ink)` }}>{cm.code}</span>
+                                      <span key={s._id} className="inline-flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[10px] font-bold leading-none" style={{ background: `var(--chip-${cm.color}-bg)`, color: `var(--chip-${cm.color}-ink)` }} title={half ? "Nửa công" : "1 công"}>{cm.code}{half ? "½" : ""}</span>
                                     );
                                   })
                                 )}
@@ -284,13 +312,23 @@ export default function AttendancePage() {
                             </td>
                           );
                         })}
+                        {(() => {
+                          const s = summaryMap.get(e._id) ?? { work: 0, leave: 0, holiday: 0, regime: 0 };
+                          const total = round1(s.work + s.leave + s.holiday);
+                          const cells = [round1(s.work), round1(s.leave), round1(s.holiday), round1(s.regime), total, round1(e.annualLeaveRemaining ?? 0)];
+                          return cells.map((v, i) => (
+                            <td key={i} className={cn("px-2 py-2 text-center text-[12px] tabular-nums", i === 0 && "border-l-2 border-border", i === 4 ? "font-bold text-foreground" : i === 5 ? "font-semibold text-primary-600" : "text-muted-foreground")}>
+                              {v || "·"}
+                            </td>
+                          ));
+                        })()}
                       </tr>
                     ))}
                     {!loading && rows.length === 0 && (
-                      <tr><td colSpan={days.length + 1} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Không có nhân viên phù hợp.</td></tr>
+                      <tr><td colSpan={days.length + 1 + SUMMARY_COLS.length} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Không có nhân viên phù hợp.</td></tr>
                     )}
                     {loading && (
-                      <tr><td colSpan={days.length + 1} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Đang tải…</td></tr>
+                      <tr><td colSpan={days.length + 1 + SUMMARY_COLS.length} className="px-4 py-16 text-center text-[13px] text-muted-foreground">Đang tải…</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -326,6 +364,16 @@ export default function AttendancePage() {
     </div>
   );
 }
+
+// Monthly roll-up columns aggregated from the grid (right of the day matrix).
+const SUMMARY_COLS = [
+  { key: "work", label: "Công thực tế" },
+  { key: "leave", label: "Nghỉ phép" },
+  { key: "holiday", label: "Nghỉ lễ" },
+  { key: "regime", label: "Nghỉ chế độ" },
+  { key: "total", label: "Tổng công" },
+  { key: "remaining", label: "Phép dư" },
+] as const;
 
 const MANUAL_OPTIONS = [
   { value: "", label: "— Theo giờ vào/ra —" },
@@ -512,9 +560,7 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
                   <span className="text-[11.5px] text-muted-foreground tabular-nums">{s.startTime}–{s.endTime}</span>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <select className={inputCls} value={f.manual} onChange={(e) => update(s._id, { manual: e.target.value })}>
-                    {MANUAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  {/* Nhập giờ vào/ra → hệ thống tự tính trạng thái (đủ công / đi muộn / về sớm). */}
                   {!f.manual && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -527,6 +573,12 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
                       </div>
                     </div>
                   )}
+                  <div>
+                    <label className="text-[11.5px] text-muted-foreground">Hoặc đánh dấu nghỉ/lễ (tuỳ chọn)</label>
+                    <select className={cn(inputCls, "mt-1.5")} value={f.manual} onChange={(e) => update(s._id, { manual: e.target.value })}>
+                      {MANUAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
             );

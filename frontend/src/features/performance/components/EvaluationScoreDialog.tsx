@@ -180,14 +180,14 @@ function ScoreGroup({ title, items, scores, setScores }: {
       {items.map((c) => (
         <div key={c._id} className="flex items-center gap-3">
           <span className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={c.label}>{c.label}</span>
-          <div className="relative w-20">
+          <div className="relative w-24 shrink-0">
             <Input
               type="number" min={0} max={100}
               value={scores[c._id] ?? 0}
               onChange={(e) => setScores((s) => ({ ...s, [c._id]: Number(e.target.value) }))}
-              className="h-8 w-full pr-6 text-right text-[13px] tabular-nums"
+              className="h-8 w-full pr-7 text-right text-[13px] tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">%</span>
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">%</span>
           </div>
         </div>
       ))}

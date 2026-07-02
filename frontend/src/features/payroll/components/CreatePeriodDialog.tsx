@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { Label } from "@/components/ui/label";
 import type { CreatePeriodInput } from "@features/payroll/types/payroll.types";
 import { fieldErrors, periodFormSchema } from "@features/payroll/schemas/payroll.schema";
@@ -72,17 +73,17 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="p-start">Bắt đầu *</Label>
-              <Input id="p-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <DateField id="p-start" className="h-9 w-full rounded-md border border-input bg-background px-3" value={startDate} onChange={setStartDate} />
               {fErrors.startDate && <span className="text-[11px] text-destructive">{fErrors.startDate}</span>}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="p-end">Kết thúc *</Label>
-              <Input id="p-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <DateField id="p-end" className="h-9 w-full rounded-md border border-input bg-background px-3" value={endDate} onChange={setEndDate} />
               {fErrors.endDate && <span className="text-[11px] text-destructive">{fErrors.endDate}</span>}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="p-pay">Ngày chi *</Label>
-              <Input id="p-pay" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+              <DateField id="p-pay" className="h-9 w-full rounded-md border border-input bg-background px-3" value={payDate} onChange={setPayDate} />
               {fErrors.payDate && <span className="text-[11px] text-destructive">{fErrors.payDate}</span>}
             </div>
             <div className="col-span-2 flex flex-col gap-1.5">

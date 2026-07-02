@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { computeAttendance, minutesOfDayVN, type ShiftWindow } from '../services/attendance-calc';
+import { computeAttendance, deriveWorkedSession, minutesOfDayVN, type ShiftWindow } from '../services/attendance-calc';
 
 const FULL: ShiftWindow = { startTime: '08:00', endTime: '17:00', breakMinutes: 60 };
 const AFTERNOON: ShiftWindow = { startTime: '13:00', endTime: '17:00', breakMinutes: 0 };
@@ -14,6 +14,7 @@ describe('attendance-calc — Phụ lục E2', () => {
       workHours: 8.0,
       lateMinutes: 0,
       earlyMinutes: 0,
+      session: 'full_day',
     });
   });
 
@@ -81,5 +82,23 @@ describe('attendance-calc — Phụ lục E2', () => {
     const r = computeAttendance({ shift: FULL, checkIn: vn('07:30'), checkOut: vn('17:00') });
     expect(r.status).toBe('present');
     expect(r.workHours).toBe(8.0);
+  });
+});
+
+describe('deriveWorkedSession — 1 công vs nửa công theo giờ vào/ra', () => {
+  it('phủ cả sáng + chiều → full_day (1 công)', () => {
+    expect(deriveWorkedSession(FULL, vn('08:00'), vn('17:00'))).toBe('full_day');
+  });
+  it('chỉ buổi sáng → morning (0.5 công)', () => {
+    expect(deriveWorkedSession(FULL, vn('08:00'), vn('12:00'))).toBe('morning');
+  });
+  it('chỉ buổi chiều → afternoon (0.5 công)', () => {
+    expect(deriveWorkedSession(FULL, vn('13:00'), vn('17:00'))).toBe('afternoon');
+  });
+  it('thiếu giờ ra → null (không xác định công)', () => {
+    expect(deriveWorkedSession(FULL, vn('08:00'), null)).toBeNull();
+  });
+  it('computeAttendance gắn session=morning khi chỉ chấm buổi sáng', () => {
+    expect(computeAttendance({ shift: FULL, checkIn: vn('08:00'), checkOut: vn('12:00') }).session).toBe('morning');
   });
 });

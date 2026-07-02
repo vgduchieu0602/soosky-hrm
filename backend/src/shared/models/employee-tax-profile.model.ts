@@ -16,6 +16,8 @@ export interface IEmployeeTaxProfile {
   isResident: boolean;
   /** Number of registered dependents (người phụ thuộc) for the deduction. */
   dependentsCount: number;
+  /** Fixed compulsory-insurance amount (BHXH) deducted per period, entered by HR. */
+  insuranceAmount?: number;
   effectiveDate: Date;
   endDate?: Date | null;
   note?: string | null;
@@ -32,6 +34,7 @@ const employeeTaxProfileSchema = new Schema<IEmployeeTaxProfile>(
     taxCode: { type: String, trim: true, sparse: true, unique: true, default: null },
     isResident: { type: Boolean, required: true, default: true },
     dependentsCount: { type: Number, required: true, default: 0, min: 0 },
+    insuranceAmount: { type: Number, default: 0, min: 0 },
     effectiveDate: { type: Date, required: true },
     endDate: { type: Date, default: null },
     note: { type: String, default: null },

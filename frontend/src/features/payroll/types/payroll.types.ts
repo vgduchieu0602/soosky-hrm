@@ -183,6 +183,7 @@ export interface TaxProfile {
   taxCode?: string | null;
   isResident: boolean;
   dependentsCount: number;
+  insuranceAmount?: number;
   effectiveDate: string;
   endDate?: string | null;
 }

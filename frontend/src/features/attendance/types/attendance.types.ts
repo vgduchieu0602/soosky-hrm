@@ -30,6 +30,10 @@ export interface RosterEmployee {
   employeeCode: string;
   fullName: string;
   departmentName: string;
+  /** Remaining annual leave for the current year (entitled − used). */
+  annualLeaveRemaining?: number;
+  /** Whole months the employee has worked at the company. */
+  tenureMonths?: number;
 }
 
 export interface AdminGrid {

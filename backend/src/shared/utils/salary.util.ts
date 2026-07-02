@@ -165,6 +165,23 @@ export interface InsuranceResult {
   employerOccupationalInsurance: number;
 }
 
+/** Build an InsuranceResult from a fixed HR-entered employee amount (no %). */
+export function fixedInsuranceResult(amount: number): InsuranceResult {
+  const a = Math.max(0, Math.round(amount));
+  return {
+    insuranceBase: 0,
+    unemploymentInsuranceBase: 0,
+    socialInsurance: a, // whole fixed amount reported under the social line
+    healthInsurance: 0,
+    unemploymentInsurance: 0,
+    insurance: a,
+    employerSocialInsurance: 0,
+    employerHealthInsurance: 0,
+    employerUnemploymentInsurance: 0,
+    employerOccupationalInsurance: 0,
+  };
+}
+
 export function computeInsurance(input: InsuranceInput): InsuranceResult {
   const rates = input.rates ?? VN_INSURANCE_RATES;
   const insuranceBase = Math.min(input.grossSalary, input.socialHealthCeiling);
@@ -348,6 +365,10 @@ export interface ComputePayrollInput {
    *  base alongside the salary. Bonuses/OT/other allowances are NOT subject to
    *  compulsory insurance. */
   insuranceBaseAllowances?: number;
+  /** Fixed compulsory-insurance amount deducted from the employee (VND). When
+   *  provided, this OVERRIDES the %-of-base computation — HR enters the number
+   *  directly. */
+  fixedInsuranceAmount?: number;
   overtimePay?: number;
   /** Portion of overtimePay exempt from PIT — the premium above the normal hourly
    *  wage (see `computeOvertimePayBreakdown`). Excluded from assessable income. */
@@ -364,6 +385,9 @@ export interface ComputePayrollInput {
   dependentDeduction: number;
   dependentsCount?: number;
   taxBrackets?: TaxBracket[];
+  /** Enable personal income tax. Default FALSE — tax is disabled system-wide
+   *  (simplified payroll); net = gross − insurance − union fee − deductions. */
+  taxEnabled?: boolean;
   /** Tax resident → progressive + deductions; non-resident → flat rate, no deductions. Default true. */
   isResident?: boolean;
   /** Flat PIT rate for non-residents (percent). Default 20. */
@@ -435,12 +459,15 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     (input.insuranceBaseSalary ?? effective.proRatedBaseSalary) +
     (input.insuranceBaseAllowances ?? 0);
 
-  const insurance = computeInsurance({
-    grossSalary: insurableSalary,
-    socialHealthCeiling: input.socialHealthCeiling,
-    unemploymentCeiling: input.unemploymentCeiling,
-    rates: input.insuranceRates,
-  });
+  const insurance =
+    input.fixedInsuranceAmount != null
+      ? fixedInsuranceResult(input.fixedInsuranceAmount)
+      : computeInsurance({
+          grossSalary: insurableSalary,
+          socialHealthCeiling: input.socialHealthCeiling,
+          unemploymentCeiling: input.unemploymentCeiling,
+          rates: input.insuranceRates,
+        });
 
   const dependentsCount = input.dependentsCount ?? 0;
 
@@ -459,24 +486,27 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     (input.totalNonTaxableBonuses ?? 0) -
     overtimeNonTaxablePay;
   const taxableIncome = isResident ? assessableIncome - insurance.insurance : assessableIncome;
-  let personalDeduction: number;
-  let totalDependentDeduction: number;
-  let taxableIncomeAfterDeduction: number;
-  let tax: number;
-  if (isResident) {
-    personalDeduction = input.personalDeduction;
-    totalDependentDeduction = input.dependentDeduction * dependentsCount;
-    taxableIncomeAfterDeduction = Math.max(
-      0,
-      taxableIncome - personalDeduction - totalDependentDeduction,
-    );
-    tax = computeProgressiveTax(taxableIncomeAfterDeduction, input.taxBrackets);
-  } else {
-    personalDeduction = 0;
-    totalDependentDeduction = 0;
-    taxableIncomeAfterDeduction = Math.max(0, taxableIncome);
-    const rate = input.nonResidentTaxRate ?? 20;
-    tax = Math.round((taxableIncomeAfterDeduction * rate) / 100);
+  let personalDeduction = 0;
+  let totalDependentDeduction = 0;
+  let taxableIncomeAfterDeduction = 0;
+  let tax = 0;
+  // Tax is DISABLED by default (simplified payroll): net = gross − insurance −
+  // union fee − other deductions. If a company re-enables it, the original
+  // progressive/flat logic runs.
+  if (input.taxEnabled === true) {
+    if (isResident) {
+      personalDeduction = input.personalDeduction;
+      totalDependentDeduction = input.dependentDeduction * dependentsCount;
+      taxableIncomeAfterDeduction = Math.max(
+        0,
+        taxableIncome - personalDeduction - totalDependentDeduction,
+      );
+      tax = computeProgressiveTax(taxableIncomeAfterDeduction, input.taxBrackets);
+    } else {
+      taxableIncomeAfterDeduction = Math.max(0, taxableIncome);
+      const rate = input.nonResidentTaxRate ?? 20;
+      tax = Math.round((taxableIncomeAfterDeduction * rate) / 100);
+    }
   }
 
   const unionFee = input.unionFee ?? 0;
@@ -530,6 +560,7 @@ export interface GrossUpParams {
   personalDeduction: number;
   dependentDeduction: number;
   dependentsCount?: number;
+  taxEnabled?: boolean;
   isResident?: boolean;
   nonResidentTaxRate?: number;
   taxBrackets?: TaxBracket[];
@@ -561,6 +592,7 @@ function netAtGross(gross: number, params: GrossUpParams): ComputePayrollResult 
     // independent of the gross being solved for; falls back to gross if unset.
     insuranceBaseSalary: params.insuranceBaseSalary ?? gross,
     unionFee: params.unionFee,
+    taxEnabled: params.taxEnabled,
     socialHealthCeiling: params.socialHealthCeiling,
     unemploymentCeiling: params.unemploymentCeiling,
     personalDeduction: params.personalDeduction,

@@ -6,6 +6,7 @@ export interface RosterRow {
   employeeCode: string;
   fullName: string;
   departmentName: string;
+  hireDate?: Date | null;
 }
 
 /**
@@ -41,6 +42,7 @@ export function rosterForGrid(filter: { departmentId?: string; q?: string }) {
     {
       $project: {
         employeeCode: 1,
+        hireDate: 1,
         departmentName: { $ifNull: ['$department.name', ''] },
         fullName: {
           $trim: {

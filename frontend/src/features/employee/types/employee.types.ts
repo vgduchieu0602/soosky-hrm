@@ -47,6 +47,9 @@ export interface EmployeeProfile {
   workEmail?: string; // company email
   phone?: string;
   address?: string;
+  socialInsuranceNo?: string;
+  taxCode?: string;
+  vehiclePlate?: string;
 }
 
 // Raw record as returned by GET /employees (list) and GET /employees/:id (detail).
@@ -151,6 +154,9 @@ export interface CreateEmployeeInput {
     workEmail?: string;
     phone?: string;
     address?: string;
+    socialInsuranceNo?: string;
+    taxCode?: string;
+    vehiclePlate?: string;
   };
 }
 
@@ -167,6 +173,9 @@ export interface UpdateProfileInput {
   workEmail?: string;
   phone?: string;
   address?: string;
+  socialInsuranceNo?: string;
+  taxCode?: string;
+  vehiclePlate?: string;
   avatarUrl?: string;
 }
 

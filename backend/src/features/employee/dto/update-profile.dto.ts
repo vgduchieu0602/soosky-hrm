@@ -17,6 +17,9 @@ export const updateProfileDto = z
     workEmail: z.string().email().optional(),
     phone: z.string().min(6).max(40).optional(),
     address: z.string().max(255).optional(),
+    socialInsuranceNo: z.string().max(40).trim().optional(),
+    taxCode: z.string().max(40).trim().optional(),
+    vehiclePlate: z.string().max(20).trim().optional(),
   })
   .strict();
 

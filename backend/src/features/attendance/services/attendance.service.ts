@@ -5,6 +5,7 @@ import { Attendance } from '@shared/models/attendance.model';
 import { Shift } from '@shared/models/shift.model';
 import { Employee } from '@shared/models/employee.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
+import { ensureAnnualEntitlement, annualRemaining } from '@features/attendance/services/leave.service';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { auditService } from '@features/iam/services/audit.service';
 import {
@@ -58,6 +59,16 @@ async function shiftWindow(shiftId: string): Promise<ShiftWindow> {
   return { startTime: s.startTime, endTime: s.endTime, breakMinutes: s.breakMinutes };
 }
 
+/** Whole months an employee has worked, from hireDate to now (≥ 0). */
+function monthsSince(hire?: Date | null, nowMs: number = Date.now()): number {
+  if (!hire) return 0;
+  const h = new Date(hire);
+  const n = new Date(nowMs);
+  let m = (n.getFullYear() - h.getFullYear()) * 12 + (n.getMonth() - h.getMonth());
+  if (n.getDate() < h.getDate()) m -= 1;
+  return Math.max(0, m);
+}
+
 function computeFields(
   window: ShiftWindow,
   policy: AttendancePolicy,
@@ -69,12 +80,13 @@ function computeFields(
       workHours: 0,
       lateMinutes: 0,
       earlyMinutes: 0,
+      session: 'full_day' as const, // manual leave/holiday/absent = whole day
       checkIn: null as Date | null,
       checkOut: null as Date | null,
     };
   }
   const r = computeAttendance({ shift: window, checkIn: input.checkIn, checkOut: input.checkOut, policy });
-  return { ...r, checkIn: input.checkIn ?? null, checkOut: input.checkOut ?? null };
+  return { ...r, session: r.session ?? 'full_day', checkIn: input.checkIn ?? null, checkOut: input.checkOut ?? null };
 }
 
 export const attendanceService = {
@@ -140,9 +152,10 @@ export const attendanceService = {
           workHours: fields.workHours,
           lateMinutes: fields.lateMinutes,
           earlyMinutes: fields.earlyMinutes,
+          session: fields.session, // auto full_day / morning / afternoon from times
           source: 'self',
         },
-        $setOnInsert: { session: 'full_day', createdBy: new Types.ObjectId(userId) },
+        $setOnInsert: { createdBy: new Types.ObjectId(userId) },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
@@ -158,11 +171,20 @@ export const attendanceService = {
     ]);
     const { start, end } = vnMonthRange(query.month);
     const ids = roster.map((r) => r._id);
-    const records = await Attendance.find({
-      employeeId: { $in: ids },
-      date: { $gte: start, $lt: end },
-    }).lean();
-    return { month: query.month, employees: roster, shifts, records };
+    const year = Number(query.month.split('-')[0]);
+    const records = await Attendance.find({ employeeId: { $in: ids }, date: { $gte: start, $lt: end } }).lean();
+
+    // Grant official employees this year's annual entitlement (lazily), then
+    // compute pooled remaining (current + 2 prior years) = "phép dư".
+    const now = Date.now();
+    const employees = await Promise.all(
+      roster.map(async (r) => {
+        await ensureAnnualEntitlement(r._id, year);
+        const annualLeaveRemaining = await annualRemaining(r._id, year);
+        return { ...r, annualLeaveRemaining, tenureMonths: monthsSince(r.hireDate, now) };
+      }),
+    );
+    return { month: query.month, employees, shifts, records };
   },
 
   /** Create or update the record for {employee, date, shift (ca)}. */
@@ -194,6 +216,7 @@ export const attendanceService = {
         workHours: fields.workHours,
         lateMinutes: fields.lateMinutes,
         earlyMinutes: fields.earlyMinutes,
+        session: fields.session,
         note: input.note ?? existing.note,
         adjustedBy: new Types.ObjectId(userId),
         adjustedAt: new Date(),
@@ -219,6 +242,7 @@ export const attendanceService = {
       workHours: fields.workHours,
       lateMinutes: fields.lateMinutes,
       earlyMinutes: fields.earlyMinutes,
+      session: fields.session,
       note: input.note ?? null,
       source: 'manual',
       createdBy: new Types.ObjectId(userId),

@@ -99,6 +99,9 @@ export const employeeService = {
               workEmail: input.profile.workEmail,
               phone: input.profile.phone,
               address: input.profile.address,
+              socialInsuranceNo: input.profile.socialInsuranceNo,
+              taxCode: input.profile.taxCode,
+              vehiclePlate: input.profile.vehiclePlate,
             },
           ],
           { session },
@@ -541,7 +544,9 @@ async function seedLeaveBalances(employeeId: Types.ObjectId): Promise<void> {
   const quotas = (cfg?.leaveQuotas ?? {}) as Record<string, number>;
   const year = new Date().getUTCFullYear();
   const docs = Object.entries(quotas)
-    .filter(([, v]) => Number(v) > 0)
+    // Annual leave is granted by employment status (official → 12) lazily via
+    // ensureAnnualEntitlement, not from the flat company quota — skip it here.
+    .filter(([type, v]) => type !== 'annual' && Number(v) > 0)
     .map(([leaveType, entitled]) => ({ employeeId, leaveType, year, entitled: Number(entitled), used: 0 }));
   if (docs.length === 0) return;
   await LeaveBalance.insertMany(docs, { ordered: false }).catch(() => undefined);

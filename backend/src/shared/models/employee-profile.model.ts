@@ -24,6 +24,9 @@ export interface IEmployeeProfile {
   workEmail?: string; // company email shown on the profile
   phone?: string;
   address?: string;
+  socialInsuranceNo?: string; // Số sổ BHXH
+  taxCode?: string; // Mã số thuế cá nhân
+  vehiclePlate?: string; // Biển số xe
   created_at?: Date;
   updated_at?: Date;
 }
@@ -52,6 +55,9 @@ const employeeProfileSchema = new Schema<IEmployeeProfile>(
     workEmail: { type: String, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     address: { type: String, trim: true },
+    socialInsuranceNo: { type: String, trim: true },
+    taxCode: { type: String, trim: true },
+    vehiclePlate: { type: String, trim: true, uppercase: true },
   },
   {
     collection: COLLECTION_NAME,

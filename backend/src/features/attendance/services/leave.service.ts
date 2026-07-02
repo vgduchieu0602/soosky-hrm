@@ -7,6 +7,8 @@ import { Attendance } from '@shared/models/attendance.model';
 import { Holiday } from '@shared/models/holiday.model';
 import { LeaveRequest, type LeaveType } from '@shared/models/leave-request.model';
 import { LeaveBalance } from '@shared/models/leave-balance.model';
+import { EmployeeContractModel } from '@shared/models/employee-contract.model';
+import { CompanyConfig } from '@shared/models/company-config.model';
 import { auditService } from '@features/iam/services/audit.service';
 import {
   vnDateKey,
@@ -29,6 +31,59 @@ async function employeeOfUser(userId: string) {
   const employee = await Employee.findOne({ userId });
   if (!employee) throw new HttpError(404, 'Không tìm thấy hồ sơ nhân viên', 'EMP_001');
   return employee;
+}
+
+// --- Annual-leave policy: official employees get 12 days/year; unused days
+// carry over and stay usable for up to 3 years (pooled: current + 2 prior). ---
+const DEFAULT_ANNUAL_LEAVE = 12;
+const CARRYOVER_YEARS = 3;
+
+async function annualQuota(): Promise<number> {
+  const cfg = await CompanyConfig.findOne({ key: 'global' }).select('leaveQuotas').lean();
+  const q = (cfg?.leaveQuotas as Record<string, number> | undefined)?.annual;
+  return Number.isFinite(q) && (q as number) > 0 ? Number(q) : DEFAULT_ANNUAL_LEAVE;
+}
+
+async function isOfficialEmployee(employeeId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
+  const q = EmployeeContractModel.findOne({ employeeId, status: 'active' }).select('employmentStatus');
+  const c = await (session ? q.session(session) : q).lean();
+  return c?.employmentStatus === 'official';
+}
+
+/** Lazily grant an official employee this year's annual entitlement (12 days). */
+export async function ensureAnnualEntitlement(
+  employeeId: Types.ObjectId,
+  year: number,
+  session?: ClientSession,
+): Promise<void> {
+  const q = LeaveBalance.findOne({ employeeId, leaveType: 'annual', year }).select('_id');
+  const existing = await (session ? q.session(session) : q).lean();
+  if (existing) return;
+  if (!(await isOfficialEmployee(employeeId, session))) return;
+  const entitled = await annualQuota();
+  await LeaveBalance.updateOne(
+    { employeeId, leaveType: 'annual', year },
+    { $setOnInsert: { entitled, used: 0 } },
+    { upsert: true, ...(session ? { session } : {}) },
+  );
+}
+
+/** Pooled remaining annual leave over the last `CARRYOVER_YEARS` years (Σ entitled − Σ used). */
+export async function annualRemaining(
+  employeeId: Types.ObjectId,
+  year: number,
+  session?: ClientSession,
+): Promise<number> {
+  const q = LeaveBalance.find({
+    employeeId,
+    leaveType: 'annual',
+    year: { $gte: year - (CARRYOVER_YEARS - 1), $lte: year },
+  });
+  const rows = await (session ? q.session(session) : q).lean();
+  let entitled = 0;
+  let used = 0;
+  for (const b of rows) { entitled += b.entitled ?? 0; used += b.used ?? 0; }
+  return Math.max(0, entitled - used);
 }
 
 /**
@@ -86,6 +141,25 @@ async function assertBalanceAvailable(
   if (leaveType === 'unpaid') return;
 
   const year = vnDateKey(startDate).getUTCFullYear();
+
+  // Annual leave: pooled over the last 3 years (carry-over). Ensure this year's
+  // 12-day entitlement exists for official employees, then check the pool.
+  if (leaveType === 'annual') {
+    await ensureAnnualEntitlement(employeeId, year, session);
+    const remaining = await annualRemaining(employeeId, year, session);
+    if (remaining <= 0) {
+      throw new HttpError(
+        409,
+        `Không còn phép năm khả dụng (nhân viên chưa chính thức hoặc đã dùng hết).`,
+        'LV_005',
+      );
+    }
+    if (days > remaining) {
+      throw new HttpError(409, `Vượt quỹ phép năm còn lại (${remaining} ngày)`, 'LV_004');
+    }
+    return;
+  }
+
   const q = LeaveBalance.findOne({ employeeId, leaveType, year });
   const balance = await (session ? q.session(session) : q).lean();
 

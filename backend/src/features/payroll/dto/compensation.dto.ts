@@ -72,6 +72,7 @@ export const upsertTaxProfileDto = z
     taxCode: z.string().max(20).nullable().optional(),
     isResident: z.coerce.boolean().optional(),
     dependentsCount: z.coerce.number().int().min(0),
+    insuranceAmount: z.coerce.number().min(0).optional(),
     effectiveDate: z.coerce.date(),
     endDate: z.coerce.date().nullable().optional(),
     note: z.string().max(255).nullable().optional(),

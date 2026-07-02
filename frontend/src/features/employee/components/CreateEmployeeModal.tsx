@@ -34,6 +34,9 @@ interface FormState {
   nationality: string;
   maritalStatus: MaritalStatus;
   address: string;
+  socialInsuranceNo: string;
+  taxCode: string;
+  vehiclePlate: string;
   employeeCode: string;
   fingerprintId: string;
   departmentId: string;
@@ -49,6 +52,7 @@ interface FormState {
 const INITIAL: FormState = {
   firstName: "", middleName: "", lastName: "", dateOfBirth: "", gender: "male", phone: "", email: "", workEmail: "",
   nationality: "VN", maritalStatus: "single", address: "",
+  socialInsuranceNo: "", taxCode: "", vehiclePlate: "",
   employeeCode: "", fingerprintId: "", departmentId: "", positionId: "", managerId: "",
   employeeType: "full_time", hireDate: "", salaryZone: "zone1",
   grantAccount: false, sendInvite: true,
@@ -130,6 +134,9 @@ export function CreateEmployeeModal({ onClose, onCreated }: Props) {
         workEmail: form.workEmail.trim() || undefined,
         phone: form.phone.trim() || undefined,
         address: form.address.trim() || undefined,
+        socialInsuranceNo: form.socialInsuranceNo.trim() || undefined,
+        taxCode: form.taxCode.trim() || undefined,
+        vehiclePlate: form.vehiclePlate.trim() || undefined,
       },
     };
 
@@ -298,6 +305,15 @@ function Step1({ form, set }: { form: FormState; set: SetFn }) {
         </FormField>
         <FormField label="Địa chỉ thường trú" span="full">
           <input className={inputCls} placeholder="Số nhà, đường, phường, quận, tỉnh/thành" value={form.address} onChange={(e) => set("address", e.target.value)} />
+        </FormField>
+        <FormField label="Số sổ BHXH">
+          <input className={inputCls} placeholder="VD: 0123456789" value={form.socialInsuranceNo} onChange={(e) => set("socialInsuranceNo", e.target.value)} />
+        </FormField>
+        <FormField label="Mã số thuế">
+          <input className={inputCls} placeholder="VD: 8012345678" value={form.taxCode} onChange={(e) => set("taxCode", e.target.value)} />
+        </FormField>
+        <FormField label="Biển số xe">
+          <input className={inputCls} placeholder="VD: 30K-123.45" value={form.vehiclePlate} onChange={(e) => set("vehiclePlate", e.target.value)} />
         </FormField>
       </div>
     </div>
