@@ -252,27 +252,36 @@ async function seedUsers(roleIds: Map<string, Types.ObjectId>) {
   console.log(`  Users: ${USERS.length} ensured`);
 }
 
+// Seed against an already-open connection (caller manages connect/disconnect).
+export async function runSeed() {
+  const permIds = await seedPermissions();
+  const roleIds = await seedRoles();
+  await seedRolePermissions(roleIds, permIds);
+  await seedUsers(roleIds);
+  await seedCompanyConfig();
+  await seedSalaryPolicy();
+  await seedPerformanceCriteria();
+  console.log('\nSeed complete. Demo credentials:');
+  for (const u of USERS) {
+    console.log(`  ${u.email}  /  ${u.password}  (${u.roleName})`);
+  }
+}
+
 async function main() {
   console.log('Seeding Soosky HRM IAM...');
   await connectDB();
   try {
-    const permIds = await seedPermissions();
-    const roleIds = await seedRoles();
-    await seedRolePermissions(roleIds, permIds);
-    await seedUsers(roleIds);
-    await seedCompanyConfig();
-    await seedSalaryPolicy();
-    await seedPerformanceCriteria();
-    console.log('\nSeed complete. Demo credentials:');
-    for (const u of USERS) {
-      console.log(`  ${u.email}  /  ${u.password}  (${u.roleName})`);
-    }
+    await runSeed();
   } finally {
     await disconnectDB();
   }
 }
 
-main().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+// Only self-run when invoked directly (not when imported by dev-local).
+const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/seed.ts');
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error('Seed failed:', err);
+    process.exit(1);
+  });
+}

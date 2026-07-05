@@ -14,6 +14,7 @@ import { payrollRouter } from '@features/payroll';
 import { performanceRouter } from '@features/performance';
 import { storageRouter } from '@features/storage';
 import { notificationRouter } from '@features/notification';
+import { dashboardRouter } from '@features/dashboard';
 
 export function createApp() {
   //Khởi tạo Express app
@@ -38,6 +39,7 @@ export function createApp() {
   app.use('/api/v1', performanceRouter);
   app.use('/api/v1', storageRouter);
   app.use('/api/v1', notificationRouter);
+  app.use('/api/v1', dashboardRouter);
 
   //Register Error Handler
   app.use(errorHandler);

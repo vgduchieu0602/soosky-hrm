@@ -29,7 +29,17 @@ function Initials({ initials, className }: { initials: string; className?: strin
   );
 }
 
-export function LeavePending() {
+type PendingLeave = (typeof PENDING_LEAVES)[number] & { id?: string };
+
+interface LeavePendingProps {
+  items?: PendingLeave[];
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  busyId?: string | null;
+}
+
+export function LeavePending({ items = PENDING_LEAVES, onApprove, onReject, busyId }: LeavePendingProps) {
+  const PENDING_LEAVES = items;
   return (
     <Card className="flex h-full flex-col">
       <CardHeader className="flex-row items-start justify-between space-y-0">
@@ -38,10 +48,12 @@ export function LeavePending() {
             <CardTitle className="text-[15px] font-semibold tracking-tight">
               Leave Requests · Chờ phê duyệt
             </CardTitle>
-            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 tabular-nums">5</Badge>
+            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 tabular-nums">
+              {PENDING_LEAVES.length}
+            </Badge>
           </div>
           <CardDescription className="mt-0.5 text-[12.5px]">
-            5 đơn xin nghỉ mới nhất
+            {PENDING_LEAVES.length} đơn xin nghỉ mới nhất
           </CardDescription>
         </div>
         <Button variant="link" className="h-auto p-0 text-[12px] font-medium text-primary-600">
@@ -49,6 +61,11 @@ export function LeavePending() {
         </Button>
       </CardHeader>
 
+      {PENDING_LEAVES.length === 0 && (
+        <div className="border-t px-6 py-10 text-center text-[13px] text-muted-foreground">
+          Không có đơn chờ duyệt
+        </div>
+      )}
       <ul className="flex flex-col">
         {PENDING_LEAVES.map((p, i) => (
           <li
@@ -76,6 +93,8 @@ export function LeavePending() {
               <Button
                 variant="outline"
                 size="icon"
+                disabled={!p.id || busyId === p.id}
+                onClick={() => p.id && onReject?.(p.id)}
                 className="size-8 text-muted-foreground hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                 aria-label="Từ chối"
               >
@@ -83,6 +102,8 @@ export function LeavePending() {
               </Button>
               <Button
                 size="icon"
+                disabled={!p.id || busyId === p.id}
+                onClick={() => p.id && onApprove?.(p.id)}
                 className="size-8 bg-emerald-500 hover:bg-emerald-600"
                 aria-label="Phê duyệt"
               >
@@ -96,7 +117,10 @@ export function LeavePending() {
   );
 }
 
-export function UpcomingLeaves() {
+type UpcomingLeave = (typeof UPCOMING_LEAVES)[number] & { id?: string };
+
+export function UpcomingLeaves({ items = UPCOMING_LEAVES }: { items?: UpcomingLeave[] }) {
+  const UPCOMING_LEAVES = items;
   return (
     <Card className="flex h-full flex-col p-6">
       <CardHeader className="flex-row items-start justify-between space-y-0 p-0">
@@ -143,8 +167,10 @@ export function UpcomingLeaves() {
   );
 }
 
-export function PayrollSection() {
-  const p = PAYROLL;
+type PayrollData = typeof PAYROLL;
+
+export function PayrollSection({ data = PAYROLL }: { data?: PayrollData }) {
+  const p = data;
   const computed = Math.round(p.computedRatio * 100);
   return (
     <Card className="flex h-full flex-col border-secondary-700 bg-secondary-800 p-6 text-white">
@@ -159,7 +185,7 @@ export function PayrollSection() {
             </Badge>
           </div>
           <CardTitle className="mt-1 text-[18px] font-semibold tracking-tight text-white">
-            Bảng lương tháng 5
+            Bảng lương kỳ {p.period}
           </CardTitle>
         </div>
         <Button
@@ -225,7 +251,10 @@ export function PayrollSection() {
   );
 }
 
-export function TopPerformers() {
+type Performer = (typeof PERFORMERS)[number];
+
+export function TopPerformers({ items = PERFORMERS }: { items?: Performer[] }) {
+  const PERFORMERS = items;
   return (
     <Card className="flex h-full flex-col p-6">
       <CardHeader className="flex-row items-start justify-between space-y-0 p-0">
@@ -273,7 +302,10 @@ export function TopPerformers() {
   );
 }
 
-export function RecentActivities() {
+type Activity = (typeof ACTIVITIES)[number];
+
+export function RecentActivities({ items = ACTIVITIES }: { items?: Activity[] }) {
+  const ACTIVITIES = items;
   return (
     <Card className="flex h-full flex-col p-6">
       <CardHeader className="flex-row items-start justify-between space-y-0 p-0">

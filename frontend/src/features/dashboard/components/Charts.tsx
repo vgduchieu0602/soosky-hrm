@@ -73,12 +73,12 @@ function CompactKpi({ label, value, suffix, delta, icon, chip = "blue" }: TopKpi
   );
 }
 
-export function TopSummary() {
+export function TopSummary({ kpis = TOP_KPIS }: { kpis?: TopKpi[] }) {
   return (
     <section>
       <SectionTitle title="Tổng quan" subtitle="Chỉ số chính tại thời điểm hiện tại" />
       <div className="mt-4 grid grid-cols-7 gap-4">
-        {TOP_KPIS.map((k, i) => (
+        {kpis.map((k, i) => (
           <CompactKpi key={`${i}-${k.label}`} {...k} />
         ))}
       </div>
@@ -86,7 +86,14 @@ export function TopSummary() {
   );
 }
 
-export function EmployeesByDept() {
+interface DeptSlice {
+  name: string;
+  count: number;
+  color: string;
+}
+
+export function EmployeesByDept({ items = DEPARTMENTS_CHART }: { items?: DeptSlice[] }) {
+  const DEPARTMENTS_CHART = items.length ? items : [{ name: "Chưa có dữ liệu", count: 1, color: "#CBD5E1" }];
   const total = DEPARTMENTS_CHART.reduce((s, d) => s + d.count, 0);
   const cx = 100;
   const cy = 100;
@@ -171,8 +178,15 @@ export function EmployeesByDept() {
   );
 }
 
-export function AttendanceToday() {
-  const max = Math.max(...ATTENDANCE_TODAY.map((a) => a.value));
+interface AttSlice {
+  label: string;
+  value: number;
+  color: string;
+}
+
+export function AttendanceToday({ items = ATTENDANCE_TODAY }: { items?: AttSlice[] }) {
+  const ATTENDANCE_TODAY = items;
+  const max = Math.max(...ATTENDANCE_TODAY.map((a) => a.value), 1);
   const total = ATTENDANCE_TODAY.reduce((s, a) => s + a.value, 0);
   const checked = ATTENDANCE_TODAY[0].value + ATTENDANCE_TODAY[1].value;
   return (
@@ -220,9 +234,11 @@ export function AttendanceToday() {
 
 type TrendRange = "week" | "month";
 
-export function AttendanceTrend() {
+type TrendData = typeof ATTENDANCE_TREND;
+
+export function AttendanceTrend({ trend = ATTENDANCE_TREND }: { trend?: TrendData }) {
   const [range, setRange] = useState<TrendRange>("month");
-  const data = ATTENDANCE_TREND[range];
+  const data = trend[range];
 
   const W = 600;
   const H = 240;
