@@ -12,8 +12,7 @@ import { Employee } from '@shared/models/employee.model';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
 import { User } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
-import { accountProvisioningService } from '@features/employee/services/account-provisioning.service';
-import { employeeAccountService } from '@features/employee/services/employee-account.service';
+import { accountProvisioningService, employeeAccountService } from '@features/employee/container';
 
 jest.setTimeout(60_000);
 

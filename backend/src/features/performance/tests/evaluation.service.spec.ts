@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { computeEvaluationRatio, type ScoreInput } from '@features/performance/services/evaluation.service';
+import { computeEvaluationRatio, type ScoreInput } from '@features/performance/domain/evaluation-ratio';
 
 const weights = new Map<string, number>([
   ["aaaaaaaaaaaaaaaaaaaaaaa1", 25],

@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import mongoose from 'mongoose';
 
-import { buildPayrollDoc, type PayrollRunContext } from '@features/payroll/services/payroll-run.service';
+import { buildPayrollDoc, type PayrollRunContext } from '@features/payroll/application/payroll-run.usecases';
 
 const oid = () => new mongoose.Types.ObjectId();
 const num = (d: mongoose.Types.Decimal128) => Number(d.toString());

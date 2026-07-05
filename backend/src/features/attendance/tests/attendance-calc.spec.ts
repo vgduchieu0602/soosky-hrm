@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { computeAttendance, deriveWorkedSession, minutesOfDayVN, type ShiftWindow } from '../services/attendance-calc';
+import { computeAttendance, deriveWorkedSession, minutesOfDayVN, type ShiftWindow } from '../domain/attendance-calc';
 
 const FULL: ShiftWindow = { startTime: '08:00', endTime: '17:00', breakMinutes: 60 };
 const AFTERNOON: ShiftWindow = { startTime: '13:00', endTime: '17:00', breakMinutes: 0 };

@@ -15,8 +15,8 @@ import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { Attendance } from '@shared/models/attendance.model';
 import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { Payroll } from '@shared/models/payroll.model';
-import { runPayrollForEmployee } from '@features/payroll/services/payroll-run.service';
-import { evaluationService } from '@features/performance/services/evaluation.service';
+import { runPayrollForEmployee } from '@features/payroll/container';
+import { evaluationService } from '@features/performance';
 
 jest.setTimeout(60_000);
 

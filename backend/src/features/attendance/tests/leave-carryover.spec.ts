@@ -9,7 +9,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { LeaveBalance } from '@shared/models/leave-balance.model';
-import { ensureAnnualEntitlement, annualRemaining } from '@features/attendance/services/leave.service';
+import { leaveEntitlement } from '@features/attendance/container';
 
 jest.setTimeout(60_000);
 
@@ -43,7 +43,7 @@ async function officialEmployee() {
 describe('Annual leave — 12 days + 3-year carryover', () => {
   it('grants 12 days lazily for an official employee', async () => {
     const id = await officialEmployee();
-    await ensureAnnualEntitlement(id, 2026);
+    await leaveEntitlement.ensureEntitlement(String(id), 2026);
     const bal = await LeaveBalance.findOne({ employeeId: id, leaveType: 'annual', year: 2026 }).lean();
     expect(bal?.entitled).toBe(12);
     expect(bal?.used).toBe(0);
@@ -59,9 +59,9 @@ describe('Annual leave — 12 days + 3-year carryover', () => {
       startDate: utc('2026-01-01'), baseSalary: mongoose.Types.Decimal128.fromString('10000000'),
       status: 'active', employmentStatus: 'probation',
     });
-    await ensureAnnualEntitlement(emp._id as mongoose.Types.ObjectId, 2026);
+    await leaveEntitlement.ensureEntitlement(String(emp._id), 2026);
     expect(await LeaveBalance.countDocuments({ employeeId: emp._id, leaveType: 'annual' })).toBe(0);
-    expect(await annualRemaining(emp._id as mongoose.Types.ObjectId, 2026)).toBe(0);
+    expect(await leaveEntitlement.remaining(String(emp._id), 2026)).toBe(0);
   });
 
   it('pools remaining over the last 3 years and expires older years', async () => {
@@ -74,6 +74,6 @@ describe('Annual leave — 12 days + 3-year carryover', () => {
     await LeaveBalance.create({ employeeId: id, leaveType: 'annual', year: 2023, entitled: 12, used: 0 });
 
     // (12+12) − (5+8) = 11 ; 2023's 12 days expired (out of window)
-    expect(await annualRemaining(id, 2026)).toBe(11);
+    expect(await leaveEntitlement.remaining(String(id), 2026)).toBe(11);
   });
 });

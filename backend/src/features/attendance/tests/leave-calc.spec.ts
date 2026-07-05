@@ -1,21 +1,11 @@
 /// <reference types="jest" />
-import { enumerateDays, isWeekend, mmddKey } from '@features/attendance/services/attendance-calc';
-
-// Mock the Holiday model used by countWorkingDays so the test stays pure.
-jest.mock('@shared/models/holiday.model', () => ({
-  Holiday: { find: jest.fn() },
-}));
-
-import { Holiday } from '@shared/models/holiday.model';
-import { countWorkingDays } from '@features/attendance/services/leave.service';
+import { enumerateDays, isWeekend, mmddKey } from '@features/attendance/domain/attendance-calc';
+import { countWorkingDays, buildHolidayChecker } from '@features/attendance/domain/leave-policy';
 
 const utc = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
-function mockHolidays(rows: Array<{ date: Date; isRecurring?: boolean }>) {
-  (Holiday.find as jest.Mock).mockReturnValue({
-    lean: () => Promise.resolve(rows.map((r) => ({ date: r.date, isRecurring: !!r.isRecurring }))),
-  });
-}
+// Pure domain now: no Mongoose mocking — build the holiday predicate directly.
+const checker = (rows: Array<{ date: Date; isRecurring?: boolean }> = []) => buildHolidayChecker(rows);
 
 describe('attendance-calc date helpers', () => {
   it('enumerateDays is inclusive', () => {
@@ -35,27 +25,23 @@ describe('attendance-calc date helpers', () => {
 });
 
 describe('countWorkingDays', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('half-day returns 0.5', async () => {
-    mockHolidays([]);
-    expect(await countWorkingDays(utc('2026-06-22'), utc('2026-06-22'), 'morning')).toBe(0.5);
+  it('half-day returns 0.5', () => {
+    expect(countWorkingDays(utc('2026-06-22'), utc('2026-06-22'), 'morning', checker())).toBe(0.5);
   });
 
-  it('excludes weekends (Fri→Mon = 2 working days)', async () => {
-    mockHolidays([]);
+  it('excludes weekends (Fri→Mon = 2 working days)', () => {
     // 2026-06-19 Fri, 20 Sat, 21 Sun, 22 Mon → Fri + Mon = 2
-    expect(await countWorkingDays(utc('2026-06-19'), utc('2026-06-22'))).toBe(2);
+    expect(countWorkingDays(utc('2026-06-19'), utc('2026-06-22'), null, checker())).toBe(2);
   });
 
-  it('excludes a fixed holiday in range', async () => {
-    mockHolidays([{ date: utc('2026-06-23') }]);
+  it('excludes a fixed holiday in range', () => {
+    const isHoliday = checker([{ date: utc('2026-06-23') }]);
     // Mon 22, Tue 23 (holiday), Wed 24 → 2 working days
-    expect(await countWorkingDays(utc('2026-06-22'), utc('2026-06-24'))).toBe(2);
+    expect(countWorkingDays(utc('2026-06-22'), utc('2026-06-24'), null, isHoliday)).toBe(2);
   });
 
-  it('excludes a recurring holiday matched by MM-DD', async () => {
-    mockHolidays([{ date: utc('2000-06-23'), isRecurring: true }]);
-    expect(await countWorkingDays(utc('2026-06-22'), utc('2026-06-24'))).toBe(2);
+  it('excludes a recurring holiday matched by MM-DD', () => {
+    const isHoliday = checker([{ date: utc('2000-06-23'), isRecurring: true }]);
+    expect(countWorkingDays(utc('2026-06-22'), utc('2026-06-24'), null, isHoliday)).toBe(2);
   });
 });

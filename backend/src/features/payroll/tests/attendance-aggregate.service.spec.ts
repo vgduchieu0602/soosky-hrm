@@ -4,7 +4,7 @@ import {
   toPayrollWorkDays,
   dedupeByDay,
   type AttendanceRow,
-} from '@features/payroll/services/attendance-aggregate.service';
+} from '@features/payroll/domain/attendance-summary';
 
 const row = (
   status: AttendanceRow['status'],

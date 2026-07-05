@@ -16,9 +16,9 @@ import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { Attendance } from '@shared/models/attendance.model';
 import { Shift } from '@shared/models/shift.model';
-import { runPayrollForEmployee } from '@features/payroll/services/payroll-run.service';
-import { evaluationService } from '@features/performance/services/evaluation.service';
-import { attendanceService } from '@features/attendance/services/attendance.service';
+import { runPayrollForEmployee } from '@features/payroll/container';
+import { evaluationService } from '@features/performance';
+import { attendanceUseCases } from '@features/attendance/container';
 
 jest.setTimeout(60_000);
 
@@ -81,12 +81,12 @@ describe('Self-service check-in / check-out', () => {
     });
     await Shift.create({ name: 'Hành chính', type: 'full_day', startTime: '09:00', endTime: '18:00', breakMinutes: 60, workingDays: [1, 2, 3, 4, 5], status: 'active' });
 
-    const afterIn = await attendanceService.punch(String(userId), 'in');
+    const afterIn = await attendanceUseCases.punch(String(userId), 'in');
     expect(afterIn.checkIn).toBeTruthy();
     expect(afterIn.source).toBe('self');
     expect(String(afterIn.employeeId)).toBe(String(employee._id));
 
-    const afterOut = await attendanceService.punch(String(userId), 'out');
+    const afterOut = await attendanceUseCases.punch(String(userId), 'out');
     expect(afterOut.checkOut).toBeTruthy();
 
     // exactly one record (idempotent on {employee, date, shift})
@@ -100,7 +100,7 @@ describe('Self-service check-in / check-out', () => {
       hireDate: utc('2024-01-01'), employeeType: 'full_time', status: 'active', salaryZone: 'zone1',
     });
     await Shift.create({ name: 'HC', type: 'full_day', startTime: '09:00', endTime: '18:00', breakMinutes: 60, workingDays: [1], status: 'active' });
-    await expect(attendanceService.punch(String(userId), 'out')).rejects.toMatchObject({ code: 'ATT_006' });
+    await expect(attendanceUseCases.punch(String(userId), 'out')).rejects.toMatchObject({ code: 'ATT_006' });
   });
 });
 

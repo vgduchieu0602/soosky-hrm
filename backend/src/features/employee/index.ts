@@ -1,10 +1,16 @@
-export { default as employeeRouter } from './employee.routes';
-export { employeeService } from './services/employee.service';
-export { accountProvisioningService } from './services/account-provisioning.service';
-export { employeeAccountService } from './services/employee-account.service';
-export { employeeContractService } from './services/employee-contract.service';
-export { employeeDocumentService } from './services/employee-document.service';
-export { employeeContactService } from './services/employee-contact.service';
-export { employeeBankAccountService } from './services/employee-bank-account.service';
-export { employeeAssetService } from './services/employee-asset.service';
-export { employeeHistoryService } from './services/employee-history.service';
+// Public surface of the employee feature (Clean Architecture).
+export { default as employeeRouter } from '@features/employee/interfaces/http/employee.routes';
+
+// Use-cases re-exported under their legacy service names for cross-feature/test
+// callers (the composition root is the only place that instantiates adapters).
+export {
+  employeeService,
+  accountProvisioningService,
+  employeeAccountService,
+  employeeContractService,
+  employeeDocumentService,
+  employeeContactService,
+  employeeBankAccountService,
+  employeeAssetService,
+  employeeHistoryService,
+} from '@features/employee/container';
