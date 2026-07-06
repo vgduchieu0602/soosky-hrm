@@ -1,15 +1,11 @@
-import { Types } from 'mongoose';
-import { Employee } from '@shared/models/employee.model';
-import { EmployeeProfile } from '@shared/models/employee-profile.model';
-import { Department } from '@shared/models/department.model';
-import { Attendance } from '@shared/models/attendance.model';
-import { LeaveRequest } from '@shared/models/leave-request.model';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
-import { Payroll } from '@shared/models/payroll.model';
-import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
-import { AuditLog } from '@shared/models/audit-log.model';
+import type {
+  DashboardRepository,
+  Clock,
+  EmployeeInfo,
+  ProfileInfo,
+} from '@features/dashboard/domain/ports';
 
-// ---- helpers -------------------------------------------------------------
+// ---- labels / icons -------------------------------------------------------
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
   annual: 'Nghỉ phép năm',
@@ -28,6 +24,15 @@ const RESOURCE_ICON: Record<string, string> = {
   user: 'UserPlus',
   performance: 'Pencil',
 };
+
+const PERIOD_STATUS_LABEL: Record<string, string> = {
+  open: 'Đang mở',
+  processing: 'Đang xử lý',
+  closed: 'Đã chốt',
+  paid: 'Đã chi',
+};
+
+// ---- pure helpers ---------------------------------------------------------
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -67,7 +72,7 @@ function relativeTime(then: Date, now: Date) {
   const d = Math.floor(s / 86_400);
   return d === 1 ? 'Hôm qua' : `${d} ngày trước`;
 }
-const toNum = (v: unknown) => (v == null ? 0 : Number(v.toString()));
+const toNum = (v: unknown) => (v == null ? 0 : Number((v as { toString(): string }).toString()));
 function compactVnd(n: number): string {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1).replace(/\.0$/, '')}B`;
   if (n >= 1e6) return `${Math.round(n / 1e6)}M`;
@@ -75,61 +80,56 @@ function compactVnd(n: number): string {
   return String(Math.round(n));
 }
 
-// Build a name/code/dept lookup for a set of employeeIds.
-async function employeeLookup(ids: Types.ObjectId[]) {
-  const [emps, profiles] = await Promise.all([
-    Employee.find({ _id: { $in: ids } }).select('employeeCode departmentId positionId').lean(),
-    EmployeeProfile.find({ employeeId: { $in: ids } })
-      .select('employeeId firstName middleName lastName')
-      .lean(),
-  ]);
-  const deptIds = [...new Set(emps.map((e) => String(e.departmentId)).filter(Boolean))];
-  const depts = await Department.find({ _id: { $in: deptIds } }).select('name').lean();
-  const deptName = new Map(depts.map((d) => [String(d._id), d.name]));
-  const prof = new Map(profiles.map((p) => [String(p.employeeId), p]));
-  const emp = new Map(emps.map((e) => [String(e._id), e]));
-  return { deptName, prof, emp };
+// A name/code/dept lookup helper built from repository lookup data.
+interface Lookup {
+  deptName: Map<string, string>;
+  prof: Map<string, ProfileInfo>;
+  emp: Map<string, EmployeeInfo>;
 }
 
-// ---- main ----------------------------------------------------------------
+export class DashboardUseCases {
+  constructor(
+    private readonly repo: DashboardRepository,
+    private readonly clock: Clock,
+  ) {}
 
-export const dashboardService = {
+  private async buildLookup(ids: string[]): Promise<Lookup> {
+    const { employees, profiles, departments } = await this.repo.employeeLookup(ids);
+    return {
+      deptName: new Map(departments.map((d) => [String(d._id), d.name])),
+      prof: new Map(profiles.map((p) => [String(p.employeeId), p])),
+      emp: new Map(employees.map((e) => [String(e._id), e])),
+    };
+  }
+
   async overview() {
-    const now = new Date();
+    const now = this.clock.now();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
 
     // --- KPIs + department distribution (employee side) ---
-    const [totalEmployees, activeEmployees, newHiresThisMonth, deptAgg] = await Promise.all([
-      Employee.countDocuments({ status: { $ne: 'terminated' } }),
-      Employee.countDocuments({ status: 'active' }),
-      Employee.countDocuments({ hireDate: { $gte: monthStart }, status: { $ne: 'terminated' } }),
-      Employee.aggregate<{ _id: Types.ObjectId; count: number }>([
-        { $match: { status: { $ne: 'terminated' } } },
-        { $group: { _id: '$departmentId', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
+    const [counts, deptAgg] = await Promise.all([
+      this.repo.employeeCounts(monthStart),
+      this.repo.departmentDistribution(),
     ]);
+    const totalEmployees = counts.total;
+    const activeEmployees = counts.active;
+    const newHiresThisMonth = counts.newHires;
 
-    const deptDocs = await Department.find({
-      _id: { $in: deptAgg.map((d) => d._id).filter(Boolean) },
-    })
-      .select('name')
-      .lean();
+    const deptDocs = await this.repo.departmentNames(
+      deptAgg.map((d) => d.departmentId).filter((x): x is string => Boolean(x)),
+    );
     const deptNameById = new Map(deptDocs.map((d) => [String(d._id), d.name]));
     const departments = deptAgg.map((d) => ({
-      name: deptNameById.get(String(d._id)) ?? 'Chưa phân bổ',
+      name: deptNameById.get(String(d.departmentId)) ?? 'Chưa phân bổ',
       count: d.count,
     }));
 
     // --- Attendance today ---
-    const attToday = await Attendance.aggregate<{ _id: string; count: number }>([
-      { $match: { date: { $gte: todayStart, $lte: todayEnd } } },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-    ]);
-    const attMap = new Map(attToday.map((a) => [a._id, a.count]));
+    const attToday = await this.repo.attendanceTodayByStatus(todayStart, todayEnd);
+    const attMap = new Map(attToday.map((a) => [a.status, a.count]));
     const onTime = (attMap.get('present') ?? 0) + (attMap.get('early_leave') ?? 0);
     const late = attMap.get('late') ?? 0;
     const onLeave =
@@ -141,25 +141,8 @@ export const dashboardService = {
     const attendanceToday = { onTime, late, onLeave, notChecked };
 
     // --- Attendance trend (per-month this year: attend% vs late%) ---
-    const trendAgg = await Attendance.aggregate<{
-      _id: number;
-      total: number;
-      present: number;
-      late: number;
-    }>([
-      { $match: { date: { $gte: yearStart } } },
-      {
-        $group: {
-          _id: { $month: '$date' },
-          total: { $sum: 1 },
-          present: {
-            $sum: { $cond: [{ $in: ['$status', ['present', 'early_leave', 'late']] }, 1, 0] },
-          },
-          late: { $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] } },
-        },
-      },
-    ]);
-    const byMonth = new Map(trendAgg.map((t) => [t._id, t]));
+    const trendAgg = await this.repo.attendanceMonthlyTrend(yearStart);
+    const byMonth = new Map(trendAgg.map((t) => [t.month, t]));
     const labels: string[] = [];
     const attend: number[] = [];
     const lateArr: number[] = [];
@@ -172,25 +155,8 @@ export const dashboardService = {
     // Last 7 days (week view)
     const weekStart = startOfDay(new Date(todayStart));
     weekStart.setDate(weekStart.getDate() - 6);
-    const weekAgg = await Attendance.aggregate<{
-      _id: string;
-      total: number;
-      present: number;
-      late: number;
-    }>([
-      { $match: { date: { $gte: weekStart, $lte: todayEnd } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
-          total: { $sum: 1 },
-          present: {
-            $sum: { $cond: [{ $in: ['$status', ['present', 'early_leave', 'late']] }, 1, 0] },
-          },
-          late: { $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] } },
-        },
-      },
-    ]);
-    const byDay = new Map(weekAgg.map((d) => [d._id, d]));
+    const weekAgg = await this.repo.attendanceWeeklyTrend(weekStart, todayEnd);
+    const byDay = new Map(weekAgg.map((d) => [d.day, d]));
     const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     const wLabels: string[] = [];
     const wAttend: number[] = [];
@@ -213,35 +179,31 @@ export const dashboardService = {
     const in30 = new Date(todayStart);
     in30.setDate(in30.getDate() + 30);
     const [pendingCount, onLeaveTodayCount, pendingDocs, upcomingDocs] = await Promise.all([
-      LeaveRequest.countDocuments({ status: 'pending' }),
-      LeaveRequest.countDocuments({
-        status: 'approved',
-        startDate: { $lte: todayEnd },
-        endDate: { $gte: todayStart },
-      }),
-      LeaveRequest.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).lean(),
-      LeaveRequest.find({ status: 'approved', startDate: { $gt: todayEnd, $lte: in30 } })
-        .sort({ startDate: 1 })
-        .limit(6)
-        .lean(),
+      this.repo.leavePendingCount(),
+      this.repo.leaveOnTodayCount(todayStart, todayEnd),
+      this.repo.latestPendingLeaves(5),
+      this.repo.upcomingApprovedLeaves(todayEnd, in30, 6),
     ]);
 
-    const leaveIds = [...pendingDocs, ...upcomingDocs].map((l) => l.employeeId as Types.ObjectId);
-    const look = await employeeLookup(leaveIds);
-    const nameOf = (id: Types.ObjectId) => {
+    const leaveIds = [...pendingDocs, ...upcomingDocs].map((l) => l.employeeId);
+    const look = await this.buildLookup(leaveIds);
+    const nameOf = (id: string) => {
       const p = look.prof.get(String(id));
-      return { name: fullName(p?.firstName, p?.middleName, p?.lastName), ini: initials(p?.firstName, p?.lastName) };
+      return {
+        name: fullName(p?.firstName, p?.middleName, p?.lastName),
+        ini: initials(p?.firstName, p?.lastName),
+      };
     };
-    const codeOf = (id: Types.ObjectId) => look.emp.get(String(id))?.employeeCode ?? '—';
+    const codeOf = (id: string) => look.emp.get(String(id))?.employeeCode ?? '—';
 
     const pendingLeaves = pendingDocs.map((l) => {
-      const { name, ini } = nameOf(l.employeeId as Types.ObjectId);
-      const created = (l as { createdAt?: Date }).createdAt ?? new Date();
+      const { name, ini } = nameOf(l.employeeId);
+      const created = l.createdAt ?? new Date();
       return {
         id: String(l._id),
         name,
         initials: ini,
-        code: codeOf(l.employeeId as Types.ObjectId),
+        code: codeOf(l.employeeId),
         type: LEAVE_TYPE_LABEL[l.leaveType] ?? l.leaveType,
         duration: `${l.days} ngày`,
         range:
@@ -253,12 +215,12 @@ export const dashboardService = {
     });
 
     const upcomingLeaves = upcomingDocs.map((l) => {
-      const { name, ini } = nameOf(l.employeeId as Types.ObjectId);
+      const { name, ini } = nameOf(l.employeeId);
       return {
         id: String(l._id),
         name,
         initials: ini,
-        code: codeOf(l.employeeId as Types.ObjectId),
+        code: codeOf(l.employeeId),
         type: LEAVE_TYPE_LABEL[l.leaveType] ?? l.leaveType,
         range:
           fmtDM(new Date(l.startDate)) === fmtDM(new Date(l.endDate))
@@ -270,7 +232,7 @@ export const dashboardService = {
     });
 
     // --- Payroll: latest period + its payroll rollup ---
-    const period = await PayrollPeriod.findOne().sort({ startDate: -1 }).lean();
+    const period = await this.repo.latestPayrollPeriod();
     let payroll = null as null | {
       period: string;
       status: string;
@@ -283,19 +245,11 @@ export const dashboardService = {
     };
     let payrollThisMonthTotal = 0;
     if (period) {
-      const rows = await Payroll.find({ periodId: period._id })
-        .select('grossSalary netSalary status')
-        .lean();
+      const rows = await this.repo.payrollRows(period._id);
       const totalNet = rows.reduce((s, r) => s + toNum(r.netSalary), 0);
       const totalGross = rows.reduce((s, r) => s + toNum(r.grossSalary), 0);
       const computedCount = rows.filter((r) => r.status !== 'draft').length;
       payrollThisMonthTotal = totalNet;
-      const PERIOD_STATUS_LABEL: Record<string, string> = {
-        open: 'Đang mở',
-        processing: 'Đang xử lý',
-        closed: 'Đã chốt',
-        paid: 'Đã chi',
-      };
       payroll = {
         period: period.name,
         status: PERIOD_STATUS_LABEL[period.status] ?? period.status,
@@ -318,23 +272,8 @@ export const dashboardService = {
     }
 
     // --- Top performers (latest approved/acknowledged evaluations) ---
-    const evals = await MonthlyEvaluation.aggregate<{
-      employeeId: Types.ObjectId;
-      score: number;
-    }>([
-      { $match: { status: { $in: ['approved', 'acknowledged'] } } },
-      { $sort: { updatedAt: -1 } },
-      {
-        $group: {
-          _id: '$employeeId',
-          score: { $first: { $add: ['$performanceRatio', '$goalRatio'] } },
-        },
-      },
-      { $project: { _id: 0, employeeId: '$_id', score: 1 } },
-      { $sort: { score: -1 } },
-      { $limit: 5 },
-    ]);
-    const perfLook = await employeeLookup(evals.map((e) => e.employeeId));
+    const evals = await this.repo.topEvaluations(5);
+    const perfLook = await this.buildLookup(evals.map((e) => e.employeeId));
     const performers = evals.map((e, i) => {
       const p = perfLook.prof.get(String(e.employeeId));
       const emp = perfLook.emp.get(String(e.employeeId));
@@ -350,7 +289,7 @@ export const dashboardService = {
     });
 
     // --- Recent activities (audit log) ---
-    const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(7).lean();
+    const logs = await this.repo.recentAuditLogs(7);
     const activities = logs.map((l) => ({
       who: 'Hệ thống',
       what: `${l.action}`,
@@ -383,5 +322,5 @@ export const dashboardService = {
       performers,
       activities,
     };
-  },
-};
+  }
+}

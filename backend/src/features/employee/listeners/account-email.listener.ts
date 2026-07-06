@@ -4,10 +4,7 @@ import { logger } from '@core/logger/logger';
 import { mailService } from '@core/mail/mail.service';
 import { renderAccountSetupEmail } from '@core/mail/templates';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
-import {
-  passwordSetupService,
-  buildSetPasswordUrl,
-} from '@features/iam/services/password-setup.service';
+import { passwordSetupService, buildSetPasswordUrl } from '@features/iam';
 
 const log = logger.child({ feature: 'employee', module: 'account-email' });
 

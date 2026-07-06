@@ -47,8 +47,8 @@ Số hóa và tự động hóa toàn bộ nghiệp vụ nhân sự trong một 
 
 ## Nguyên tắc phát triển
 
-- **Feature-based:** mỗi module tự chứa (routes/controller/service/repository/dto). Không import chéo nội bộ giữa các feature — giao tiếp qua public `index.ts`, shared service, hoặc event bus.
-- **Phân lớp rõ:** Controller (HTTP) → Service (nghiệp vụ) → Repository (truy vấn). Không đặt nghiệp vụ trong controller, không truy vấn model trong controller.
+- **Feature-based + Clean Architecture:** mỗi module tự chứa theo 4 lớp `domain/ (+ports) → application/ → infrastructure/ → interfaces/`, ráp bằng `container.ts` (composition root) và lộ ra qua public `index.ts`. Không import chéo nội bộ giữa các feature — chỉ qua public `index.ts`, shared kernel, hoặc event bus. Khuôn mẫu tham chiếu: `backend/src/features/attendance/CONTEXT.md`.
+- **Dependency rule hướng vào trong:** `interfaces`/`infrastructure` phụ thuộc `application` phụ thuộc `domain`. Domain thuần (không Express/Mongoose); use-case chỉ phụ thuộc ports (interface); adapter Mongoose/S3/mail hiện thực ports. Đổi tech chỉ sửa `container.ts`.
 - **Model dùng chung** ở `shared/models`; tiền dùng `Decimal128`, số điện thoại/tài khoản dùng `String`.
 - **Validation bằng Zod** ở biên (middleware), không validate trong service.
 - **Bảo mật:** JWT access ngắn hạn + refresh xoay vòng; RBAC theo role/permission — server luôn là nguồn enforce, UI chỉ gating cho trải nghiệm. Bắt buộc đổi mật khẩu lần đầu.

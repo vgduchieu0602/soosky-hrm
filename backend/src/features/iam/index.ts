@@ -7,8 +7,12 @@ export {
   userUseCases as userService,
   roleUseCases as roleService,
   permissionUseCases as permissionService,
+  auditUseCases as auditService,
+  passwordSetupUseCases as passwordSetupService,
   tokenService,
 } from '@features/iam/container';
+
+export { buildSetPasswordUrl } from '@features/iam/application/password-setup.usecases';
 
 export type { AuthenticatedUser, LoginResult } from '@features/iam/application/auth.usecases';
 export type { CreateUserInput, UpdateUserInput } from '@features/iam/application/user.usecases';

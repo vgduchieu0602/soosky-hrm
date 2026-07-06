@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { notificationService } from '@features/notification/services/notification.service';
+import { notificationService } from '@features/notification/container';
 
 function userId(req: Request): string {
   if (!req.user) throw new Error('IAM_002');

@@ -18,7 +18,7 @@ import {
   ObjectIdValidator,
   EventBusAdapter,
 } from '@features/iam/infrastructure/services';
-import { tokenService } from '@features/iam/services/token.service';
+import { tokenService } from '@features/iam/infrastructure/token.service';
 import { AuthUseCases } from '@features/iam/application/auth.usecases';
 import { UserUseCases } from '@features/iam/application/user.usecases';
 import { RoleUseCases } from '@features/iam/application/role.usecases';

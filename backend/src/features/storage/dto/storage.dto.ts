@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { STORAGE_SCOPES } from '@core/storage/storage.service';
+import { STORAGE_SCOPES } from '@features/storage/domain/storage-rules';
 
 const scopes = Object.keys(STORAGE_SCOPES) as [keyof typeof STORAGE_SCOPES];
 

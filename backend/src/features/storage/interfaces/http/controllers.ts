@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
-import { storageService } from '@core/storage/storage.service';
 import { HttpError } from '@shared/errors/http-error';
+import { storageUseCases } from '@features/storage/container';
 import { signDownloadDto, type PresignUploadDto } from '@features/storage/dto/storage.dto';
 
 export const storageController = {
@@ -8,7 +8,7 @@ export const storageController = {
   async presign(req: Request, res: Response, next: NextFunction) {
     try {
       const body = req.body as PresignUploadDto;
-      const result = await storageService.presignUpload({
+      const result = await storageUseCases.presignUpload({
         scope: body.scope,
         fileName: body.fileName,
         contentType: body.contentType,
@@ -26,7 +26,7 @@ export const storageController = {
     try {
       const parsed = signDownloadDto.safeParse(req.query);
       if (!parsed.success) throw new HttpError(422, 'Validation Error', 'SYS_002');
-      const result = await storageService.presignDownload(parsed.data.key);
+      const result = await storageUseCases.presignDownload(parsed.data.key);
       res.json({ data: result });
     } catch (err) {
       next(err);

@@ -10,7 +10,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import supertest from 'supertest';
 import { createApp } from '../../app';
 import { Role } from '@shared/models/role.model';
-import { tokenService } from '@features/iam/services/token.service';
+import { tokenService } from '@features/iam';
 
 export const api = supertest(createApp());
 

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { eventBus } from '@core/events/event-bus';
-import { auditService } from '@features/iam/services/audit.service';
+import { auditService } from '@features/iam';
 import type { Clock, AuditPort, EventsPort, UnitOfWork, Tx } from '@features/attendance/domain/ports';
 
 // Domain events emitted by the attendance/leave use-cases.

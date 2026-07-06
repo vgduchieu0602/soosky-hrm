@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '@shared/middlewares/authenticate';
 import { validate } from '@shared/middlewares/validate';
-import { storageController } from '@features/storage/controllers/storage.controller';
+import { storageController } from '@features/storage/interfaces/http/controllers';
 import { presignUploadDto } from '@features/storage/dto/storage.dto';
 
 const router = Router();

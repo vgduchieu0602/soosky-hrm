@@ -1,4 +1,4 @@
-import { auditService } from '@features/iam/services/audit.service';
+import { auditService } from '@features/iam';
 import type { AuditPort } from '@features/settings/domain/ports';
 
 export class AuditServiceAdapter implements AuditPort {
