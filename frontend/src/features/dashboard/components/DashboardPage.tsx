@@ -14,10 +14,11 @@ import {
   TopPerformers,
   RecentActivities,
 } from "@features/dashboard/components/Panels";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { SectionTitle } from "@features/dashboard/components/primitives";
 import { dashboardService } from "@features/dashboard/services/dashboard.service";
 import type { DashboardOverview } from "@features/dashboard/types/dashboard.types";
-import { TOP_KPIS, type TopKpi } from "@features/dashboard/data";
+import type { TopKpi } from "@features/dashboard/data";
 import { attendanceService } from "@features/attendance/services/attendance.service";
 import { toast } from "sonner";
 
@@ -37,17 +38,21 @@ function buildKpis(o: DashboardOverview): TopKpi[] {
   ];
 }
 
+type LoadState = "loading" | "error" | "ok";
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardOverview | null>(null);
+  const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
   const [busyLeave, setBusyLeave] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    setState("loading");
     dashboardService
       .overview()
-      .then((d) => { if (active) setData(d); })
-      .catch(() => { if (active) setData(null); });
+      .then((d) => { if (active) { setData(d); setState("ok"); } })
+      .catch(() => { if (active) { setData(null); setState("error"); } });
     return () => { active = false; };
   }, [reloadKey]);
 
@@ -71,7 +76,7 @@ export default function DashboardPage() {
       .finally(() => setBusyLeave(null));
   }
 
-  const kpis = data ? buildKpis(data) : TOP_KPIS;
+  const kpis = data ? buildKpis(data) : [];
   const departments = data
     ? data.departments.map((d, i) => ({ ...d, color: DEPT_PALETTE[i % DEPT_PALETTE.length] }))
     : undefined;
@@ -93,6 +98,31 @@ export default function DashboardPage() {
           <div className="mx-auto flex max-w-[1480px] flex-col gap-8">
             <PageHeader />
 
+            {state === "loading" && (
+              <div className="flex flex-col items-center justify-center gap-3 py-32 text-muted-foreground">
+                <Loader2 className="size-7 animate-spin text-primary-500" />
+                <span className="text-[13px]">Đang tải dữ liệu…</span>
+              </div>
+            )}
+
+            {state === "error" && (
+              <div className="flex flex-col items-center justify-center gap-3 py-32 text-center">
+                <AlertTriangle className="size-8 text-amber-500" />
+                <div className="text-[14px] font-semibold text-foreground">Không tải được dữ liệu bảng điều khiển</div>
+                <div className="max-w-md text-[12.5px] text-muted-foreground">
+                  Kiểm tra kết nối tới máy chủ API và thử lại. (Máy chủ backend phải đang chạy.)
+                </div>
+                <button
+                  onClick={() => setReloadKey((k) => k + 1)}
+                  className="mt-1 rounded-lg bg-primary-500 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-primary-600"
+                >
+                  Thử lại
+                </button>
+              </div>
+            )}
+
+            {state === "ok" && (
+              <>
             <TopSummary kpis={kpis} />
 
             <section className="flex flex-col gap-4">
@@ -136,6 +166,8 @@ export default function DashboardPage() {
                 </div>
               </div>
             </section>
+              </>
+            )}
           </div>
         </main>
       </div>

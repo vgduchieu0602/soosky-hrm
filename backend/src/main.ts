@@ -26,6 +26,17 @@ async function bootstrap() {
     logger.info(`API listening on :${env.PORT}`),
   );
 
+  // Don't fail silently: a listen error (e.g. port already in use) is emitted as
+  // an event, not a throw — surface it loudly and exit.
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`Port ${env.PORT} đang bị chiếm bởi tiến trình khác. Dừng tiến trình đó hoặc đổi PORT trong .env.`);
+    } else {
+      logger.error({ err }, 'HTTP server error');
+    }
+    process.exit(1);
+  });
+
   //Graceful shutdown
   const shutdown = async () => {
     server.close(async () => {
