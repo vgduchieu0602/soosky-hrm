@@ -272,10 +272,10 @@ export default function EmployeesPage() {
       <Sidebar active="emp" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar crumbs={["Trang chủ", "Nhân viên"]} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[1480px] flex-col gap-6">
             {/* header */}
-            <div className="flex items-end justify-between gap-6">
+            <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <h1 className="text-[26px] font-bold tracking-tight text-foreground">Nhân viên</h1>
                 <p className="mt-1 text-[13.5px] text-muted-foreground">
@@ -306,7 +306,7 @@ export default function EmployeesPage() {
             {canManage && <ContractRemindersCard onLocate={(code) => { setQ(code); setPage(1); }} />}
 
             {/* stat strip */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard chip="blue" icon={Users} label="Tổng nhân viên" value={stats?.total ?? "—"} />
               <StatCard chip="emerald" icon={UserCheck} label="Đang làm việc" value={stats?.active ?? "—"} />
               <StatCard chip="violet" icon={UserPlus} label="Đang onboarding" value={stats?.onboarding ?? "—"} />

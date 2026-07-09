@@ -220,7 +220,7 @@ export function PayrollSection({ data = PAYROLL }: { data?: PayrollData }) {
 
       <Separator className="my-5 bg-white/10" />
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
         {p.breakdown.map((b, i) => (
           <div key={i}>
             <div className="text-[10px] font-medium uppercase tracking-wider text-white/45">

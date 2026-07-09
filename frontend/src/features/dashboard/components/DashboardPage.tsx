@@ -94,7 +94,7 @@ export default function DashboardPage() {
       <Sidebar active="dash" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[1480px] flex-col gap-8">
             <PageHeader />
 

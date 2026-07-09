@@ -102,16 +102,18 @@ Payroll row: (none) ──run──► draft ──approve──► approved ─
 | 6.7 Gross-up | `POST /payroll/gross-up` (hrOrAdmin) |
 | 6.8 Phiếu lương (NV) | `GET /payroll/payrolls/me` (auth) — chỉ approved/paid, khớp `user.employeeId` |
 
-**Công thức lương (đã chốt):** chỉ cấu phần **chấm công 20%** prorate theo ngày công; **hiệu suất 60% & mục tiêu 20% trả đủ theo ratio** bất kể chấm công (opt-in `prorateByAttendance` nếu muốn prorate cả 3).
+**Công thức lương (as-built — "simplified payroll", đối chiếu `payroll-run.usecases.ts`):** cấu phần **chấm công 20%** prorate theo ngày công; **hiệu suất 60% & mục tiêu 20% trả đủ theo ratio** bất kể chấm công.
 ```
 attendance  = 20% · base · (actualWorkDays/standardWorkDays)
 performance = 60% · base · (performanceRatio/100)
 goal        = 20% · base · (goalRatio/100)
 gross = proRatedBase + allowances + bonuses + OT(0)
-BHXH (NV 10.5%) trên policy.socialInsuranceSalary (mức cố định) + allowance cờ isInsuranceBase, có cap
-thuế: lũy tiến 7 bậc (resident) hoặc flat nonResidentTaxRate% ; giảm trừ từ policy
-net = gross − BHXH − thuế − đoàn phí − khấu trừ khác
+insurance = taxProfile.insuranceAmount   (số HR nhập tay cố định; intern/probation = 0)
+tax       = 0                            (PIT ĐANG TẮT toàn hệ thống)
+unionFee  = unionFeeEnabled ? unionFeeRate% × socialInsuranceSalary : 0
+net = gross − insurance − tax(0) − unionFee − khấu trừ khác
 ```
+> ⚠️ **Lưu ý as-built:** thuế lũy tiến 7 bậc + BHXH tính % (mô tả ở các bản trước) **chưa nối vào luồng run** — `salary.util` có sẵn `computeProgressiveTax`/`computeInsurance` + test, nhưng `run` dùng số cố định + tax=0. Chốt lại khi bật bản đầy đủ.
 **Pay-base theo `employmentStatus`:** internship = full base, prorate chấm công, miễn BHXH · probation = `probationPayRate` (85%), miễn BHXH, bỏ 60/20 · official = đủ 20/60/20 + BHXH + đoàn phí. `standardWorkDays` tính theo ca thực (trừ lễ).
 
 ## 7. Hiệu suất

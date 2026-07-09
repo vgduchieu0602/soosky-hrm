@@ -51,7 +51,7 @@ export function SalaryPerformanceSettings({ canManage, canManagePolicy }: Props)
         {loading ? (
           <div className="h-20 animate-pulse rounded-xl bg-muted/50" />
         ) : latest ? (
-          <div className="grid max-w-[520px] grid-cols-3 gap-3">
+          <div className="grid max-w-[520px] grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <WeightCard label="Ngày công" value={latest.salaryComponentWeights.attendance} tone="blue" />
             <WeightCard label="Hiệu suất" value={latest.salaryComponentWeights.performance} tone="violet" />
             <WeightCard label="Mục tiêu" value={latest.salaryComponentWeights.goal} tone="emerald" />

@@ -9,6 +9,8 @@ export const updateCompanyConfigDto = z
     standardWorkDays: z.coerce.number().int().min(1).max(31).optional(),
     graceLateMinutes: z.coerce.number().int().min(0).max(120).optional(),
     graceEarlyMinutes: z.coerce.number().int().min(0).max(120).optional(),
+    earlyLeaveToleranceMinutes: z.coerce.number().int().min(0).max(480).optional(),
+    lateArrivalToleranceMinutes: z.coerce.number().int().min(0).max(480).optional(),
     overtimeEnabled: z.coerce.boolean().optional(),
     lateAffectsPay: z.coerce.boolean().optional(),
     leaveQuotas: z.record(z.string(), z.coerce.number().min(0).max(365)).optional(),

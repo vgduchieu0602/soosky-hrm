@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
-import { ArrowRight, Check, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import logoMark from "@/assets/LOGO.png";
 import { useAuthStore } from "@core/store/auth.store";
 import { authService } from "@features/auth/services/auth.service";
@@ -29,6 +29,9 @@ function extractErrorMessage(err: unknown): string {
   return "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
 }
 
+const inputCls =
+  "h-[50px] w-full rounded-[10px] border border-gray-200 bg-white pl-11 pr-11 text-[15px] text-gray-900 placeholder:text-gray-400 transition-colors duration-150 hover:border-gray-300 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10";
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -42,84 +45,41 @@ export default function LoginPage() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white font-sans">
-      {/* ============== LEFT — Brand panel ============== */}
-      <aside
-        className="relative hidden h-full flex-[0_0_52%] flex-col overflow-hidden p-10 text-white xl:p-16 lg:flex"
-        style={{
-          background:
-            "linear-gradient(150deg, #0E2557 0%, #163985 52%, #11295C 100%)",
-        }}
-      >
-        {/* one soft brand glow — calm, not busy */}
-        <div
-          className="pointer-events-none absolute -right-32 -top-24 h-[460px] w-[460px] rounded-full animate-aurora-1"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(0,184,245,0.30) 0%, transparent 68%)",
-            filter: "blur(36px)",
-          }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-32 -left-20 h-[380px] w-[380px] rounded-full animate-aurora-2"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(54,123,255,0.22) 0%, transparent 70%)",
-            filter: "blur(40px)",
-          }}
-        />
-
+      {/* ============== LEFT — Brand panel (flat navy) ============== */}
+      <aside className="relative hidden h-full flex-[0_0_52%] flex-col overflow-hidden bg-[#11295C] p-10 text-white lg:flex xl:p-16">
         {/* top row */}
-        <div className="relative flex items-center justify-between animate-fade-in">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logoMark} alt="" className="h-7 w-10 object-contain" />
-            <span className="text-lg font-bold tracking-tight">
-              Soosky <span className="font-medium opacity-60">HRM</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 backdrop-blur-md">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ring-pulse" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            </span>
-            <span className="text-[11px] font-medium text-white/70">
-              Hệ thống ổn định
+            <span className="text-lg font-semibold tracking-tight">
+              Soosky <span className="font-normal opacity-60">HRM</span>
             </span>
           </div>
         </div>
 
         {/* center tagline */}
-        <div className="relative my-auto max-w-xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary-400/30 bg-primary-500/10 px-3 py-1 backdrop-blur-sm animate-fade-up [animation-delay:120ms]">
-            <ShieldCheck size={13} strokeWidth={2} className="text-primary-300" />
-            <span className="text-[11px] font-semibold tracking-wider text-primary-200">
-              NỀN TẢNG NHÂN SỰ DOANH NGHIỆP
-            </span>
-          </div>
-
-          <h1 className="text-[38px] font-bold leading-[1.12] tracking-[-0.02em] animate-fade-up [animation-delay:200ms] xl:text-[48px]">
-            Quản lý nhân sự{" "}
-            <span className="bg-gradient-to-r from-primary-300 via-primary-200 to-secondary-300 bg-clip-text text-transparent">
-              toàn diện
-            </span>
+        <div className="my-auto max-w-xl">
+          <h1 className="text-[36px] font-semibold leading-[1.15] tracking-[-0.02em] xl:text-[44px]">
+            Quản lý nhân sự toàn diện
             <br />
             cho doanh nghiệp.
           </h1>
 
-          <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/65 animate-fade-up [animation-delay:280ms]">
+          <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/60">
             Chấm công, nghỉ phép, bảng lương và đánh giá hiệu suất — tất cả gói
             gọn trong một nền tảng, đúng chuẩn Việt Nam.
           </p>
 
           {/* trust stats */}
-          <div className="mt-10 flex items-center gap-8 animate-fade-up [animation-delay:360ms]">
+          <div className="mt-10 flex items-center gap-8">
             {STATS.map((s, i) => (
               <div key={s.label} className="flex items-center gap-8">
-                {i > 0 && <span className="h-10 w-px bg-white/12" />}
+                {i > 0 && <span className="h-10 w-px bg-white/10" />}
                 <div>
-                  <div className="text-[28px] font-bold leading-none tabular-nums">
+                  <div className="text-[26px] font-semibold leading-none tabular-nums">
                     {s.value}
                   </div>
-                  <div className="mt-1.5 text-[12px] font-medium uppercase tracking-wider text-white/45">
+                  <div className="mt-1.5 text-[12px] text-white/40">
                     {s.label}
                   </div>
                 </div>
@@ -129,14 +89,14 @@ export default function LoginPage() {
         </div>
 
         {/* footer */}
-        <div className="relative flex items-center justify-between text-xs text-white/40 animate-fade-in [animation-delay:440ms]">
+        <div className="flex items-center justify-between text-xs text-white/35">
           <span>© {new Date().getFullYear()} Soosky JSC · Hà Nội, Việt Nam</span>
           <span className="tracking-[0.18em]">SOOSKY HRM</span>
         </div>
       </aside>
 
       {/* ============== RIGHT — Form ============== */}
-      <main className="flex h-full flex-1 flex-col justify-center overflow-y-auto bg-[#FBFCFE] px-6 py-8 sm:px-10 lg:px-12">
+      <main className="flex h-full flex-1 flex-col justify-center overflow-y-auto bg-white px-6 py-8 sm:px-10 lg:px-12">
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -157,36 +117,36 @@ export default function LoginPage() {
               setLoading(false);
             }
           }}
-          className="mx-auto flex w-full max-w-[440px] flex-col gap-6"
+          className="mx-auto flex w-full max-w-[420px] flex-col gap-6"
         >
-          <div className="flex items-center gap-3 lg:hidden animate-fade-up">
+          <div className="flex items-center gap-3 lg:hidden">
             <img src={logoMark} alt="" className="h-7 w-10 object-contain" />
-            <span className="text-lg font-bold tracking-tight text-secondary-800">
-              Soosky <span className="font-medium text-gray-500">HRM</span>
+            <span className="text-lg font-semibold tracking-tight text-secondary-800">
+              Soosky <span className="font-normal text-gray-500">HRM</span>
             </span>
           </div>
 
-          <div className="animate-fade-up [animation-delay:80ms]">
-            <h2 className="text-[28px] font-bold tracking-[-0.02em] text-gray-900 sm:text-[32px]">
+          <div>
+            <h2 className="text-[26px] font-semibold tracking-[-0.02em] text-gray-900 sm:text-[28px]">
               Chào mừng quay lại
             </h2>
-            <p className="mt-2 text-[14.5px] text-gray-500">
+            <p className="mt-1.5 text-[14px] text-gray-500">
               Đăng nhập với tài khoản Soosky HRM của bạn.
             </p>
           </div>
 
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4">
             {/* Identifier */}
-            <div className="animate-fade-up [animation-delay:160ms]">
+            <div>
               <label
                 htmlFor="identifier"
-                className="mb-1.5 block text-[13.5px] font-medium text-gray-700"
+                className="mb-1.5 block text-[13px] font-medium text-gray-700"
               >
                 Email hoặc tên đăng nhập
               </label>
               <div className="relative">
                 <Mail
-                  className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gray-400"
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-[17px] -translate-y-1/2 text-gray-400"
                   strokeWidth={1.7}
                 />
                 <input
@@ -197,30 +157,30 @@ export default function LoginPage() {
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="ten@soosky.co"
                   required
-                  className="h-[52px] w-full rounded-xl border border-gray-200 bg-white pl-12 pr-3.5 text-[15px] text-gray-900 placeholder:text-gray-400 transition-[border-color,box-shadow] duration-200 hover:border-gray-300 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/15"
+                  className={inputCls}
                 />
               </div>
             </div>
 
             {/* Password */}
-            <div className="animate-fade-up [animation-delay:240ms]">
+            <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label
                   htmlFor="password"
-                  className="block text-[13.5px] font-medium text-gray-700"
+                  className="block text-[13px] font-medium text-gray-700"
                 >
                   Mật khẩu
                 </label>
                 <a
                   href="/auth/forgot-password"
-                  className="text-[13px] font-medium text-primary-600 transition hover:text-primary-700 hover:underline"
+                  className="text-[13px] font-medium text-primary-600 transition-colors duration-150 hover:text-primary-700"
                 >
                   Quên mật khẩu?
                 </a>
               </div>
               <div className="relative">
                 <Lock
-                  className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gray-400"
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-[17px] -translate-y-1/2 text-gray-400"
                   strokeWidth={1.7}
                 />
                 <input
@@ -231,25 +191,25 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="h-[52px] w-full rounded-xl border border-gray-200 bg-white pl-12 pr-11 text-[15px] text-gray-900 placeholder:text-gray-400 transition-[border-color,box-shadow] duration-200 hover:border-gray-300 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/15"
+                  className={inputCls}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
                   aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                  className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                  className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-600"
                 >
                   {showPassword ? (
-                    <EyeOff size={18} strokeWidth={1.6} />
+                    <EyeOff size={17} strokeWidth={1.6} />
                   ) : (
-                    <Eye size={18} strokeWidth={1.6} />
+                    <Eye size={17} strokeWidth={1.6} />
                   )}
                 </button>
               </div>
             </div>
 
             {/* Remember */}
-            <label className="cb animate-fade-up text-[13.5px] text-gray-600 [animation-delay:320ms]">
+            <label className="cb text-[13px] text-gray-600">
               <input
                 type="checkbox"
                 checked={remember}
@@ -264,7 +224,7 @@ export default function LoginPage() {
             {error && (
               <p
                 role="alert"
-                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[13.5px] text-red-600 animate-fade-in"
+                className="rounded-[10px] border border-red-200 bg-red-50 px-3 py-2.5 text-[13px] text-red-600"
               >
                 {error}
               </p>
@@ -274,23 +234,17 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn-shine group relative inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 px-4 text-[15px] font-semibold text-white shadow-[0_8px_24px_-8px_rgba(0,184,245,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(0,184,245,0.75)] hover:brightness-105 focus:outline-none focus:ring-[4px] focus:ring-primary-500/25 disabled:cursor-not-allowed disabled:opacity-60 animate-fade-up [animation-delay:400ms]"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-primary-600 px-4 text-[15px] font-semibold text-white transition-colors duration-150 hover:bg-primary-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary-500/25 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span className="relative z-10">
-              {loading ? "Đang đăng nhập…" : "Đăng nhập"}
-            </span>
-            {!loading && (
-              <span className="relative z-10 transition-transform group-hover:translate-x-1">
-                <ArrowRight size={16} strokeWidth={2.2} />
-              </span>
-            )}
+            {loading ? "Đang đăng nhập…" : "Đăng nhập"}
+            {!loading && <ArrowRight size={16} strokeWidth={2.2} />}
           </button>
 
-          <p className="text-center text-[13.5px] text-gray-500 animate-fade-up [animation-delay:480ms]">
+          <p className="text-center text-[13px] text-gray-500">
             Chưa có tài khoản?{" "}
             <a
               href="/contact"
-              className="font-medium text-primary-600 transition hover:text-primary-700 hover:underline"
+              className="font-medium text-primary-600 transition-colors duration-150 hover:text-primary-700"
             >
               Liên hệ ngay
             </a>

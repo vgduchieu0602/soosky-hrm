@@ -2,18 +2,20 @@ import { Types, type ClientSession } from 'mongoose';
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
-import { Shift } from '@shared/models/shift.model';
+import { Shift, defaultWeightForType } from '@shared/models/shift.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { DEFAULT_POLICY, type AttendancePolicy } from '@features/attendance/domain/attendance-calc';
 import { annualQuotaFrom } from '@features/attendance/domain/leave-policy';
 import type {
   EmployeeGateway,
   ShiftWindowGateway,
+  ShiftDefRecord,
   PolicyGateway,
   PayrollLockGateway,
   Id,
   Tx,
 } from '@features/attendance/domain/ports';
+import type { AttendanceSession } from '@shared/models/attendance.model';
 
 const oid = (id: Id) => new Types.ObjectId(id);
 
@@ -51,6 +53,20 @@ export class MongooseShiftWindowGateway implements ShiftWindowGateway {
   listActiveShifts() {
     return Shift.find({ status: 'active' }).sort({ startTime: 1 }).lean() as unknown as Promise<Record<string, unknown>[]>;
   }
+  async listActiveShiftDefs(): Promise<ShiftDefRecord[]> {
+    const rows = await Shift.find({ status: 'active' }).sort({ startTime: 1 }).lean();
+    return rows.map((s) => ({
+      id: String(s._id),
+      type: (s.type ?? 'full_day') as AttendanceSession,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      breakMinutes: s.breakMinutes ?? 0,
+      weight: s.weight ?? defaultWeightForType(s.type ?? 'full_day'),
+      workingDays: s.workingDays ?? [1, 2, 3, 4, 5],
+      effectiveFrom: s.effectiveFrom ?? null,
+      effectiveTo: s.effectiveTo ?? null,
+    }));
+  }
 }
 
 export class MongoosePolicyGateway implements PolicyGateway {
@@ -61,6 +77,8 @@ export class MongoosePolicyGateway implements PolicyGateway {
       timezone: cfg.timezone || DEFAULT_POLICY.timezone,
       graceLateMin: cfg.graceLateMinutes ?? DEFAULT_POLICY.graceLateMin,
       graceEarlyMin: cfg.graceEarlyMinutes ?? DEFAULT_POLICY.graceEarlyMin,
+      earlyLeaveToleranceMin: cfg.earlyLeaveToleranceMinutes ?? DEFAULT_POLICY.earlyLeaveToleranceMin,
+      lateArrivalToleranceMin: cfg.lateArrivalToleranceMinutes ?? DEFAULT_POLICY.lateArrivalToleranceMin,
     };
   }
   async annualQuota(): Promise<number> {

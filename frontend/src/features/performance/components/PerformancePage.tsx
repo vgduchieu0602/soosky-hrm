@@ -148,7 +148,7 @@ export default function Performance() {
       <Sidebar active="perf" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar crumbs={["Trang chủ", "Đánh giá"]} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[1320px] flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -178,7 +178,7 @@ export default function Performance() {
 
             {err && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700">{err}</div>}
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Nhân sự" value={`${stats.total}`} />
               <StatCard label="Chờ duyệt" value={`${stats.pendingApprove}`} />
               <StatCard label="Chờ NV xác nhận" value={`${stats.pendingAck}`} />

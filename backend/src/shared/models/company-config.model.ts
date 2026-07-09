@@ -17,6 +17,13 @@ export interface ICompanyConfig {
   graceLateMinutes: number;
   graceEarlyMinutes: number;
   /**
+   * Max minutes a ca may be left early / arrived late and STILL count as full
+   * công for that ca. Beyond these the ca's công is voided (early) — late never
+   * voids. Used by the multi-shift day matcher.
+   */
+  earlyLeaveToleranceMinutes: number;
+  lateArrivalToleranceMinutes: number;
+  /**
    * Whether overtime is paid. Default false: the OT engine exists but
    * `overtimePay` stays 0 for every payroll until this is turned on.
    */
@@ -45,6 +52,8 @@ const companyConfigSchema = new Schema<ICompanyConfig>(
     standardWorkDays: { type: Number, default: 22, min: 1, max: 31 },
     graceLateMinutes: { type: Number, default: 5, min: 0, max: 120 },
     graceEarlyMinutes: { type: Number, default: 5, min: 0, max: 120 },
+    earlyLeaveToleranceMinutes: { type: Number, default: 120, min: 0, max: 480 },
+    lateArrivalToleranceMinutes: { type: Number, default: 120, min: 0, max: 480 },
     overtimeEnabled: { type: Boolean, default: false },
     lateAffectsPay: { type: Boolean, default: false },
     leaveQuotas: { type: Schema.Types.Mixed, default: {} },

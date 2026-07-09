@@ -176,7 +176,7 @@ export function CreateEmployeeModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" style={{ animation: "fadeIn .2s ease" }} />
       <div className="relative flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl" style={{ animation: "fadeIn .2s ease" }}>
         {/* header */}
@@ -264,7 +264,7 @@ type SetFn = <K extends keyof FormState>(k: K, v: FormState[K]) => void;
 function Step1({ form, set }: { form: FormState; set: SetFn }) {
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <FormField label="Họ" required>
           <input className={inputCls} placeholder="Nguyễn" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
         </FormField>
@@ -275,7 +275,7 @@ function Step1({ form, set }: { form: FormState; set: SetFn }) {
           <input className={inputCls} placeholder="An" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
         </FormField>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <FormField label="Ngày sinh">
           <DateField className={inputCls} value={form.dateOfBirth} onChange={(iso) => set("dateOfBirth", iso)} />
         </FormField>
@@ -327,7 +327,7 @@ function Step2({
   depts: DeptOption[]; positions: PosOption[]; managers: MgrOption[];
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <FormField label="Mã nhân viên" required>
         <input className={cn(inputCls, "font-mono")} placeholder="EMP-0250" value={form.employeeCode} onChange={(e) => set("employeeCode", e.target.value)} />
       </FormField>

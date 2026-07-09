@@ -41,6 +41,19 @@ export const attendanceService = {
     const { data } = await api.post<Env<AttendanceRecord>>("/admin/attendances", input);
     return data.data;
   },
+  /** Enter ONE check-in/out for a day; the server distributes it across every ca. */
+  async upsertDay(input: {
+    employeeId: string;
+    date: string;
+    checkIn: string;
+    checkOut: string;
+  }): Promise<{ totalCong: number; records: AttendanceRecord[] }> {
+    const { data } = await api.post<Env<{ totalCong: number; records: AttendanceRecord[] }>>(
+      "/admin/attendances/day",
+      input,
+    );
+    return data.data;
+  },
   async adjust(id: string, input: Partial<UpsertAttendanceInput> & { reason?: string }): Promise<AttendanceRecord> {
     const { data } = await api.patch<Env<AttendanceRecord>>(`/admin/attendances/${id}`, input);
     return data.data;

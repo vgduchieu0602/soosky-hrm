@@ -32,7 +32,7 @@ function partsToIso({ dd, mm, yyyy }: Parts): string {
 
 const isComplete = (p: Parts) => p.dd.length === 2 && p.mm.length === 2 && p.yyyy.length === 4;
 const segCls =
-  "bg-transparent text-center text-[13px] tabular-nums outline-none placeholder:text-muted-foreground/50";
+  "shrink-0 bg-transparent px-0.5 text-center text-[13px] leading-none tabular-nums outline-none placeholder:text-muted-foreground/50";
 
 /**
  * Locale-independent segmented date input — always dd / mm / yyyy with the "/"
@@ -65,7 +65,7 @@ export function DateField({ id, value, onChange, className, autoFocus }: Props) 
   return (
     <div
       className={cn(
-        "flex items-center gap-1",
+        "relative flex items-center gap-0.5",
         className || "h-9 rounded-lg border border-input bg-card px-2.5",
         "focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20",
         invalid && "!border-destructive ring-2 ring-destructive/20",
@@ -80,9 +80,9 @@ export function DateField({ id, value, onChange, className, autoFocus }: Props) 
           update({ ...p, dd });
           if (dd.length === 2) mmRef.current?.focus();
         }}
-        className={cn(segCls, "w-[1.6rem]")}
+        className={cn(segCls, "w-[2.3rem]")}
       />
-      <span className="text-muted-foreground/70">/</span>
+      <span className="shrink-0 text-muted-foreground/70">/</span>
       <input
         ref={mmRef}
         type="text" inputMode="numeric" autoComplete="off"
@@ -93,16 +93,16 @@ export function DateField({ id, value, onChange, className, autoFocus }: Props) 
           if (mm.length === 2) yyyyRef.current?.focus();
         }}
         onKeyDown={(e) => backNav(e, p.mm, ddRef)}
-        className={cn(segCls, "w-[1.6rem]")}
+        className={cn(segCls, "w-[2.3rem]")}
       />
-      <span className="text-muted-foreground/70">/</span>
+      <span className="shrink-0 text-muted-foreground/70">/</span>
       <input
         ref={yyyyRef}
         type="text" inputMode="numeric" autoComplete="off"
         placeholder="yyyy" value={p.yyyy}
         onChange={(e) => update({ ...p, yyyy: seg(e.target.value, 4) })}
         onKeyDown={(e) => backNav(e, p.yyyy, mmRef)}
-        className={cn(segCls, "w-[2.9rem]")}
+        className={cn(segCls, "w-[4.1rem]")}
       />
       <button
         type="button"
@@ -118,7 +118,7 @@ export function DateField({ id, value, onChange, className, autoFocus }: Props) 
         type="date"
         value={partsToIso(p)}
         onChange={(e) => update(isoToParts(e.target.value))}
-        className="pointer-events-none size-0 opacity-0"
+        className="pointer-events-none absolute bottom-0 right-0 size-0 opacity-0"
         tabIndex={-1}
         aria-hidden
       />

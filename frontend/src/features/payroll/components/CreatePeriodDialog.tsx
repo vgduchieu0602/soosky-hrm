@@ -65,7 +65,7 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
       footer={footer}
     >
         <form id="period-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="p-name">Mã kỳ (YYYY-MM) *</Label>
               <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="2026-06" autoFocus />

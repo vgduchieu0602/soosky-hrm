@@ -109,7 +109,7 @@ export function EvaluationScoreDialog({
           <ScoreGroup title="Chỉ số Hiệu suất (60%)" items={perf} scores={scores} setScores={setScores} />
           <ScoreGroup title="Chỉ số Mục tiêu (20%)" items={goal} scores={scores} setScores={setScores} />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center justify-between rounded-lg bg-secondary-50 px-3 py-2 text-[13px]">
               <span className="text-secondary-700">Hiệu suất</span>
               <span className="flex items-center gap-1.5"><span className="font-bold tabular-nums text-secondary-700">{groupRatio(perf)}%</span><Badge variant={scoreBand(groupRatio(perf)).tone}>{scoreBand(groupRatio(perf)).label}</Badge></span>

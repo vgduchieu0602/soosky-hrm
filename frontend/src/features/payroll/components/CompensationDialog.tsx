@@ -140,7 +140,7 @@ export function CompensationDialog({
           </div>
 
           {kind !== "taxProfile" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2 flex flex-col gap-1.5">
                 <Label htmlFor="c-name">Tên khoản *</Label>
                 <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)}
@@ -215,7 +215,7 @@ export function CompensationDialog({
           )}
 
           {kind === "taxProfile" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="c-deps">Số người phụ thuộc *</Label>
                 <Input id="c-deps" type="number" min={0} value={dependentsCount} onChange={(e) => setDependentsCount(Number(e.target.value))} />

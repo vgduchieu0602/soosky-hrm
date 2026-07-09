@@ -28,7 +28,7 @@ export const EMP_STATUS: Record<
   onboarding: { label: "Onboarding", variant: "blue", group: "active" },
   active: { label: "Đang làm việc", variant: "emerald", group: "active" },
   on_leave: { label: "Đang nghỉ", variant: "amber", group: "active" },
-  terminated: { label: "Đã nghỉ việc", variant: "slate", group: "inactive" },
+  terminated: { label: "Đã nghỉ việc", variant: "rose", group: "inactive" },
 };
 
 export const STATUS_ACTIVE: EmployeeStatus[] = ["onboarding", "active", "on_leave"];

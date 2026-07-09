@@ -5,17 +5,25 @@ import type { AttendanceStatus, AttendanceSession } from '@shared/models/attenda
 export const TIMEZONE = 'Asia/Ho_Chi_Minh';
 export const GRACE_LATE_MIN = 5;
 export const GRACE_EARLY_MIN = 5;
+export const EARLY_LEAVE_TOLERANCE_MIN = 120;
+export const LATE_ARRIVAL_TOLERANCE_MIN = 120;
 
 export interface AttendancePolicy {
   timezone: string;
   graceLateMin: number;
   graceEarlyMin: number;
+  /** Multi-shift matcher: a ca left early / arrived late by more than this many
+   *  minutes does not count toward công (late never voids; only early does). */
+  earlyLeaveToleranceMin: number;
+  lateArrivalToleranceMin: number;
 }
 
 export const DEFAULT_POLICY: AttendancePolicy = {
   timezone: TIMEZONE,
   graceLateMin: GRACE_LATE_MIN,
   graceEarlyMin: GRACE_EARLY_MIN,
+  earlyLeaveToleranceMin: EARLY_LEAVE_TOLERANCE_MIN,
+  lateArrivalToleranceMin: LATE_ARRIVAL_TOLERANCE_MIN,
 };
 
 export interface ShiftWindow {
@@ -186,4 +194,101 @@ export function computeAttendance(input: ComputeInput): ComputeResult {
   // full day when present but the interval is ambiguous.
   const session = deriveWorkedSession(shift, checkIn, checkOut, policy) ?? 'full_day';
   return { status, workHours, lateMinutes, earlyMinutes, session };
+}
+
+// ---- Multi-shift day matcher --------------------------------------------
+
+/** A configured ca as the matcher needs it. */
+export interface ShiftDef {
+  id: string;
+  type: AttendanceSession; // morning | afternoon | full_day
+  startTime: string; // "HH:mm"
+  endTime: string; // "HH:mm"
+  breakMinutes: number;
+  weight: number; // công this ca contributes (0.5 / 1)
+}
+
+export interface MatchedShift {
+  shiftId: string;
+  session: AttendanceSession;
+  weight: number;
+  counted: boolean; // true → contributes công
+  status: AttendanceStatus; // present | late | early_leave | absent
+  workHours: number;
+  lateMinutes: number;
+  earlyMinutes: number;
+}
+
+export interface MatchDayResult {
+  shifts: MatchedShift[];
+  /** Sum of weights of counted ca — the day's công. */
+  totalCong: number;
+}
+
+/**
+ * Distribute a single [checkIn, checkOut] pair across the day's configured ca.
+ *
+ * A ca counts as full công when the interval actually overlaps it and the
+ * employee did not leave earlier than the early-leave tolerance:
+ *   - arrived before the ca ended            (checkIn < caEnd)
+ *   - left after the ca started              (checkOut > caStart)
+ *   - early-leave ≤ policy.earlyLeaveToleranceMin
+ * Lateness never voids a ca (per policy) — it is only recorded. A ca that is
+ * not counted is returned with status 'absent' and weight 0 công.
+ */
+export function matchShifts(
+  shiftDefs: ShiftDef[],
+  checkIn: Date | null | undefined,
+  checkOut: Date | null | undefined,
+  policy: AttendancePolicy = DEFAULT_POLICY,
+): MatchDayResult {
+  const shifts: MatchedShift[] = shiftDefs.map((s) => {
+    const start = parseHHmm(s.startTime);
+    const end = parseHHmm(s.endTime);
+    const brk = s.breakMinutes ?? 0;
+
+    const base = (extra: Partial<MatchedShift> = {}): MatchedShift => ({
+      shiftId: s.id,
+      session: s.type,
+      weight: s.weight,
+      counted: false,
+      status: 'absent',
+      workHours: 0,
+      lateMinutes: 0,
+      earlyMinutes: 0,
+      ...extra,
+    });
+
+    if (!checkIn || !checkOut) return base();
+
+    const inMin = minutesOfDayVN(checkIn, policy.timezone);
+    const outMin = minutesOfDayVN(checkOut, policy.timezone);
+
+    // No overlap with this ca at all → absent for this ca.
+    if (inMin >= end || outMin <= start) return base();
+
+    const effIn = Math.max(inMin, start);
+    const effOut = Math.min(outMin, end);
+    const worked = Math.max(0, effOut - effIn - brk);
+
+    const lateRaw = Math.max(0, inMin - start);
+    const earlyRaw = Math.max(0, end - outMin);
+    const lateMinutes = lateRaw > policy.graceLateMin ? lateRaw : 0;
+    const earlyMinutes = earlyRaw > policy.graceEarlyMin ? earlyRaw : 0;
+
+    // Early beyond tolerance voids the ca's công; late never voids.
+    const counted = earlyRaw <= policy.earlyLeaveToleranceMin;
+    if (!counted) {
+      return base({ status: 'early_leave', workHours: round2(worked / 60), lateMinutes, earlyMinutes });
+    }
+
+    const status: AttendanceStatus =
+      lateMinutes > 0 ? 'late' : earlyMinutes > 0 ? 'early_leave' : 'present';
+    return base({ counted: true, status, workHours: round2(worked / 60), lateMinutes, earlyMinutes });
+  });
+
+  const totalCong = round2(
+    shifts.reduce((sum, s) => (s.counted ? sum + s.weight : sum), 0),
+  );
+  return { shifts, totalCong };
 }

@@ -50,6 +50,8 @@ export function CompanySettings({ canManage }: Props) {
       standardWorkDays: cfg.standardWorkDays,
       graceLateMinutes: cfg.graceLateMinutes,
       graceEarlyMinutes: cfg.graceEarlyMinutes,
+      earlyLeaveToleranceMinutes: cfg.earlyLeaveToleranceMinutes,
+      lateArrivalToleranceMinutes: cfg.lateArrivalToleranceMinutes,
       overtimeEnabled: !!cfg.overtimeEnabled,
       lateAffectsPay: !!cfg.lateAffectsPay,
       leaveQuotas: cfg.leaveQuotas ?? {},
@@ -100,6 +102,12 @@ export function CompanySettings({ canManage }: Props) {
           </Field>
           <Field label="Dung sai về sớm (phút)">
             <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.graceEarlyMinutes} onChange={(e) => set("graceEarlyMinutes", Number(e.target.value))} />
+          </Field>
+          <Field label="Ngưỡng về sớm huỷ công ca (phút)" hint="Về sớm quá ngưỡng này thì ca đó không được tính công.">
+            <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.earlyLeaveToleranceMinutes ?? 120} onChange={(e) => set("earlyLeaveToleranceMinutes", Number(e.target.value))} />
+          </Field>
+          <Field label="Ngưỡng đi muộn (phút)" hint="Đi muộn được ghi nhận nhưng không huỷ công ca.">
+            <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.lateArrivalToleranceMinutes ?? 120} onChange={(e) => set("lateArrivalToleranceMinutes", Number(e.target.value))} />
           </Field>
         </div>
       </SettingsSection>

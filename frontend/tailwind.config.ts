@@ -61,12 +61,14 @@ export default {
         },
       },
       fontFamily: {
+        // System-first: SF Pro on Apple hardware, Segoe on Windows.
         sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "system-ui",
+          "Segoe UI",
           "Be Vietnam Pro",
           "Inter",
-          "system-ui",
-          "-apple-system",
-          "Segoe UI",
           "sans-serif",
         ],
       },
@@ -77,44 +79,8 @@ export default {
           "0 4px 12px -2px rgba(16,24,40,0.08), 0 2px 6px -2px rgba(16,24,40,0.05)",
         pop: "0 12px 32px -8px rgba(16,24,40,0.14), 0 4px 12px -4px rgba(16,24,40,0.08)",
       },
-      keyframes: {
-        'aurora-1': { 
-            '0%,100%': { transform: 'translate(0,0) scale(1)' },
-            '50%':     { transform: 'translate(40px,-30px) scale(1.10)' } 
-          },
-        'aurora-2': { 
-            '0%,100%': { transform: 'translate(0,0) scale(1)' },
-            '50%':     { transform: 'translate(-30px,40px) scale(1.15)' } 
-          },
-        'aurora-3': { 
-          '0%,100%': { transform: 'translate(0,0) scale(1)' },
-          '50%':     { transform: 'translate(30px,30px) scale(0.95)' } 
-        },
-        'fade-up': { 
-          from: { opacity: 0, transform: 'translateY(12px)' },
-          to:   { opacity: 1, transform: 'translateY(0)' } 
-        },
-        'fade-in': { 
-          from: { opacity: 0 }, to: { opacity: 1 } 
-        },
-        'ring-pulse': { 
-          '0%': { boxShadow: '0 0 0 0 rgba(0,184,245,0.45)' },
-          '100%': { boxShadow: '0 0 0 14px rgba(0,184,245,0)' } 
-        },
-        shine: { 
-          '0%': { transform: 'translateX(-150%) skewX(-12deg)' },
-          '100%': { transform: 'translateX(250%) skewX(-12deg)' } 
-        },
-      },
-      animation: {
-        'aurora-1': 'aurora-1 18s ease-in-out infinite',
-        'aurora-2': 'aurora-2 22s ease-in-out infinite',
-        'aurora-3': 'aurora-3 16s ease-in-out infinite',
-        'fade-up': 'fade-up 0.7s ease-out both',
-        'fade-in': 'fade-in 0.9s ease-out both',
-        'ring-pulse':'ring-pulse 2s ease-out infinite',
-        'shine': 'shine 3.6s ease-in-out infinite 1.2s',
-      },
+      // Decorative motion (aurora blobs, fade-up cascades, shine sweeps) removed —
+      // Apple-clean direction keeps only hover/focus transitions + slide-over.
     },
   },
   plugins: [require("tailwindcss-animate")],

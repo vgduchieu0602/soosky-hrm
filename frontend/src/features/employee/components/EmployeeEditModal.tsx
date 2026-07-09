@@ -126,7 +126,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" style={{ animation: "fadeIn .2s ease" }} onClick={onClose} />
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -143,7 +143,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Thông tin cá nhân</div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Họ" error={errors.lastName?.message}>
               <input className={inputCls} {...register("lastName")} />
             </Field>
@@ -199,7 +199,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
           </div>
 
           <div className="mb-2 mt-6 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Thông tin công việc</div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Mã nhân viên" error={errors.employeeCode?.message}>
               <input className={cn(inputCls, "font-mono")} {...register("employeeCode")} />
             </Field>

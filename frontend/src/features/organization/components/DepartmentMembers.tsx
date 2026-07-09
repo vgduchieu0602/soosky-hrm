@@ -70,7 +70,7 @@ export function DepartmentMembers({ departmentId }: Props) {
 
   if (members.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-8 text-center text-[12.5px] text-muted-foreground">
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-6 lg:py-8 text-center text-[12.5px] text-muted-foreground">
         <Users className="size-7 text-muted-foreground/50" />
         <span>Phòng ban chưa có nhân sự.</span>
       </div>

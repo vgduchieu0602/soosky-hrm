@@ -1,32 +1,42 @@
 import { Fragment } from "react";
-import { Search, ChevronRight, Calendar, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { Search, ChevronRight, Calendar, ChevronDown, SlidersHorizontal, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@features/notification/NotificationBell";
+import { useUiStore } from "@core/store/ui.store";
 
 interface TopBarProps {
   crumbs?: string[];
 }
 
 export function TopBar({ crumbs = ["Trang chủ", "Tổng quan"] }: TopBarProps) {
+  const openMobileNav = useUiStore((s) => s.openMobileNav);
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-8">
-      <nav className="flex items-center gap-2 text-[13px]">
-        {crumbs.map((c, i) => (
-          <Fragment key={`${i}-${c}`}>
-            {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground/60" />}
-            <span
-              className={
-                i === crumbs.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground"
-              }
-            >
-              {c}
-            </span>
-          </Fragment>
-        ))}
+    <header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b bg-background px-4 sm:gap-4 sm:px-6 lg:px-8">
+      <button
+        type="button"
+        onClick={openMobileNav}
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
+        aria-label="Mở menu"
+      >
+        <Menu className="size-5" />
+      </button>
+
+      <nav className="flex min-w-0 items-center gap-2 text-[13px]">
+        {crumbs.map((c, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <Fragment key={`${i}-${c}`}>
+              {i > 0 && <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" />}
+              <span className={cnCrumb(last, crumbs.length)}>
+                {c}
+              </span>
+            </Fragment>
+          );
+        })}
       </nav>
 
-      <div className="relative ml-6 max-w-xl flex-1">
+      <div className="relative ml-2 hidden max-w-xl flex-1 sm:ml-6 md:block">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
@@ -38,9 +48,18 @@ export function TopBar({ crumbs = ["Trang chủ", "Tổng quan"] }: TopBarProps)
         </kbd>
       </div>
 
-      <NotificationBell />
+      <div className="ml-auto md:ml-0">
+        <NotificationBell />
+      </div>
     </header>
   );
+}
+
+// On mobile only the last crumb is shown (space); earlier crumbs hide below sm.
+function cnCrumb(last: boolean, total: number): string {
+  const base = last ? "truncate font-semibold text-foreground" : "text-muted-foreground";
+  const hideEarly = !last && total > 1 ? "hidden sm:inline" : "";
+  return [base, hideEarly].filter(Boolean).join(" ");
 }
 
 export function PageHeader() {

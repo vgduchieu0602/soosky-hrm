@@ -8,7 +8,7 @@ interface SectionTitleProps {
 
 export function SectionTitle({ title, subtitle, action }: SectionTitleProps) {
   return (
-    <div className="flex items-end justify-between">
+    <div className="flex flex-wrap items-end justify-between">
       <div>
         <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{title}</h2>
         {subtitle && (

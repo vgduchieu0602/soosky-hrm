@@ -5,6 +5,8 @@ export interface CompanyConfig {
   standardWorkDays: number;
   graceLateMinutes: number;
   graceEarlyMinutes: number;
+  earlyLeaveToleranceMinutes?: number;
+  lateArrivalToleranceMinutes?: number;
   overtimeEnabled?: boolean;
   lateAffectsPay?: boolean;
   leaveQuotas?: Record<string, number>;
@@ -59,6 +61,9 @@ export interface Shift {
   endTime: string;
   breakMinutes: number;
   workingDays: number[];
+  /** Seasonal validity window (ISO date). Both unset = applies year-round. */
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
   status: "active" | "archived";
 }
 

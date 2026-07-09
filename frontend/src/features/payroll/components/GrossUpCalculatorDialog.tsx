@@ -61,7 +61,7 @@ export function GrossUpCalculatorDialog({ open, onOpenChange }: Props) {
       footer={footer}
     >
       <div className="flex flex-col gap-4 py-1">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label className="text-[12px]">Lương NET mong muốn (₫)</Label>
               <div className="relative">
@@ -106,7 +106,7 @@ export function GrossUpCalculatorDialog({ open, onOpenChange }: Props) {
                   <div className="text-[18px] font-bold tabular-nums text-primary">{fmtVND(result.gross)} ₫</div>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 text-[12.5px]">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 text-[12.5px]">
                 <Row label="BH người lao động (10.5%)" value={result.insurance} />
                 <Row label="Thuế TNCN" value={result.tax} />
                 <Row label="BH doanh nghiệp (20.5%)" value={result.employerInsurance} />

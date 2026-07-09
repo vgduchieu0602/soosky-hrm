@@ -105,7 +105,7 @@ export function NotificationBell() {
             )}
           </div>
           <div className="max-h-[400px] overflow-y-auto">
-            {items === null && <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">Đang tải…</p>}
+            {items === null && <p className="px-4 py-6 lg:py-8 text-center text-[13px] text-muted-foreground">Đang tải…</p>}
             {items !== null && items.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-muted-foreground">
                 <Bell className="size-7 opacity-30" />

@@ -25,6 +25,7 @@ export default function ChangePasswordPage() {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
+  const setToken = useAuthStore((s) => s.setToken);
 
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -47,6 +48,11 @@ export default function ChangePasswordPage() {
     setSubmitting(true);
     try {
       await authService.changePassword({ currentPassword: current, newPassword: next });
+      // The access token still embeds mustChangePassword=true (baked in at login).
+      // Mint a fresh one — refresh reads the now-cleared flag from the DB — else
+      // every app API 403s with IAM_013 and bounces us straight back here.
+      const { accessToken } = await authService.refresh();
+      setToken(accessToken);
       if (user) setUser({ ...user, mustChangePassword: false });
       navigate("/dashboard", { replace: true });
     } catch (err) {

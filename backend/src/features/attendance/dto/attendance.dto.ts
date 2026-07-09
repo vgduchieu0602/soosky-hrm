@@ -19,6 +19,23 @@ export const upsertAttendanceDto = z
   .strict();
 export type UpsertAttendanceDto = z.infer<typeof upsertAttendanceDto>;
 
+// Day-level entry: ONE check-in/out for the whole day; the server distributes
+// it across every configured ca (see AttendanceUseCases.upsertDay).
+export const upsertDayDto = z
+  .object({
+    employeeId: objectId,
+    date: z.coerce.date(),
+    checkIn: z.coerce.date(),
+    checkOut: z.coerce.date(),
+    note: z.string().max(255).nullable().optional(),
+  })
+  .strict()
+  .refine((d) => d.checkOut > d.checkIn, {
+    message: 'Giờ ra phải sau giờ vào',
+    path: ['checkOut'],
+  });
+export type UpsertDayDto = z.infer<typeof upsertDayDto>;
+
 export const adjustAttendanceDto = z
   .object({
     shiftId: objectId.optional(),

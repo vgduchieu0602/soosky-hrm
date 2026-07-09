@@ -1,7 +1,8 @@
 import { logger } from '@core/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
-import { vnDateKey, vnMonthRange, type ShiftWindow } from '@features/attendance/domain/attendance-calc';
+import { vnDateKey, vnMonthRange, matchShifts, type ShiftWindow, type ShiftDef } from '@features/attendance/domain/attendance-calc';
 import { computeFields, monthsSince } from '@features/attendance/domain/leave-policy';
+import type { UpsertDayDto } from '@features/attendance/dto/attendance.dto';
 import type {
   AttendanceRepository,
   EmployeeGateway,
@@ -74,6 +75,79 @@ export class AttendanceUseCases {
     );
     log.info({ action: `punch-${kind}`, employeeId: employee._id, status: fields.status });
     return doc;
+  }
+
+  /**
+   * Enter ONE check-in / check-out for a day and auto-distribute it across the
+   * day's configured ca. Each ca that counts (see matchShifts) gets its own
+   * session record; ca that don't count are cleared. Công for the day = sum of
+   * counted ca weights.
+   */
+  async upsertDay(input: UpsertDayDto, userId: string) {
+    const employee = await this.employees.findById(input.employeeId);
+    if (!employee) throw new HttpError(404, 'Không tìm thấy nhân viên', 'EMP_001');
+
+    const policy = await this.policy.loadPolicy();
+    const dateKey = vnDateKey(input.date, policy.timezone);
+    await this.assertUnlocked(dateKey);
+
+    const onLeave = await this.attendance.findFullDayLeave(employee._id, dateKey);
+    if (onLeave) throw new HttpError(409, 'Ngày này đã có đơn nghỉ phép đã duyệt', 'ATT_007');
+
+    // Only ca that run on this weekday (ISO 1..7; getUTCDay 0=Sun → 7) AND whose
+    // seasonal window (effectiveFrom/effectiveTo) covers this date — companies
+    // with different summer/winter hours configure separate ca per season.
+    const iso = dateKey.getUTCDay() === 0 ? 7 : dateKey.getUTCDay();
+    const t = dateKey.getTime();
+    const defs = (await this.shifts.listActiveShiftDefs()).filter(
+      (s) =>
+        s.workingDays.includes(iso) &&
+        (!s.effectiveFrom || t >= s.effectiveFrom.getTime()) &&
+        (!s.effectiveTo || t <= s.effectiveTo.getTime()),
+    );
+    if (defs.length === 0) throw new HttpError(400, 'Chưa cấu hình ca làm cho ngày này', 'ATT_005');
+
+    const shiftDefs: ShiftDef[] = defs.map((d) => ({
+      id: d.id, type: d.type, startTime: d.startTime, endTime: d.endTime,
+      breakMinutes: d.breakMinutes, weight: d.weight,
+    }));
+    const result = matchShifts(shiftDefs, input.checkIn, input.checkOut, policy);
+
+    const records = [];
+    for (const m of result.shifts) {
+      if (m.counted) {
+        const doc = await this.attendance.upsertPunch(
+          { employeeId: employee._id, date: dateKey, shiftId: m.shiftId },
+          {
+            checkIn: input.checkIn,
+            checkOut: input.checkOut,
+            status: m.status,
+            workHours: m.workHours,
+            lateMinutes: m.lateMinutes,
+            earlyMinutes: m.earlyMinutes,
+            session: m.session,
+            source: 'manual',
+          },
+          userId,
+        );
+        records.push(doc);
+      } else {
+        // Ca not worked (no overlap / left too early) — clear any stale manual
+        // record so it stops counting công. Never touch leave-generated rows.
+        const existing = await this.attendance.findBySlot(employee._id, dateKey, m.shiftId);
+        if (existing && existing.source !== 'leave') {
+          await this.attendance.deleteById(existing._id);
+        }
+      }
+    }
+
+    await this.audit.record({
+      userId, resource: 'attendance', action: 'update',
+      resourceId: employee._id,
+      changes: { date: dateKey.toISOString(), totalCong: result.totalCong },
+    });
+    log.info({ action: 'upsert-day', employeeId: employee._id, totalCong: result.totalCong });
+    return { employeeId: employee._id, date: dateKey, totalCong: result.totalCong, records };
   }
 
   /** Admin/HR grid: roster + active shifts + records + pooled leave/tenure. */

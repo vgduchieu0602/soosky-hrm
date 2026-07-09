@@ -6,21 +6,36 @@ import { ATTENDANCE_STATUS } from '@shared/models/attendance.model';
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Định dạng HH:mm');
 
 // ---- Shift ----
-export const createShiftDto = z
-  .object({
-    name: z.string().min(1).max(120).trim(),
-    type: z.enum(SHIFT_TYPE).optional(),
-    startTime: hhmm,
-    endTime: hhmm,
-    breakMinutes: z.coerce.number().int().min(0).max(480).optional(),
-    workingDays: z.array(z.coerce.number().int().min(1).max(7)).optional(),
-  })
-  .strict();
+const shiftShape = z.object({
+  name: z.string().min(1).max(120).trim(),
+  type: z.enum(SHIFT_TYPE).optional(),
+  startTime: hhmm,
+  endTime: hhmm,
+  breakMinutes: z.coerce.number().int().min(0).max(480).optional(),
+  weight: z.coerce.number().min(0).max(1).optional(),
+  workingDays: z.array(z.coerce.number().int().min(1).max(7)).optional(),
+  // Seasonal validity window — leave both unset for a shift that applies year-round.
+  effectiveFrom: z.coerce.date().nullable().optional(),
+  effectiveTo: z.coerce.date().nullable().optional(),
+});
+
+const effectiveRangeValid = (d: { effectiveFrom?: Date | null; effectiveTo?: Date | null }) =>
+  !d.effectiveFrom || !d.effectiveTo || d.effectiveTo >= d.effectiveFrom;
+
+export const createShiftDto = shiftShape.strict().refine(effectiveRangeValid, {
+  message: 'Ngày kết thúc phải sau ngày bắt đầu',
+  path: ['effectiveTo'],
+});
 export type CreateShiftDto = z.infer<typeof createShiftDto>;
 
-export const updateShiftDto = createShiftDto
+export const updateShiftDto = shiftShape
   .partial()
-  .extend({ status: z.enum(['active', 'archived']).optional() });
+  .extend({ status: z.enum(['active', 'archived']).optional() })
+  .strict()
+  .refine(effectiveRangeValid, {
+    message: 'Ngày kết thúc phải sau ngày bắt đầu',
+    path: ['effectiveTo'],
+  });
 export type UpdateShiftDto = z.infer<typeof updateShiftDto>;
 
 // ---- Holiday ----

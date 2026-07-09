@@ -156,12 +156,27 @@ export interface EmployeeGateway {
   isOfficial(employeeId: Id, tx?: Tx): Promise<boolean>;
 }
 
+export interface ShiftDefRecord {
+  id: string;
+  type: AttendanceSession;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  weight: number;
+  workingDays: number[];
+  /** Seasonal validity window (inclusive). Both null = applies year-round. */
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+}
+
 export interface ShiftWindowGateway {
   /** Default active shift for self check-in/out (full_day preferred). */
   findDefaultShiftWindow(): Promise<{ id: string; startTime: string; endTime: string; breakMinutes: number } | null>;
   findShiftWindow(shiftId: Id): Promise<{ startTime: string; endTime: string; breakMinutes: number } | null>;
   /** Active shifts (ca) for the admin grid, sorted by start time. */
   listActiveShifts(): Promise<Record<string, unknown>[]>;
+  /** Active ca as definitions for the multi-shift day matcher, sorted by start time. */
+  listActiveShiftDefs(): Promise<ShiftDefRecord[]>;
 }
 
 export interface PolicyGateway {

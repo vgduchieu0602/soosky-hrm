@@ -67,7 +67,7 @@ export default function SettingsPage() {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar crumbs={["Trang chủ", "Hồ sơ cá nhân"]} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[760px] flex-col gap-6">
             <div>
               <h1 className="text-[26px] font-bold tracking-tight text-foreground">Hồ sơ cá nhân</h1>

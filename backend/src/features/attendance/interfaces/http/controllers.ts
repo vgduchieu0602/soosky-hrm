@@ -63,6 +63,11 @@ export const attendanceController = {
       res.status(201).json({ data: await attendanceUseCases.upsert(req.body, userId(req)) });
     } catch (e) { next(e); }
   },
+  async upsertDay(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.status(201).json({ data: await attendanceUseCases.upsertDay(req.body, userId(req)) });
+    } catch (e) { next(e); }
+  },
   async bulkUpsert(req: Request, res: Response, next: NextFunction) {
     try {
       const { rows } = req.body as { rows: UpsertAttendanceDto[] };

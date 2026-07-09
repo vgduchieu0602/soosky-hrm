@@ -3,12 +3,14 @@ import {
   ReceiptText, ClipboardList, Settings, ChevronDown, LogOut,
   type LucideIcon,
 } from "lucide-react";
+import { X } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { NAV_ITEMS } from "@features/dashboard/data";
 import { useAuthStore } from "@core/store/auth.store";
+import { useUiStore } from "@core/store/ui.store";
 import { authService } from "@features/auth/services/auth.service";
 import logoMark from "@/assets/LOGO.png";
 
@@ -47,6 +49,8 @@ export default function Sidebar({ active }: SidebarProps) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.logout);
+  const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
+  const closeMobileNav = useUiStore((s) => s.closeMobileNav);
 
   const displayName = user?.username ?? "Người dùng";
   const roleLabel = user?.roles?.length ? ROLE_LABEL[user.roles[0]] ?? user.roles[0] : "—";
@@ -59,19 +63,42 @@ export default function Sidebar({ active }: SidebarProps) {
   }
 
   return (
-    <aside
-      className="flex w-[260px] flex-shrink-0 flex-col text-white"
-      style={{ background: "linear-gradient(180deg, #1B3A74 0%, #163985 38%, #11295C 100%)" }}
-    >
-      <div className="flex items-center gap-3 px-6 pt-6">
-        <img src={logoMark} alt="Soosky" className="h-7 w-10 object-contain" />
-        <div className="flex flex-col leading-tight">
-          <span className="text-[16px] font-bold tracking-tight">Soosky</span>
-          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/45">
-            HRM Admin
-          </span>
+    <>
+      {/* Mobile overlay — click to dismiss the drawer. */}
+      <div
+        onClick={closeMobileNav}
+        className={cn(
+          "fixed inset-0 z-40 bg-secondary-900/50 backdrop-blur-[2px] transition-opacity lg:hidden",
+          mobileNavOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        aria-hidden
+      />
+      <aside
+        className={cn(
+          "flex w-[260px] flex-shrink-0 flex-col text-white",
+          // Desktop: static column. Mobile: off-canvas drawer.
+          "fixed inset-y-0 left-0 z-50 transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0",
+          mobileNavOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0",
+        )}
+        style={{ background: "#11295C" }}
+      >
+        <div className="flex items-center gap-3 px-6 pt-6">
+          <img src={logoMark} alt="Soosky" className="h-7 w-10 object-contain" />
+          <div className="flex flex-col leading-tight">
+            <span className="text-[16px] font-bold tracking-tight">Soosky</span>
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/45">
+              HRM Admin
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={closeMobileNav}
+            className="ml-auto flex size-8 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden"
+            aria-label="Đóng menu"
+          >
+            <X className="size-4" />
+          </button>
         </div>
-      </div>
 
       <Button
         variant="ghost"
@@ -105,10 +132,11 @@ export default function Sidebar({ active }: SidebarProps) {
             <Link
               key={n.id}
               to={n.to}
+              onClick={closeMobileNav}
               className={cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium transition-colors",
+                "group flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13.5px] font-medium transition-colors duration-150",
                 isActive
-                  ? "bg-gradient-to-r from-primary-500 to-secondary-500 text-white shadow-[0_6px_16px_-6px_rgba(0,184,245,0.6)]"
+                  ? "bg-white/12 text-white"
                   : "text-white/60 hover:bg-white/[0.06] hover:text-white",
               )}
             >
@@ -131,6 +159,7 @@ export default function Sidebar({ active }: SidebarProps) {
         </p>
         <Link
           to="/settings"
+          onClick={closeMobileNav}
           className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white"
         >
           <Settings
@@ -164,6 +193,7 @@ export default function Sidebar({ active }: SidebarProps) {
           </Button>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

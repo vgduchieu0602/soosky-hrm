@@ -189,7 +189,7 @@ function EmployeeLeave() {
       <Button size="sm" className="h-9 gap-2 rounded-full text-[13px]" onClick={() => setOpen(true)}><Plus className="size-3.5" strokeWidth={2} /> Tạo đơn nghỉ</Button>
     }>
       {balances.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {balances.map((b) => {
             const t = LEAVE_TYPE_META[b.leaveType];
             return (
@@ -278,7 +278,7 @@ function SubmitLeaveModal({ onClose, onDone }: { onClose: () => void; onDone: ()
               {(Object.keys(LEAVE_TYPE_META) as LeaveTypeKey[]).map((k) => <option key={k} value={k}>{LEAVE_TYPE_META[k].label}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label className="text-[12px] font-medium text-foreground">Từ ngày</label><input type="date" className={cn(inputCls, "mt-1.5")} value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
             <div><label className="text-[12px] font-medium text-foreground">Đến ngày</label><input type="date" className={cn(inputCls, "mt-1.5")} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
           </div>
@@ -307,7 +307,7 @@ function Shell({ crumb, title, subtitle, action, children }: { crumb: string; ti
       <Sidebar active="leave" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar crumbs={["Trang chủ", crumb]} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[1100px] flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>

@@ -128,7 +128,7 @@ export function PositionFormDialog({
       footer={footer}
     >
         <form id="position-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="pos-title">Tên chức vụ *</Label>
               <Input

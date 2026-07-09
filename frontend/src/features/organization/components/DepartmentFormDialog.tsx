@@ -150,7 +150,7 @@ export function DepartmentFormDialog({
       footer={footer}
     >
       <form id="department-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="dept-name">Tên phòng ban *</Label>
               <Input

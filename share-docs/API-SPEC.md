@@ -249,7 +249,7 @@
 | POST | `/uploads/presign` | auth | `{ scope, fileName, contentType, ownerId? }` | Presigned upload URL (S3) |
 | GET | `/uploads/sign` | auth | `?key=` | Presigned download URL |
 
-`scope` ∈ `avatars | employee-documents | contracts | payslips | other`.
+`scope` ∈ `avatar | document | contract` (DTO enum = keys of `STORAGE_SCOPES`; object prefixes are `avatars/`, `employee-documents/`, `contracts/`). Optional `ownerId`, `size`.
 
 ---
 

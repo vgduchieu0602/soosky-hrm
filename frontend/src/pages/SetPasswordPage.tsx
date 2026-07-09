@@ -97,32 +97,13 @@ export default function SetPasswordPage() {
     : "Tạo mật khẩu để kích hoạt tài khoản Soosky HRM của bạn.";
 
   return (
-    <div
-      className="flex min-h-screen w-full items-center justify-center overflow-hidden px-5 py-10 font-sans"
-      style={{ background: "linear-gradient(150deg, #0E2557 0%, #163985 52%, #11295C 100%)" }}
-    >
-      {/* soft brand glows */}
-      <div
-        className="pointer-events-none absolute -right-32 -top-24 h-[460px] w-[460px] rounded-full"
-        style={{
-          background: "radial-gradient(circle, rgba(0,184,245,0.28) 0%, transparent 68%)",
-          filter: "blur(40px)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute -bottom-32 -left-20 h-[380px] w-[380px] rounded-full"
-        style={{
-          background: "radial-gradient(circle, rgba(54,123,255,0.20) 0%, transparent 70%)",
-          filter: "blur(44px)",
-        }}
-      />
-
-      <div className="relative w-full max-w-[460px] animate-fade-up">
+    <div className="flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#11295C] px-5 py-10 font-sans">
+      <div className="relative w-full max-w-[460px]">
         {/* brand */}
         <div className="mb-6 flex items-center justify-center gap-3">
           <img src={logoMark} alt="" className="h-7 w-10 object-contain" />
-          <span className="text-lg font-bold tracking-tight text-white">
-            Soosky <span className="font-medium opacity-60">HRM</span>
+          <span className="text-lg font-semibold tracking-tight text-white">
+            Soosky <span className="font-normal opacity-60">HRM</span>
           </span>
         </div>
 
@@ -171,10 +152,10 @@ export default function SetPasswordPage() {
               </div>
               <button
                 onClick={() => navigate("/auth/login")}
-                className="btn-shine group mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 px-6 text-[15px] font-semibold text-white shadow-[0_8px_24px_-8px_rgba(0,184,245,0.55)] transition-all hover:brightness-105"
+                className="mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-primary-600 px-6 text-[15px] font-semibold text-white transition-colors duration-150 hover:bg-primary-700"
               >
                 Đăng nhập ngay
-                <ArrowRight size={16} strokeWidth={2.2} className="transition-transform group-hover:translate-x-1" />
+                <ArrowRight size={16} strokeWidth={2.2} />
               </button>
             </div>
           )}
@@ -264,9 +245,9 @@ export default function SetPasswordPage() {
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="btn-shine group relative inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 px-4 text-[15px] font-semibold text-white shadow-[0_8px_24px_-8px_rgba(0,184,245,0.55)] transition-all hover:brightness-105 focus:outline-none focus:ring-[4px] focus:ring-primary-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-primary-600 px-4 text-[15px] font-semibold text-white transition-colors duration-150 hover:bg-primary-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary-500/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="relative z-10">{submitting ? "Đang lưu…" : heading}</span>
+                {submitting ? "Đang lưu…" : heading}
               </button>
             </form>
           )}

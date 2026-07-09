@@ -60,9 +60,14 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
   const [profileKey, setProfileKey] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const CONFIRM_PHRASE = "Tôi xác nhận";
+  const canDelete = confirmText.trim() === CONFIRM_PHRASE;
+  const closeConfirm = () => { setConfirmDelete(false); setConfirmText(""); };
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleDelete() {
+    if (!canDelete) return;
     setDeleting(true);
     setDeleteError(null);
     employeeService
@@ -175,7 +180,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
 
       {confirmDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" onClick={(e) => e.stopPropagation()}>
-          <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={() => !deleting && setConfirmDelete(false)} />
+          <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={() => !deleting && closeConfirm()} />
           <div className="relative w-full max-w-[440px] rounded-2xl bg-background p-6 shadow-2xl">
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600"><Trash2 className="size-5" /></span>
@@ -188,10 +193,23 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
                 <p className="mt-2 text-[12px] text-muted-foreground">Gợi ý: nếu chỉ nghỉ việc, hãy đổi trạng thái sang “Đã nghỉ” thay vì xoá.</p>
               </div>
             </div>
+            <div className="mt-4">
+              <label className="text-[12.5px] text-muted-foreground">
+                Nhập <b className="font-semibold text-foreground">“{CONFIRM_PHRASE}”</b> để xác nhận:
+              </label>
+              <input
+                autoFocus
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && canDelete && !deleting) handleDelete(); }}
+                placeholder={CONFIRM_PHRASE}
+                className="mt-1.5 h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] outline-none focus-visible:border-rose-500 focus-visible:ring-2 focus-visible:ring-rose-500/20"
+              />
+            </div>
             {deleteError && <p className="mt-3 text-[12.5px] text-destructive">{deleteError}</p>}
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" disabled={deleting} onClick={() => setConfirmDelete(false)} className="rounded-xl">Huỷ</Button>
-              <Button disabled={deleting} onClick={handleDelete} className="gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-600">
+              <Button variant="outline" disabled={deleting} onClick={closeConfirm} className="rounded-xl">Huỷ</Button>
+              <Button disabled={deleting || !canDelete} onClick={handleDelete} className="gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-50">
                 <Trash2 className="size-4" /> {deleting ? "Đang xoá…" : "Xoá vĩnh viễn"}
               </Button>
             </div>
@@ -203,26 +221,36 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
 }
 
 // ===================== StatusSelect =====================
-// Native <select> so the menu is rendered in the browser's own layer — it never
-// gets clipped by the header's overflow-hidden nor pushes the content below it
-// (which the previous absolutely-positioned custom dropdown did).
+// Neutral white pill trigger (readable in both collapsed + open states — the
+// native option list inherits the select's own background, so a coloured bg
+// made the menu unreadable). Status colour is conveyed by a dot + coloured
+// label instead. Menu renders in the browser layer, never clipped.
 function StatusSelect({ value, onChange }: { value: EmployeeStatus; onChange: (s: EmployeeStatus) => void }) {
   const st = EMP_STATUS[value];
+  const ink = `var(--chip-${st.variant}-ink)`;
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as EmployeeStatus)}
-      className="cursor-pointer appearance-none rounded-full border-0 py-0.5 pl-2.5 pr-6 text-[11.5px] font-semibold outline-none transition hover:ring-2 hover:ring-primary-200"
-      style={{ ...CHIP(st.variant), backgroundImage: "none" }}
-      title="Đổi trạng thái nhân viên"
-    >
-      <optgroup label="Đang hoạt động">
-        {STATUS_ACTIVE.map((k) => <option key={k} value={k}>{EMP_STATUS[k].label}</option>)}
-      </optgroup>
-      <optgroup label="Ngừng hoạt động">
-        {STATUS_INACTIVE.map((k) => <option key={k} value={k}>{EMP_STATUS[k].label}</option>)}
-      </optgroup>
-    </select>
+    <div className="relative inline-flex items-center">
+      <span
+        className="pointer-events-none absolute left-3 top-1/2 size-2 -translate-y-1/2 rounded-full"
+        style={{ background: ink }}
+        aria-hidden
+      />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as EmployeeStatus)}
+        className="cursor-pointer appearance-none rounded-full bg-white py-1.5 pl-7 pr-8 text-[12px] font-semibold text-secondary-900 shadow-sm outline-none transition hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white/70"
+        style={{ color: ink }}
+        title="Đổi trạng thái nhân viên"
+      >
+        <optgroup label="Đang hoạt động">
+          {STATUS_ACTIVE.map((k) => <option key={k} value={k} className="text-secondary-900">{EMP_STATUS[k].label}</option>)}
+        </optgroup>
+        <optgroup label="Ngừng hoạt động">
+          {STATUS_INACTIVE.map((k) => <option key={k} value={k} className="text-secondary-900">{EMP_STATUS[k].label}</option>)}
+        </optgroup>
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-secondary-400" strokeWidth={2.4} />
+    </div>
   );
 }
 
@@ -262,10 +290,12 @@ function TabLoading() {
 function TabEmpty({ text }: { text: string }) {
   return <div className="py-8 text-center text-[13px] text-muted-foreground">{text}</div>;
 }
-function LabeledInput({ label, children }: { label: string; children: React.ReactNode }) {
+function LabeledInput({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      <span className="text-[11px] font-medium text-muted-foreground">
+        {label}{required && <span className="ml-0.5 text-rose-500">*</span>}
+      </span>
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -1052,18 +1082,18 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
     <Panel title="Hợp đồng lao động" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
-          <LabeledInput label="Loại HĐLĐ">
+          <LabeledInput label="Loại HĐLĐ" required>
             <select className={inputCls} value={f.contractType} onChange={(e) => setF({ ...f, contractType: e.target.value })}>
               {Object.entries(CONTRACT_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </LabeledInput>
-          <LabeledInput label="Tình trạng">
+          <LabeledInput label="Tình trạng" required>
             <select className={inputCls} value={f.employmentStatus} onChange={(e) => setF({ ...f, employmentStatus: e.target.value })}>
               {Object.entries(EMPLOYMENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </LabeledInput>
-          <LabeledInput label="Số HĐ"><input className={cn(inputCls, "font-mono")} value={f.contractNumber} onChange={(e) => setF({ ...f, contractNumber: e.target.value })} /></LabeledInput>
-          <LabeledInput label="Bắt đầu"><DateField className={inputCls} value={f.startDate} onChange={(iso) => setF({ ...f, startDate: iso })} /></LabeledInput>
+          <LabeledInput label="Số HĐ" required><input className={cn(inputCls, "font-mono")} value={f.contractNumber} onChange={(e) => setF({ ...f, contractNumber: e.target.value })} /></LabeledInput>
+          <LabeledInput label="Bắt đầu" required><DateField className={inputCls} value={f.startDate} onChange={(iso) => setF({ ...f, startDate: iso })} /></LabeledInput>
           <LabeledInput label="Kết thúc"><DateField className={inputCls} value={f.endDate} onChange={(iso) => setF({ ...f, endDate: iso })} /></LabeledInput>
           <LabeledInput label="Lương cơ bản (₫)"><input type="number" className={cn(inputCls, "font-mono")} value={f.baseSalary} onChange={(e) => setF({ ...f, baseSalary: e.target.value })} /></LabeledInput>
           <LabeledInput label="Tệp hợp đồng">

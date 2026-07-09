@@ -3,8 +3,9 @@
 
 @layer base {
   :root {
-    /* App canvas is a faint slate so white cards lift off the page */
-    --background: 210 40% 98%;
+    /* Apple-clean: pure white canvas; separation comes from hairline borders,
+       not tinted backgrounds or heavy shadows. */
+    --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
@@ -32,7 +33,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 196 100% 48%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
     /* Pastel chip palette (matches dashboard JSX) */
     --chip-blue-bg: #EFF6FF;
@@ -93,8 +94,9 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: "Be Vietnam Pro", "Inter", system-ui, -apple-system,
-      "Segoe UI", sans-serif;
+    /* System-first stack: SF Pro on Apple hardware, Segoe on Windows. */
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI",
+      "Be Vietnam Pro", "Inter", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -179,21 +181,6 @@
     -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 80%);
     mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 80%);
    }
-
-   /* Shine sweep on the submit button */
-  .btn-shine { 
-    position: relative; 
-    overflow: hidden; 
-  }
-
-  .btn-shine::after {
-    content: "";
-    position: absolute; inset: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
-    transform: translateX(-150%) skewX(-12deg);
-    animation: shine 3.6s ease-in-out infinite 1.2s;
-    pointer-events: none;
-  }
 
   /* Custom checkbox */
   .cb { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }

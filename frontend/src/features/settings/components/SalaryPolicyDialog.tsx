@@ -258,7 +258,7 @@ export function SalaryPolicyDialog({ open, onOpenChange, target, onSaved }: Prop
           </Section>
 
           <Section title="Trọng số cấu phần lương" aside={total(weightOk, `Tổng ${weightSum}%`)}>
-            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
               <Field label="Ngày công"><PercentInput value={wA} onChange={setWA} /></Field>
               <Field label="Hiệu suất"><PercentInput value={wP} onChange={setWP} /></Field>
               <Field label="Mục tiêu"><PercentInput value={wG} onChange={setWG} /></Field>

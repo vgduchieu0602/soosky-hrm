@@ -231,7 +231,7 @@ function RoleEditor({ role, perms, onClose, onSaved }: { role: Role | null; perm
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-[12px] font-medium text-foreground">Tên vai trò</label>
               <input className={cn(inputCls, "mt-1.5")} value={name} disabled={!!role} onChange={(e) => setName(e.target.value)} placeholder="vd: kế toán" />
@@ -247,7 +247,7 @@ function RoleEditor({ role, perms, onClose, onSaved }: { role: Role | null; perm
             {!ready ? (
               <div className="h-32 animate-pulse rounded-xl bg-muted/50" />
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {grouped.map(([resource, list]) => {
                   const allOn = list.every((p) => selected.has(p._id));
                   return (

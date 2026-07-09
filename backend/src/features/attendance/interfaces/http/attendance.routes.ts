@@ -17,6 +17,7 @@ import {
 } from '@features/attendance/dto/catalog.dto';
 import {
   upsertAttendanceDto,
+  upsertDayDto,
   adjustAttendanceDto,
   bulkUpsertAttendanceDto,
 } from '@features/attendance/dto/attendance.dto';
@@ -49,6 +50,7 @@ router.post('/attendances/check-in', authenticate, attendanceController.checkIn)
 router.post('/attendances/check-out', authenticate, attendanceController.checkOut);
 router.get('/admin/attendances', authenticate, hrOrAdmin, attendanceController.adminGrid);
 router.post('/admin/attendances', authenticate, hrOrAdmin, validate(upsertAttendanceDto, 'body'), attendanceController.upsert);
+router.post('/admin/attendances/day', authenticate, hrOrAdmin, validate(upsertDayDto, 'body'), attendanceController.upsertDay);
 router.post('/admin/attendances/bulk', authenticate, hrOrAdmin, validate(bulkUpsertAttendanceDto, 'body'), attendanceController.bulkUpsert);
 router.patch('/admin/attendances/:id', authenticate, hrOrAdmin, validate(adjustAttendanceDto, 'body'), attendanceController.adjust);
 router.delete('/admin/attendances/:id', authenticate, hrOrAdmin, attendanceController.remove);

@@ -182,7 +182,7 @@ export default function AttendancePage() {
       <Sidebar active="att" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar crumbs={["Trang chủ", "Chấm công"]} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[1480px] flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -200,7 +200,7 @@ export default function AttendancePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard chip="blue" icon={Users} label="Nhân sự" value={stats.people} />
               <StatCard chip="amber" icon={Clock} label="Lượt đi muộn" value={stats.late} />
               <StatCard chip="violet" icon={CalendarDays} label="Lượt nghỉ phép" value={stats.leave} />
@@ -433,7 +433,7 @@ function BulkEditor({ month, employees, shifts, onClose, onSaved }: {
         <p className="mt-0.5 text-[12.5px] text-muted-foreground">Áp 1 trạng thái cho <b className="text-foreground">{employees.length}</b> nhân viên đang lọc, theo khoảng ngày &amp; ca.</p>
 
         <div className="mt-4 flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[12px] font-medium text-foreground">Từ ngày</label>
               <input type="date" min={allDays[0]?.key} max={allDays[allDays.length - 1]?.key} value={fromKey} onChange={(e) => setFromKey(e.target.value)} className={cn(inputCls, "mt-1.5")} />
@@ -480,65 +480,56 @@ function BulkEditor({ month, employees, shifts, onClose, onSaved }: {
   );
 }
 
-interface ShiftForm {
-  checkIn: string;
-  checkOut: string;
-  manual: string;
-}
+const inputCls = "h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20";
 
-const isManualStatus = (s?: string) => !!s && ["leave_paid", "leave_unpaid", "holiday", "absent"].includes(s);
-
-function initForm(rec?: AttendanceRecord): ShiftForm {
+// Earliest check-in / latest check-out across the day's existing ca records —
+// used to prefill the day-level editor.
+function dayTimes(records: Record<string, AttendanceRecord>): { checkIn: string; checkOut: string } {
+  const ins: string[] = [];
+  const outs: string[] = [];
+  for (const r of Object.values(records)) {
+    if (r.checkIn) ins.push(hhmmVN(r.checkIn));
+    if (r.checkOut) outs.push(hhmmVN(r.checkOut));
+  }
   return {
-    checkIn: hhmmVN(rec?.checkIn),
-    checkOut: hhmmVN(rec?.checkOut),
-    manual: isManualStatus(rec?.status) ? (rec?.status as string) : "",
+    checkIn: ins.sort()[0] ?? "",
+    checkOut: outs.sort().at(-1) ?? "",
   };
 }
 
-const inputCls = "h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20";
-
+// One check-in / one check-out per day; the server auto-distributes it across
+// every configured ca and computes công (see backend upsertDay / matchShifts).
 function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; shifts: ShiftOption[]; onClose: () => void; onSaved: () => void }) {
   const { employee, dateKey, records } = target;
-  const [forms, setForms] = useState<Record<string, ShiftForm>>(() => {
-    const init: Record<string, ShiftForm> = {};
-    for (const s of shifts) init[s._id] = initForm(records[s._id]);
-    return init;
-  });
+  const [day, setDay] = useState(() => dayTimes(records));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const update = (shiftId: string, patch: Partial<ShiftForm>) =>
-    setForms((f) => ({ ...f, [shiftId]: { ...f[shiftId], ...patch } }));
+  const hasExisting = Object.keys(records).length > 0;
 
   function save() {
+    if (!day.checkIn || !day.checkOut) { setError("Nhập cả giờ vào và giờ ra."); return; }
     setSaving(true);
     setError(null);
-    const actions: Promise<unknown>[] = [];
-    for (const s of shifts) {
-      const f = forms[s._id];
-      const existing = records[s._id];
-      const hasTimes = !!f.checkIn || !!f.checkOut;
-      if (f.manual) {
-        actions.push(attendanceService.upsert({ employeeId: employee._id, date: dateKey, shiftId: s._id, status: f.manual as "leave_paid" }));
-      } else if (hasTimes) {
-        actions.push(
-          attendanceService.upsert({
-            employeeId: employee._id,
-            date: dateKey,
-            shiftId: s._id,
-            checkIn: f.checkIn ? vnInstant(dateKey, f.checkIn) : null,
-            checkOut: f.checkOut ? vnInstant(dateKey, f.checkOut) : null,
-          }),
-        );
-      } else if (existing) {
-        actions.push(attendanceService.remove(existing._id));
-      }
-    }
-    if (actions.length === 0) { onClose(); return; }
-    Promise.all(actions)
+    attendanceService
+      .upsertDay({
+        employeeId: employee._id,
+        date: dateKey,
+        checkIn: vnInstant(dateKey, day.checkIn),
+        checkOut: vnInstant(dateKey, day.checkOut),
+      })
       .then(() => onSaved())
       .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể lưu chấm công."))
+      .finally(() => setSaving(false));
+  }
+
+  function clearDay() {
+    if (!hasExisting) { onClose(); return; }
+    setSaving(true);
+    setError(null);
+    Promise.all(Object.values(records).map((r) => attendanceService.remove(r._id)))
+      .then(() => onSaved())
+      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể xoá chấm công."))
       .finally(() => setSaving(false));
   }
 
@@ -547,50 +538,37 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
       <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
         <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
-        <h3 className="text-[16px] font-bold text-foreground">Chấm công · {shifts.length} ca</h3>
+        <h3 className="text-[16px] font-bold text-foreground">Chấm công theo ngày</h3>
         <p className="mt-0.5 text-[12.5px] text-muted-foreground">{employee.fullName || employee.employeeCode} · {dateKey}</p>
 
         <div className="mt-4 flex flex-col gap-4">
-          {shifts.map((s) => {
-            const f = forms[s._id];
-            return (
-              <div key={s._id} className="rounded-xl border border-border/70 p-3.5">
-                <div className="mb-2.5 flex items-center justify-between">
-                  <span className="text-[13px] font-semibold text-foreground">{s.name}</span>
-                  <span className="text-[11.5px] text-muted-foreground tabular-nums">{s.startTime}–{s.endTime}</span>
-                </div>
-                <div className="flex flex-col gap-3">
-                  {/* Nhập giờ vào/ra → hệ thống tự tính trạng thái (đủ công / đi muộn / về sớm). */}
-                  {!f.manual && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[12px] font-medium text-foreground">Giờ vào</label>
-                        <TimeInput className={cn(inputCls, "mt-1.5")} value={f.checkIn} onChange={(v) => update(s._id, { checkIn: v })} />
-                      </div>
-                      <div>
-                        <label className="text-[12px] font-medium text-foreground">Giờ ra</label>
-                        <TimeInput className={cn(inputCls, "mt-1.5")} value={f.checkOut} onChange={(v) => update(s._id, { checkOut: v })} />
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-[11.5px] text-muted-foreground">Hoặc đánh dấu nghỉ/lễ (tuỳ chọn)</label>
-                    <select className={cn(inputCls, "mt-1.5")} value={f.manual} onChange={(e) => update(s._id, { manual: e.target.value })}>
-                      {MANUAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </div>
-                </div>
+          <div className="rounded-xl border border-border/70 p-3.5">
+            <p className="mb-3 text-[12.5px] text-muted-foreground">
+              Nhập 1 giờ vào / 1 giờ ra — hệ thống tự khớp các ca ({shifts.map((s) => `${s.name} ${s.startTime}–${s.endTime}`).join(", ") || "chưa có ca"}) và tính công.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-medium text-foreground">Giờ vào</label>
+                <TimeInput className={cn(inputCls, "mt-1.5")} value={day.checkIn} onChange={(v) => setDay((d) => ({ ...d, checkIn: v }))} />
               </div>
-            );
-          })}
+              <div>
+                <label className="text-[12px] font-medium text-foreground">Giờ ra</label>
+                <TimeInput className={cn(inputCls, "mt-1.5")} value={day.checkOut} onChange={(v) => setDay((d) => ({ ...d, checkOut: v }))} />
+              </div>
+            </div>
+          </div>
           {shifts.length === 0 && <p className="text-[13px] text-muted-foreground">Chưa cấu hình ca làm.</p>}
-          <p className="text-[11.5px] text-muted-foreground">Để trống cả giờ và trạng thái của một ca để xoá ca đó.</p>
           {error && <p className="text-[12.5px] text-destructive">{error}</p>}
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} className="rounded-xl">Huỷ</Button>
-          <Button onClick={save} disabled={saving || shifts.length === 0} className="rounded-xl">{saving ? "Đang lưu…" : "Lưu"}</Button>
+        <div className="mt-5 flex justify-between gap-2">
+          {hasExisting
+            ? <Button variant="outline" onClick={clearDay} disabled={saving} className="rounded-xl text-destructive">Xoá công ngày</Button>
+            : <span />}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} className="rounded-xl">Huỷ</Button>
+            <Button onClick={save} disabled={saving || shifts.length === 0} className="rounded-xl">{saving ? "Đang lưu…" : "Lưu"}</Button>
+          </div>
         </div>
       </div>
     </div>

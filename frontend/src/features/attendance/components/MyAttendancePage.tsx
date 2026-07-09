@@ -66,7 +66,7 @@ export default function MyAttendancePage() {
       <Sidebar active="att" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar crumbs={["Trang chủ", "Chấm công của tôi"]} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[900px] flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -100,7 +100,7 @@ export default function MyAttendancePage() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Card className="p-4"><div className="text-[22px] font-bold tabular-nums">{summary.work}</div><div className="mt-1 text-[12px] text-muted-foreground">Ngày công</div></Card>
               <Card className="p-4"><div className="text-[22px] font-bold tabular-nums">{summary.hours}</div><div className="mt-1 text-[12px] text-muted-foreground">Tổng giờ làm</div></Card>
               <Card className="p-4"><div className="text-[22px] font-bold tabular-nums">{summary.leave}</div><div className="mt-1 text-[12px] text-muted-foreground">Ngày nghỉ phép</div></Card>

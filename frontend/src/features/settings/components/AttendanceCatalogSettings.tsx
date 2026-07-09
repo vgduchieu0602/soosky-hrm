@@ -64,7 +64,7 @@ function WeekdayPicker({ value, disabled, onChange }: { value: number[]; disable
             onClick={() => toggle(d.iso)}
             aria-pressed={on}
             className={cn(
-              "h-7 w-9 rounded-md border text-[11.5px] font-medium transition-colors",
+              "h-8 w-12 rounded-md border text-[12px] font-medium transition-colors",
               disabled ? "cursor-default" : "cursor-pointer hover:border-primary-500",
               on ? "border-primary-500 bg-primary-500/10 text-primary-700" : "border-input bg-card text-muted-foreground",
             )}
@@ -102,21 +102,28 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
   const activeShifts = shifts.filter((s) => s.status !== "archived");
 
   // shift form
-  const [shiftForm, setShiftForm] = useState<{ name: string; startTime: string; endTime: string; breakMinutes: string; workingDays: number[] }>(
-    { name: "", startTime: "08:00", endTime: "12:00", breakMinutes: "0", workingDays: DEFAULT_WORKING_DAYS },
-  );
+  const emptyShiftForm = {
+    name: "", type: "morning" as "morning" | "afternoon" | "full_day", startTime: "08:00", endTime: "12:00",
+    breakMinutes: "0", workingDays: DEFAULT_WORKING_DAYS, effectiveFrom: "", effectiveTo: "",
+  };
+  const [shiftForm, setShiftForm] = useState(emptyShiftForm);
   const [holidayForm, setHolidayForm] = useState({ name: "", recurring: true, date: "", day: "", month: "" });
   const [symbolForm, setSymbolForm] = useState({ code: "", label: "", appliesTo: "", color: "" });
 
   function addShift() {
     settingsService.createShift({
       name: shiftForm.name.trim(),
+      type: shiftForm.type,
+      // Công weight is derived from the ca type: nửa buổi = 0.5, cả ngày = 1.
+      weight: shiftForm.type === "full_day" ? 1 : 0.5,
       startTime: shiftForm.startTime,
       endTime: shiftForm.endTime,
       breakMinutes: Number(shiftForm.breakMinutes) || 0,
       workingDays: shiftForm.workingDays.length ? shiftForm.workingDays : DEFAULT_WORKING_DAYS,
+      effectiveFrom: shiftForm.effectiveFrom || null,
+      effectiveTo: shiftForm.effectiveTo || null,
     })
-      .then(() => { setShiftForm({ name: "", startTime: "08:00", endTime: "12:00", breakMinutes: "0", workingDays: DEFAULT_WORKING_DAYS }); reload(); })
+      .then(() => { setShiftForm(emptyShiftForm); reload(); })
       .catch(() => {});
   }
   function addHoliday() {
@@ -155,26 +162,54 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
       >
         {canManage && (
           <div className="mb-4 flex flex-col gap-3 rounded-xl border border-dashed p-3">
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-3">
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] items-end gap-3">
               <input className={inputCls} placeholder="Tên ca (VD: Ca sáng)" value={shiftForm.name} onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })} />
+              <select className={inputCls} value={shiftForm.type} onChange={(e) => setShiftForm({ ...shiftForm, type: e.target.value as typeof shiftForm.type })}>
+                <option value="morning">Nửa buổi sáng (0.5)</option>
+                <option value="afternoon">Nửa buổi chiều (0.5)</option>
+                <option value="full_day">Cả ngày (1)</option>
+              </select>
               <TimeInput className={inputCls} value={shiftForm.startTime} onChange={(v) => setShiftForm({ ...shiftForm, startTime: v })} />
               <TimeInput className={inputCls} value={shiftForm.endTime} onChange={(v) => setShiftForm({ ...shiftForm, endTime: v })} />
               <input type="number" min={0} className={inputCls} placeholder="Nghỉ (phút)" value={shiftForm.breakMinutes} onChange={(e) => setShiftForm({ ...shiftForm, breakMinutes: e.target.value })} />
               <Button size="sm" disabled={!shiftForm.name.trim() || !shiftForm.workingDays.length} onClick={addShift} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm ca</Button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12px] font-medium text-muted-foreground">Thời gian áp dụng:</span>
+              <span className="text-[12px] font-medium text-muted-foreground">Áp dụng thứ:</span>
               <WeekdayPicker value={shiftForm.workingDays} onChange={(d) => setShiftForm({ ...shiftForm, workingDays: d })} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-medium text-muted-foreground">Áp dụng theo mùa (tuỳ chọn):</span>
+              <DateField key={`new-shift-from-${rk}`} className={cn(inputCls, "w-[150px]")} value={shiftForm.effectiveFrom} onChange={(v) => setShiftForm({ ...shiftForm, effectiveFrom: v })} />
+              <span className="text-muted-foreground">–</span>
+              <DateField key={`new-shift-to-${rk}`} className={cn(inputCls, "w-[150px]")} value={shiftForm.effectiveTo} onChange={(v) => setShiftForm({ ...shiftForm, effectiveTo: v })} />
+              <span className="text-[11.5px] text-muted-foreground">Để trống = áp dụng quanh năm.</span>
             </div>
           </div>
         )}
         <List rows={activeShifts} empty="Chưa có ca làm việc — hãy thêm ít nhất 1 ca." render={(s) => (
           <div key={s._id} className="flex flex-col gap-2.5 rounded-lg border p-3 text-[13px]">
-            <div className="grid grid-cols-[2fr_auto_auto_auto] items-center gap-3">
+            <div className="grid grid-cols-[1.6fr_1fr_auto_auto_1fr_auto] items-center gap-3">
               {canManage ? (
                 <input className={inputCls} defaultValue={s.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.name) settingsService.updateShift(s._id, { name: v }).then(reload).catch(() => {}); }} />
               ) : (
                 <span className="font-medium text-foreground">{s.name}</span>
+              )}
+              {canManage ? (
+                <select
+                  className={inputCls}
+                  value={s.type}
+                  onChange={(e) => {
+                    const type = e.target.value as Shift["type"];
+                    settingsService.updateShift(s._id, { type, weight: type === "full_day" ? 1 : 0.5 }).then(reload).catch(() => {});
+                  }}
+                >
+                  <option value="morning">Nửa sáng (0.5)</option>
+                  <option value="afternoon">Nửa chiều (0.5)</option>
+                  <option value="full_day">Cả ngày (1)</option>
+                </select>
+              ) : (
+                <span className="text-[12px] text-muted-foreground">{s.type === "full_day" ? "Cả ngày" : s.type === "morning" ? "Nửa sáng" : "Nửa chiều"}</span>
               )}
               {canManage ? (
                 <div className="flex items-center gap-1.5">
@@ -185,18 +220,61 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
               ) : (
                 <span className="font-mono text-[12px] text-muted-foreground">{s.startTime}–{s.endTime}</span>
               )}
-              <span className="text-[12px] text-muted-foreground">nghỉ {s.breakMinutes}′</span>
+              {canManage ? (
+                <input
+                  type="number" min={0} className={cn(inputCls, "w-[84px]")} defaultValue={s.breakMinutes}
+                  onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== s.breakMinutes) settingsService.updateShift(s._id, { breakMinutes: v }).then(reload).catch(() => {}); }}
+                />
+              ) : (
+                <span className="text-[12px] text-muted-foreground">nghỉ {s.breakMinutes}′</span>
+              )}
+              <span />
               {canManage && (
                 <Button variant="ghost" size="icon" onClick={() => settingsService.deleteShift(s._id).then(reload).catch(() => {})} className="size-8 text-muted-foreground hover:text-rose-600" aria-label="Xoá ca"><Trash2 className="size-4" /></Button>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t pt-2">
-              <span className="text-[11.5px] font-medium text-muted-foreground">Thời gian áp dụng:</span>
+              <span className="text-[11.5px] font-medium text-muted-foreground">Áp dụng thứ:</span>
               <WeekdayPicker
                 value={s.workingDays?.length ? s.workingDays : DEFAULT_WORKING_DAYS}
                 disabled={!canManage}
                 onChange={(d) => { if (d.length) settingsService.updateShift(s._id, { workingDays: d }).then(reload).catch(() => {}); }}
               />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t pt-2">
+              <span className="text-[11.5px] font-medium text-muted-foreground">Áp dụng theo mùa:</span>
+              {canManage ? (
+                <>
+                  <DateField
+                    key={`from-${s._id}-${s.effectiveFrom ?? ""}`}
+                    className={cn(inputCls, "w-[150px]")}
+                    value={s.effectiveFrom?.slice(0, 10)}
+                    onChange={(v) => { if (v && v !== s.effectiveFrom?.slice(0, 10)) settingsService.updateShift(s._id, { effectiveFrom: v }).then(reload).catch(() => {}); }}
+                  />
+                  <span className="text-muted-foreground">–</span>
+                  <DateField
+                    key={`to-${s._id}-${s.effectiveTo ?? ""}`}
+                    className={cn(inputCls, "w-[150px]")}
+                    value={s.effectiveTo?.slice(0, 10)}
+                    onChange={(v) => { if (v && v !== s.effectiveTo?.slice(0, 10)) settingsService.updateShift(s._id, { effectiveTo: v }).then(reload).catch(() => {}); }}
+                  />
+                  {(s.effectiveFrom || s.effectiveTo) ? (
+                    <button
+                      type="button"
+                      onClick={() => settingsService.updateShift(s._id, { effectiveFrom: null, effectiveTo: null }).then(reload).catch(() => {})}
+                      className="text-[11.5px] font-medium text-muted-foreground underline-offset-2 hover:text-rose-600 hover:underline"
+                    >
+                      Xoá (quanh năm)
+                    </button>
+                  ) : (
+                    <span className="text-[11.5px] text-muted-foreground">Để trống = quanh năm.</span>
+                  )}
+                </>
+              ) : (
+                <span className="text-[12px] text-muted-foreground">
+                  {s.effectiveFrom || s.effectiveTo ? `${fmtDMY(s.effectiveFrom ?? undefined) || "…"} – ${fmtDMY(s.effectiveTo ?? undefined) || "…"}` : "Quanh năm"}
+                </span>
+              )}
             </div>
           </div>
         )} />

@@ -93,7 +93,7 @@ export function DepartmentDetailTabs({
 
         <TabsContent value="overview" className="flex flex-col gap-4">
           <HeadCard node={node} />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Stat label="Trực tiếp" value={node.headcount} />
             <Stat label="Tổng nhánh" value={subtreeHeadcount(node)} />
             <Stat
