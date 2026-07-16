@@ -25,6 +25,7 @@ export interface AttendanceRecord {
   lateMinutes: number;
   earlyMinutes: number;
   session: AttendanceSession;
+  congWeight?: number | null;
   source: string;
   note: string | null;
   leaveRequestId: string | null;
@@ -71,6 +72,9 @@ export interface PersistedAttendanceFields {
   lateMinutes: number;
   earlyMinutes: number;
   session: AttendanceSession;
+  /** Công this record contributes = 1/(số ca trong ngày). Optional for callers
+   *  that don't split (falls back to session weight at aggregation). */
+  congWeight?: number | null;
 }
 
 // ---- repository ports ----
@@ -114,6 +118,8 @@ export interface LeaveRequestRepository {
   }): Promise<LeaveRequestRecord>;
   findById(id: Id, tx?: Tx): Promise<LeaveRequestRecord | null>;
   findByEmployee(employeeId: Id): Promise<LeaveRequestRecord[]>;
+  /** Pending/approved requests of the employee whose date range intersects [start, end]. */
+  findOverlapping(employeeId: Id, start: Date, end: Date, tx?: Tx): Promise<LeaveRequestRecord[]>;
   listWithEmployee(filter: { status?: string }): Promise<Record<string, unknown>[]>;
   updateStatus(
     id: Id,

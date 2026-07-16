@@ -2,6 +2,8 @@ import { Types } from 'mongoose';
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
 import { Department } from '@shared/models/department.model';
+import { Position } from '@shared/models/position.model';
+import { User } from '@shared/models/user.model';
 import { Attendance } from '@shared/models/attendance.model';
 import { LeaveRequest } from '@shared/models/leave-request.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
@@ -144,14 +146,17 @@ export class MongooseDashboardRepository implements DashboardRepository {
         .lean(),
     ]);
     const deptIds = [...new Set(emps.map((e) => String(e.departmentId)).filter(Boolean))];
-    const depts = await Department.find({ _id: { $in: deptIds } })
-      .select('name')
-      .lean();
+    const posIds = [...new Set(emps.map((e) => String(e.positionId)).filter(Boolean))];
+    const [depts, positions] = await Promise.all([
+      Department.find({ _id: { $in: deptIds } }).select('name').lean(),
+      Position.find({ _id: { $in: posIds } }).select('title').lean(),
+    ]);
     return {
       employees: emps.map((e) => ({
         _id: String(e._id),
         employeeCode: e.employeeCode,
         departmentId: e.departmentId ? String(e.departmentId) : null,
+        positionId: e.positionId ? String(e.positionId) : null,
       })),
       profiles: profiles.map((p) => ({
         employeeId: String(p.employeeId),
@@ -160,6 +165,7 @@ export class MongooseDashboardRepository implements DashboardRepository {
         lastName: p.lastName,
       })),
       departments: depts.map((d) => ({ _id: String(d._id), name: d.name })),
+      positions: positions.map((p) => ({ _id: String(p._id), name: p.title })),
     };
   }
 
@@ -206,8 +212,22 @@ export class MongooseDashboardRepository implements DashboardRepository {
   }
 
   async recentAuditLogs(limit: number): Promise<AuditRow[]> {
-    const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(limit).lean();
-    return logs.map((l) => ({ action: l.action, resource: l.resource, timestamp: l.timestamp }));
+    const logs = await AuditLog.find()
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .select('action resource timestamp userId')
+      .lean();
+    const userIds = [...new Set(logs.map((l) => String(l.userId)).filter((s) => s !== 'undefined'))];
+    const users = await User.find({ _id: { $in: userIds } })
+      .select('username')
+      .lean();
+    const nameById = new Map(users.map((u) => [String(u._id), u.username]));
+    return logs.map((l) => ({
+      action: l.action,
+      resource: l.resource,
+      timestamp: l.timestamp,
+      who: l.userId ? nameById.get(String(l.userId)) ?? null : null,
+    }));
   }
 }
 

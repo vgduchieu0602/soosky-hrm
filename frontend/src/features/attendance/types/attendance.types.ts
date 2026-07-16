@@ -20,6 +20,8 @@ export interface AttendanceRecord {
   checkOut?: string | null;
   status: AttendanceStatus;
   workHours: number | null;
+  /** Công this record contributes = 1/(số ca trong ngày). */
+  congWeight?: number | null;
   lateMinutes: number;
   earlyMinutes: number;
   note?: string | null;

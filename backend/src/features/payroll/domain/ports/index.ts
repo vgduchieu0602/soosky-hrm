@@ -72,8 +72,16 @@ export interface PayrollPeriodRepository {
   reopenToOpen(id: Id): Promise<PeriodRecord | null>;
   lockAttendance(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
   unlockAttendance(id: Id): Promise<PeriodRecord | null>;
+  lockEvaluations(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
+  unlockEvaluations(id: Id): Promise<PeriodRecord | null>;
   markProcessing(id: Id, tx: Tx): Promise<void>;
   markPaid(id: Id, tx: Tx): Promise<void>;
+}
+
+/** Triggers the payroll run engine — lets the period workflow auto-compute
+ *  once both locks (attendance + evaluations) are in place. */
+export interface PayrollRunPort {
+  forPeriod(periodId: Id): Promise<{ computed: number; errors: { employeeId: string; reason: string }[] }>;
 }
 
 // ---- computed-payroll repository ----
@@ -94,7 +102,7 @@ export interface PayrollTotalsRow {
 export interface PayrollRepository {
   findById(id: Id): Promise<IPayroll | null>;
   findStatusById(id: Id): Promise<{ _id: unknown; status: string } | null>;
-  findExisting(periodId: Id, employeeId: Id): Promise<{ status: string } | null>;
+  findExisting(periodId: Id, employeeId: Id, contractId?: Id | null): Promise<{ status: string } | null>;
   paginate(
     filter: ListPayrollFilter,
     page: number,
@@ -162,6 +170,7 @@ export interface EmployeeGateway {
 
 export interface ContractGateway {
   findActive(employeeId: Id): Promise<ContractRecord | null>;
+  findOverlapping(employeeId: Id, start: Date, end: Date): Promise<ContractRecord[]>;
   activeEmployeeIds(employeeIds: Id[]): Promise<string[]>;
 }
 

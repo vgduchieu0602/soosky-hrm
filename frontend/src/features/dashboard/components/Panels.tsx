@@ -1,5 +1,6 @@
+import { Link } from "react-router-dom";
 import {
-  Check, X, Wallet, CalendarDays, Clock, UserPlus, Pencil, Send, MoreHorizontal,
+  Check, X, Wallet, CalendarDays, Clock, UserPlus, Pencil, Send,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -56,9 +57,9 @@ export function LeavePending({ items = PENDING_LEAVES, onApprove, onReject, busy
             {PENDING_LEAVES.length} đơn xin nghỉ mới nhất
           </CardDescription>
         </div>
-        <Button variant="link" className="h-auto p-0 text-[12px] font-medium text-primary-600">
+        <Link to="/leave" className="text-[12px] font-medium text-primary-600 hover:underline">
           Xem tất cả →
-        </Button>
+        </Link>
       </CardHeader>
 
       {PENDING_LEAVES.length === 0 && (
@@ -130,9 +131,9 @@ export function UpcomingLeaves({ items = UPCOMING_LEAVES }: { items?: UpcomingLe
             Nhân viên sắp nghỉ trong 30 ngày tới
           </CardDescription>
         </div>
-        <Button variant="link" className="h-auto p-0 text-[12px] font-medium text-primary-600">
+        <Link to="/leave" className="text-[12px] font-medium text-primary-600 hover:underline">
           Lịch →
-        </Button>
+        </Link>
       </CardHeader>
 
       <CardContent className="mt-3 flex flex-col p-0">
@@ -188,14 +189,6 @@ export function PayrollSection({ data = PAYROLL }: { data?: PayrollData }) {
             Bảng lương kỳ {p.period}
           </CardTitle>
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-8 border-white/15 bg-transparent text-white/60 hover:bg-white/10 hover:text-white"
-          aria-label="Tuỳ chọn"
-        >
-          <MoreHorizontal className="size-4" />
-        </Button>
       </CardHeader>
 
       <div className="mt-5">
@@ -243,9 +236,12 @@ export function PayrollSection({ data = PAYROLL }: { data?: PayrollData }) {
           Dự kiến chi:{" "}
           <span className="font-semibold text-white/85 tabular-nums">{p.payDate}</span>
         </span>
-        <Button className="h-auto bg-primary-500 px-3 py-1.5 text-[12px] hover:bg-primary-600">
+        <Link
+          to="/payroll"
+          className="rounded-md bg-primary-500 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-primary-600"
+        >
           Xem chi tiết
-        </Button>
+        </Link>
       </CardFooter>
     </Card>
   );
@@ -261,12 +257,12 @@ export function TopPerformers({ items = PERFORMERS }: { items?: Performer[] }) {
         <div>
           <CardTitle className="text-[15px] font-semibold tracking-tight">Top Performers</CardTitle>
           <CardDescription className="mt-0.5 text-[12.5px]">
-            Tháng 5, 2026 · theo điểm hiệu suất
+            Đánh giá mới nhất · điểm hiệu suất + mục tiêu
           </CardDescription>
         </div>
-        <Button variant="link" className="h-auto p-0 text-[12px] font-medium text-primary-600">
+        <Link to="/performance" className="text-[12px] font-medium text-primary-600 hover:underline">
           Tất cả →
-        </Button>
+        </Link>
       </CardHeader>
 
       <CardContent className="mt-3 flex flex-col p-0">
@@ -313,9 +309,9 @@ export function RecentActivities({ items = ACTIVITIES }: { items?: Activity[] })
           <CardTitle className="text-[15px] font-semibold tracking-tight">Recent Activities</CardTitle>
           <CardDescription className="mt-0.5 text-[12.5px]">Nhật ký hoạt động gần đây</CardDescription>
         </div>
-        <Button variant="link" className="h-auto p-0 text-[12px] font-medium text-primary-600">
+        <Link to="/settings" className="text-[12px] font-medium text-primary-600 hover:underline">
           Xem nhật ký →
-        </Button>
+        </Link>
       </CardHeader>
 
       <CardContent className="relative mt-3 p-0">

@@ -88,6 +88,7 @@ export class MongooseSalaryPolicyRepository implements SalaryPolicyRepository {
       ...(input.unionFeeRate !== undefined && { unionFeeRate: input.unionFeeRate }),
       ...(input.unionFeeEnabled !== undefined && { unionFeeEnabled: input.unionFeeEnabled }),
       ...(input.probationPayRate !== undefined && { probationPayRate: input.probationPayRate }),
+      ...(input.prorateByAttendance !== undefined && { prorateByAttendance: input.prorateByAttendance }),
       createdBy: new Types.ObjectId(createdBy),
     });
     return persisted(doc);
@@ -113,6 +114,7 @@ export class MongooseSalaryPolicyRepository implements SalaryPolicyRepository {
     if (input.unionFeeRate !== undefined) patch.unionFeeRate = input.unionFeeRate;
     if (input.unionFeeEnabled !== undefined) patch.unionFeeEnabled = input.unionFeeEnabled;
     if (input.probationPayRate !== undefined) patch.probationPayRate = input.probationPayRate;
+    if (input.prorateByAttendance !== undefined) patch.prorateByAttendance = input.prorateByAttendance;
 
     const updated = await SalaryPolicyConfig.findByIdAndUpdate(id, patch, { new: true });
     return updated ? persisted(updated) : null;

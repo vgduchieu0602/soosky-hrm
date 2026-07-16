@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Clock, CalendarDays, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TimeInput } from "@/components/ui/time-input";
+import { TimeSelect } from "@/components/ui/time-select";
+import { fmtTime12 } from "@/shared/utils/time.utils";
 import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
@@ -169,8 +170,8 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
                 <option value="afternoon">Nửa buổi chiều (0.5)</option>
                 <option value="full_day">Cả ngày (1)</option>
               </select>
-              <TimeInput className={inputCls} value={shiftForm.startTime} onChange={(v) => setShiftForm({ ...shiftForm, startTime: v })} />
-              <TimeInput className={inputCls} value={shiftForm.endTime} onChange={(v) => setShiftForm({ ...shiftForm, endTime: v })} />
+              <TimeSelect aria-label="Giờ vào" className="w-full" value={shiftForm.startTime} onChange={(v) => setShiftForm({ ...shiftForm, startTime: v })} />
+              <TimeSelect aria-label="Giờ ra" className="w-full" value={shiftForm.endTime} onChange={(v) => setShiftForm({ ...shiftForm, endTime: v })} />
               <input type="number" min={0} className={inputCls} placeholder="Nghỉ (phút)" value={shiftForm.breakMinutes} onChange={(e) => setShiftForm({ ...shiftForm, breakMinutes: e.target.value })} />
               <Button size="sm" disabled={!shiftForm.name.trim() || !shiftForm.workingDays.length} onClick={addShift} className="h-9 gap-1.5 rounded-lg"><Plus className="size-3.5" /> Thêm ca</Button>
             </div>
@@ -213,12 +214,12 @@ export function AttendanceCatalogSettings({ canManage }: Props) {
               )}
               {canManage ? (
                 <div className="flex items-center gap-1.5">
-                  <TimeInput className={cn(inputCls, "w-[96px]")} value={s.startTime} onChange={(v) => { if (v && v !== s.startTime) settingsService.updateShift(s._id, { startTime: v }).then(reload).catch(() => {}); }} />
+                  <TimeSelect aria-label="Giờ vào" className="w-[118px]" value={s.startTime} onChange={(v) => { if (v && v !== s.startTime) settingsService.updateShift(s._id, { startTime: v }).then(reload).catch(() => {}); }} />
                   <span className="text-muted-foreground">–</span>
-                  <TimeInput className={cn(inputCls, "w-[96px]")} value={s.endTime} onChange={(v) => { if (v && v !== s.endTime) settingsService.updateShift(s._id, { endTime: v }).then(reload).catch(() => {}); }} />
+                  <TimeSelect aria-label="Giờ ra" className="w-[118px]" value={s.endTime} onChange={(v) => { if (v && v !== s.endTime) settingsService.updateShift(s._id, { endTime: v }).then(reload).catch(() => {}); }} />
                 </div>
               ) : (
-                <span className="font-mono text-[12px] text-muted-foreground">{s.startTime}–{s.endTime}</span>
+                <span className="font-mono text-[12px] text-muted-foreground">{fmtTime12(s.startTime)} – {fmtTime12(s.endTime)}</span>
               )}
               {canManage ? (
                 <input

@@ -330,6 +330,10 @@ it('drives all use-cases and prints a coverage checklist', async () => {
     const res = await api.post(`/api/v1/payroll/periods/${periodId}/lock-attendance`).set(hr());
     want(res.status < 300, `status ${res.status} ${JSON.stringify(res.body.error ?? '')}`);
   });
+  await check('PAY-07b', 'Lock evaluations for period', async () => {
+    const res = await api.post(`/api/v1/payroll/periods/${periodId}/lock-evaluations`).set(hr());
+    want(res.status < 300, `status ${res.status} ${JSON.stringify(res.body.error ?? '')}`);
+  });
   await check('PAY-08', 'Run payroll for one employee', async () => {
     const res = await api.post(`/api/v1/payroll/periods/${periodId}/run/${selfEmpId}`).set(hr());
     want(res.status < 300, `status ${res.status} ${JSON.stringify(res.body.error ?? '')}`);

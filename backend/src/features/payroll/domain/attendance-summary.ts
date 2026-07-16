@@ -12,13 +12,19 @@
  *                                   it before payroll close; until then it does
  *                                   not inflate the attendance ratio
  *   leave_paid                    → paid leave (paid, not "worked")
- *   holiday                       → holiday   (paid, not "worked")
+ *   holiday                       → holiday   (neutral — see below)
  *   leave_unpaid                  → unpaid leave (reduces pay)
  *   absent                        → absence      (reduces pay)
  *
- * `actualWorkDays` = paid days (worked + paid leave + holiday) so the
- * attendanceRatio does not penalise approved paid leave or public holidays;
- * `unpaidDays` = unpaid leave + absence.
+ * `actualWorkDays` = paid days (worked + paid leave) so the attendanceRatio
+ * does not penalise approved paid leave; `unpaidDays` = unpaid leave + absence.
+ *
+ * Holidays are NEUTRAL for the ratio: `standardWorkDays` already EXCLUDES
+ * public holidays, so a manually-entered `holiday` row must not add to
+ * `actualWorkDays` — otherwise it would inflate the ratio and mask unpaid
+ * absence in the same period (e.g. 20 worked + 1 holiday over a 21-day
+ * standard would read as full attendance despite 1 unpaid day). Holiday pay
+ * is implicit: the day is out of both the numerator and the denominator.
  */
 import type { AttendanceSession, AttendanceStatus } from '@shared/models/attendance.model';
 
@@ -26,6 +32,9 @@ export interface AttendanceRow {
   session: AttendanceSession;
   status: AttendanceStatus;
   workHours?: number | null;
+  /** Công this record contributes = 1/(số ca trong ngày). Falls back to the
+   *  session weight when absent (legacy/leave rows). */
+  congWeight?: number | null;
 }
 
 export interface AttendanceSummary {
@@ -36,7 +45,8 @@ export interface AttendanceSummary {
   absentDays: number;
   /** Check-in but no check-out — not paid until corrected. */
   incompleteDays: number;
-  /** Paid days counting toward salary: worked + paid leave + holiday. */
+  /** Paid days counting toward salary: worked + paid leave (holidays are
+   *  neutral — already excluded from standardWorkDays). */
   actualWorkDays: number;
   /** Days not paid: unpaid leave + absence. */
   unpaidDays: number;
@@ -63,7 +73,9 @@ export function summarizeAttendance(rows: AttendanceRow[]): AttendanceSummary {
   let totalWorkHours = 0;
 
   for (const row of rows) {
-    const weight = SESSION_WEIGHT[row.session] ?? 1;
+    // Prefer the stored per-record công (1/N ca in the day); fall back to the
+    // session weight for legacy/leave rows without an explicit congWeight.
+    const weight = row.congWeight ?? SESSION_WEIGHT[row.session] ?? 1;
     switch (row.status) {
       // `late` / `early_leave` are tracked for the record but count as a FULL
       // paid work day — lateness has no reward/penalty effect on pay (company
@@ -101,7 +113,7 @@ export function summarizeAttendance(rows: AttendanceRow[]): AttendanceSummary {
     unpaidLeaveDays: round2(unpaidLeaveDays),
     absentDays: round2(absentDays),
     incompleteDays: round2(incompleteDays),
-    actualWorkDays: round2(workedDays + paidLeaveDays + holidayDays),
+    actualWorkDays: round2(workedDays + paidLeaveDays),
     unpaidDays: round2(unpaidLeaveDays + absentDays),
     totalWorkHours: round2(totalWorkHours),
     recordCount: rows.length,

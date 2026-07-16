@@ -99,11 +99,12 @@ export function EmployeesByDept({ items = DEPARTMENTS_CHART }: { items?: DeptSli
   const cy = 100;
   const r = 78;
   const ir = 50;
-  let cumulative = 0;
-  const slices = DEPARTMENTS_CHART.map((d) => {
-    const startAngle = (cumulative / total) * 2 * Math.PI - Math.PI / 2;
-    cumulative += d.count;
-    const endAngle = (cumulative / total) * 2 * Math.PI - Math.PI / 2;
+  const offsets = DEPARTMENTS_CHART.map((_, i) =>
+    DEPARTMENTS_CHART.slice(0, i).reduce((s, d) => s + d.count, 0),
+  );
+  const slices = DEPARTMENTS_CHART.map((d, i) => {
+    const startAngle = (offsets[i] / total) * 2 * Math.PI - Math.PI / 2;
+    const endAngle = ((offsets[i] + d.count) / total) * 2 * Math.PI - Math.PI / 2;
     const x1 = cx + r * Math.cos(startAngle);
     const y1 = cy + r * Math.sin(startAngle);
     const x2 = cx + r * Math.cos(endAngle);
@@ -194,7 +195,9 @@ export function AttendanceToday({ items = ATTENDANCE_TODAY }: { items?: AttSlice
       <CardHeader className="p-0">
         <CardTitle className="text-[15px] font-semibold tracking-tight">Attendance Today</CardTitle>
         <CardDescription className="mt-0.5 text-[12.5px]">
-          Cập nhật 11:42 · {total} nhân sự
+          Cập nhật{" "}
+          {new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date())}
+          {" · "}{total} nhân sự
         </CardDescription>
       </CardHeader>
 

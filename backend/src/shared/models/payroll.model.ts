@@ -11,6 +11,10 @@ type Dec = mongoose.Types.Decimal128;
 export interface IPayroll {
   payrollPeriodId: Types.ObjectId;
   employeeId: Types.ObjectId;
+  /** The contract this payslip line covers. A month with a mid-month contract
+   *  change (e.g. intern → probation) yields one line per contract. Null on
+   *  legacy single-contract rows. */
+  contractId?: Types.ObjectId | null;
   policyConfigId?: Types.ObjectId | null;
   monthlyEvaluationId?: Types.ObjectId | null;
 
@@ -96,6 +100,7 @@ const payrollSchema = new Schema<IPayroll>(
       index: true,
     },
     employeeId: { type: Schema.Types.ObjectId, ref: 'employees', required: true, index: true },
+    contractId: { type: Schema.Types.ObjectId, ref: 'employeeContracts', default: null },
     policyConfigId: { type: Schema.Types.ObjectId, ref: 'salaryPolicyConfigs', default: null },
     monthlyEvaluationId: {
       type: Schema.Types.ObjectId,
@@ -161,6 +166,8 @@ const payrollSchema = new Schema<IPayroll>(
   },
 );
 
-payrollSchema.index({ payrollPeriodId: 1, employeeId: 1 }, { unique: true });
+// One line per (period, employee, contract) so a mid-month contract change
+// produces separate payslip lines. contractId null = single-contract month.
+payrollSchema.index({ payrollPeriodId: 1, employeeId: 1, contractId: 1 }, { unique: true });
 
 export const Payroll = mongoose.model<IPayroll>(DB_NAME, payrollSchema);

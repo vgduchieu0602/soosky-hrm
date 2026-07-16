@@ -84,7 +84,8 @@ export const payrollPeriodController = {
   },
   async lockAttendance(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json({ data: await payrollPeriodUseCases.lockAttendance(idParam(req), userId(req)) });
+      const { period, autoRunning } = await payrollPeriodUseCases.lockAttendance(idParam(req), userId(req));
+      res.json({ data: period, meta: autoRunning ? { autoRunning: true } : undefined });
     } catch (e) {
       next(e);
     }
@@ -92,6 +93,28 @@ export const payrollPeriodController = {
   async unlockAttendance(req: Request, res: Response, next: NextFunction) {
     try {
       res.json({ data: await payrollPeriodUseCases.unlockAttendance(idParam(req), userId(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async evaluationReadiness(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await payrollPeriodUseCases.evaluationReadiness(idParam(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async lockEvaluations(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { period, autoRunning } = await payrollPeriodUseCases.lockEvaluations(idParam(req), userId(req));
+      res.json({ data: period, meta: autoRunning ? { autoRunning: true } : undefined });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async unlockEvaluations(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await payrollPeriodUseCases.unlockEvaluations(idParam(req), userId(req)) });
     } catch (e) {
       next(e);
     }

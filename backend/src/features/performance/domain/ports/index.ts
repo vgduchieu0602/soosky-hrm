@@ -76,6 +76,8 @@ export interface CriterionGateway {
 export interface PayrollLockGateway {
   /** Approved/paid payroll locking this employee+period, or null. */
   findLockedPayroll(payrollPeriodId: Id, employeeId: Id): Promise<{ status: string } | null>;
+  /** When the period's evaluations were locked (chốt đánh giá), or null. */
+  evaluationLockedAt(payrollPeriodId: Id): Promise<Date | null>;
 }
 
 // ---- infrastructure services ----

@@ -32,6 +32,29 @@ const PERIOD_STATUS_LABEL: Record<string, string> = {
   paid: 'Đã chi',
 };
 
+const ACTION_LABEL: Record<string, string> = {
+  create: 'Tạo mới',
+  update: 'Cập nhật',
+  delete: 'Xóa',
+  login: 'Đăng nhập',
+  logout: 'Đăng xuất',
+};
+
+const RESOURCE_LABEL: Record<string, string> = {
+  payroll: 'bảng lương',
+  payrollPeriod: 'kỳ lương',
+  leaveRequest: 'đơn nghỉ phép',
+  leaveBalance: 'hạn mức phép',
+  employee: 'nhân viên',
+  attendance: 'chấm công',
+  user: 'tài khoản',
+  performance: 'đánh giá',
+  monthlyEvaluation: 'đánh giá tháng',
+  shift: 'ca làm việc',
+  holiday: 'ngày lễ',
+  salaryPolicyConfig: 'chính sách lương',
+};
+
 // ---- pure helpers ---------------------------------------------------------
 
 function startOfDay(d: Date) {
@@ -83,6 +106,7 @@ function compactVnd(n: number): string {
 // A name/code/dept lookup helper built from repository lookup data.
 interface Lookup {
   deptName: Map<string, string>;
+  posTitle: Map<string, string>;
   prof: Map<string, ProfileInfo>;
   emp: Map<string, EmployeeInfo>;
 }
@@ -94,9 +118,10 @@ export class DashboardUseCases {
   ) {}
 
   private async buildLookup(ids: string[]): Promise<Lookup> {
-    const { employees, profiles, departments } = await this.repo.employeeLookup(ids);
+    const { employees, profiles, departments, positions } = await this.repo.employeeLookup(ids);
     return {
       deptName: new Map(departments.map((d) => [String(d._id), d.name])),
+      posTitle: new Map(positions.map((p) => [String(p._id), p.name])),
       prof: new Map(profiles.map((p) => [String(p.employeeId), p])),
       emp: new Map(employees.map((e) => [String(e._id), e])),
     };
@@ -282,7 +307,7 @@ export class DashboardUseCases {
         name: fullName(p?.firstName, p?.middleName, p?.lastName),
         initials: initials(p?.firstName, p?.lastName),
         code: emp?.employeeCode ?? '—',
-        role: '',
+        role: emp?.positionId ? perfLook.posTitle.get(String(emp.positionId)) ?? '' : '',
         dept: emp ? perfLook.deptName.get(String(emp.departmentId)) ?? '' : '',
         score: Math.round(e.score),
       };
@@ -291,9 +316,9 @@ export class DashboardUseCases {
     // --- Recent activities (audit log) ---
     const logs = await this.repo.recentAuditLogs(7);
     const activities = logs.map((l) => ({
-      who: 'Hệ thống',
-      what: `${l.action}`,
-      target: l.resource,
+      who: l.who ?? 'Hệ thống',
+      what: ACTION_LABEL[l.action] ?? l.action,
+      target: RESOURCE_LABEL[l.resource] ?? l.resource,
       when: relativeTime(new Date(l.timestamp), now),
       icon: RESOURCE_ICON[l.resource] ?? 'Pencil',
     }));

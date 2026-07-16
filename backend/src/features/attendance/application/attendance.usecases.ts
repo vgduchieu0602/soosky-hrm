@@ -34,6 +34,25 @@ export class AttendanceUseCases {
     if (name) throw new HttpError(409, `Kỳ ${name} đã chốt chấm công — không thể sửa`, 'ATT_LOCKED');
   }
 
+  /** Số ca cấu hình áp dụng cho một ngày (theo thứ + mùa). */
+  private async dayShiftDefs(dateKey: Date) {
+    const iso = dateKey.getUTCDay() === 0 ? 7 : dateKey.getUTCDay();
+    const t = dateKey.getTime();
+    const dayStart = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    return (await this.shifts.listActiveShiftDefs()).filter(
+      (s) =>
+        s.workingDays.includes(iso) &&
+        (!s.effectiveFrom || t >= dayStart(s.effectiveFrom)) &&
+        (!s.effectiveTo || t <= dayStart(s.effectiveTo)),
+    );
+  }
+
+  /** Công mỗi ca đóng góp = 1 / (số ca trong ngày). ≥1 để không chia 0. */
+  private async dayShiftShare(dateKey: Date): Promise<number> {
+    const n = (await this.dayShiftDefs(dateKey)).length;
+    return n > 0 ? 1 / n : 1;
+  }
+
   /** Employee self view — derives employee from the authenticated user. */
   async myMonth(userId: string, month: string) {
     const employee = await this.employees.findByUserId(userId);
@@ -67,10 +86,11 @@ export class AttendanceUseCases {
     const checkIn = kind === 'in' ? now : existing?.checkIn ?? null;
     const checkOut = kind === 'out' ? now : existing?.checkOut ?? null;
     const fields = computeFields(window, policy, { checkIn, checkOut });
+    const congWeight = await this.dayShiftShare(dateKey);
 
     const doc = await this.attendance.upsertPunch(
       { employeeId: employee._id, date: dateKey, shiftId: shift.id },
-      { ...fields, source: 'self' },
+      { ...fields, congWeight, source: 'self' },
       userId,
     );
     log.info({ action: `punch-${kind}`, employeeId: employee._id, status: fields.status });
@@ -98,14 +118,31 @@ export class AttendanceUseCases {
     // seasonal window (effectiveFrom/effectiveTo) covers this date — companies
     // with different summer/winter hours configure separate ca per season.
     const iso = dateKey.getUTCDay() === 0 ? 7 : dateKey.getUTCDay();
-    const t = dateKey.getTime();
-    const defs = (await this.shifts.listActiveShiftDefs()).filter(
-      (s) =>
-        s.workingDays.includes(iso) &&
-        (!s.effectiveFrom || t >= s.effectiveFrom.getTime()) &&
-        (!s.effectiveTo || t <= s.effectiveTo.getTime()),
-    );
-    if (defs.length === 0) throw new HttpError(400, 'Chưa cấu hình ca làm cho ngày này', 'ATT_005');
+    const allActive = await this.shifts.listActiveShiftDefs();
+    const onWeekday = allActive.filter((s) => s.workingDays.includes(iso));
+    // Applicable ca (weekday + seasonal window). matchShifts splits công evenly
+    // across these — công per counted ca = 1 / defs.length.
+    const defs = await this.dayShiftDefs(dateKey);
+    if (defs.length === 0) {
+      const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+      const label = WD[dateKey.getUTCDay()];
+      const dmy = `${String(dateKey.getUTCDate()).padStart(2, '0')}/${String(dateKey.getUTCMonth() + 1).padStart(2, '0')}`;
+      if (allActive.length === 0) {
+        throw new HttpError(400, 'Chưa cấu hình ca làm nào — vào Cài đặt → Chấm công để thêm ca.', 'ATT_005');
+      }
+      if (onWeekday.length === 0) {
+        throw new HttpError(
+          400,
+          `Không có ca làm áp dụng cho ${label} (${dmy}). Vào Cài đặt → Chấm công, bật ${label} ở "Áp dụng thứ" của ca cần chấm.`,
+          'ATT_005',
+        );
+      }
+      throw new HttpError(
+        400,
+        `Ca làm cho ${label} (${dmy}) nằm ngoài khoảng áp dụng theo mùa. Kiểm tra "Áp dụng theo mùa" của ca trong Cài đặt.`,
+        'ATT_005',
+      );
+    }
 
     const shiftDefs: ShiftDef[] = defs.map((d) => ({
       id: d.id, type: d.type, startTime: d.startTime, endTime: d.endTime,
@@ -126,6 +163,7 @@ export class AttendanceUseCases {
             lateMinutes: m.lateMinutes,
             earlyMinutes: m.earlyMinutes,
             session: m.session,
+            congWeight: m.congWeight,
             source: 'manual',
           },
           userId,
@@ -183,6 +221,7 @@ export class AttendanceUseCases {
     const dateKey = vnDateKey(input.date, policy.timezone);
     await this.assertUnlocked(dateKey);
     const fields = computeFields(window, policy, input);
+    const congWeight = await this.dayShiftShare(dateKey);
 
     const existing = await this.attendance.findBySlot(employee._id, dateKey, input.shiftId);
     if (existing) {
@@ -194,6 +233,7 @@ export class AttendanceUseCases {
         lateMinutes: fields.lateMinutes,
         earlyMinutes: fields.earlyMinutes,
         session: fields.session,
+        congWeight,
         note: input.note ?? existing.note,
         adjustedBy: userId,
         adjustedAt: this.clock.now(),
@@ -216,6 +256,7 @@ export class AttendanceUseCases {
       lateMinutes: fields.lateMinutes,
       earlyMinutes: fields.earlyMinutes,
       session: fields.session,
+      congWeight,
       note: input.note ?? null,
       source: 'manual',
       createdBy: userId,

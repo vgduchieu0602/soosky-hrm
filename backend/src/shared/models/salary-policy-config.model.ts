@@ -37,6 +37,10 @@ export interface ISalaryPolicyConfig {
   internStipend: mongoose.Types.Decimal128;
   /** Weights for the 20/60/20 effective base salary formula. */
   salaryComponentWeights: ISalaryComponentWeights;
+  /** When true (default), the performance & goal components are also scaled by
+   *  the attendance ratio — unpaid absence reduces the WHOLE salary, not just
+   *  the 20% attendance part. */
+  prorateByAttendance: boolean;
   createdBy?: Types.ObjectId | null;
   updatedBy?: Types.ObjectId | null;
   created_at?: Date;
@@ -76,6 +80,7 @@ const salaryPolicyConfigSchema = new Schema<ISalaryPolicyConfig>(
       type: salaryComponentWeightsSchema,
       default: () => ({ attendance: 20, performance: 60, goal: 20 }),
     },
+    prorateByAttendance: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
   },

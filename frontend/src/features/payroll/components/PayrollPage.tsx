@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Search, Wallet, ChevronDown, Check, ChevronRight, Loader2, BadgeDollarSign,
-  Plus, FilePlus2, Settings2, Calculator, Lock, LockOpen, Download, RotateCcw, Trash2,
+  FilePlus2, Settings2, Calculator, Lock, LockOpen, Download, RotateCcw,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/shared/utils/cn";
 import { parseDecimal, fmtVND } from "@/shared/utils/money";
+import { fmtPeriodName } from "@/shared/utils/period.utils";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
 import { payrollService } from "@features/payroll/services/payroll.service";
 import { employeeService } from "@features/employee/services/employee.service";
-import { CreatePeriodDialog } from "@features/payroll/components/CreatePeriodDialog";
 import { CompensationDialog, type EmpOption } from "@features/payroll/components/CompensationDialog";
 import { CompensationManagerDialog } from "@features/payroll/components/CompensationManagerDialog";
 import { GrossUpCalculatorDialog } from "@features/payroll/components/GrossUpCalculatorDialog";
@@ -23,7 +23,7 @@ import { PayrollPreflightDialog } from "@features/payroll/components/PayrollPref
 import { toast } from "sonner";
 import { PayslipDrawer, type EmpInfo } from "@features/payroll/components/PayslipDrawer";
 import type {
-  CreatePeriodInput, PayrollPeriod, PayrollRecord, PayrollStatus,
+  PayrollPeriod, PayrollRecord, PayrollStatus,
 } from "@features/payroll/types/payroll.types";
 
 type BadgeVariant = "slate" | "amber" | "emerald" | "blue" | "violet" | "rose";
@@ -115,7 +115,6 @@ export default function Payroll() {
   const [status, setStatus] = useState<string>(ALL);
   const [q, setQ] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [periodDlg, setPeriodDlg] = useState(false);
   const [compDlg, setCompDlg] = useState(false);
   const [manageDlg, setManageDlg] = useState(false);
   const [grossUpDlg, setGrossUpDlg] = useState(false);
@@ -197,11 +196,6 @@ export default function Payroll() {
     [empMap],
   );
 
-  async function handleCreatePeriod(input: CreatePeriodInput) {
-    const created = await payrollService.createPeriod(input);
-    setPeriods((ps) => [created, ...ps]);
-    setPeriodId(created._id);
-  }
 
   async function act(fn: () => Promise<unknown>, successMsg = "Đã cập nhật") {
     setBusy(true);
@@ -245,17 +239,65 @@ export default function Payroll() {
     }
   }
 
+  // Auto-run: khi đủ 2 chốt (chấm công + đánh giá), BE tự tính bảng lương ở
+  // chế độ nền. Báo cho HR + reload bảng sau vài giây để thấy kết quả.
+  function notifyAutoRun(autoRunning?: boolean) {
+    if (!autoRunning) return;
+    toast.info("Bảng lương đang được tính ở chế độ nền — sẽ hiển thị sau giây lát.");
+    setTimeout(() => setReloadKey((n) => n + 1), 4000);
+  }
+
   const attLocked = !!period?.attendanceLockedAt;
   async function lockAtt(lock: boolean) {
     if (!periodId) return;
     setBusy(true);
     setErr(null);
     try {
-      const updated = lock
-        ? await payrollService.lockAttendance(periodId)
-        : await payrollService.unlockAttendance(periodId);
-      setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
-      toast.success(lock ? "Đã chốt chấm công" : "Đã mở chốt chấm công");
+      if (lock) {
+        const { period: updated, autoRunning } = await payrollService.lockAttendance(periodId);
+        setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+        toast.success("Đã chốt chấm công");
+        notifyAutoRun(autoRunning);
+      } else {
+        const updated = await payrollService.unlockAttendance(periodId);
+        setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+        toast.success("Đã mở chốt chấm công");
+      }
+    } catch (e) {
+      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+      const msg = d?.error?.message ?? d?.message ?? "Thao tác thất bại.";
+      setErr(msg); toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const evalLocked = !!period?.evaluationLockedAt;
+  async function lockEval(lock: boolean) {
+    if (!periodId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      if (lock) {
+        const ready = await payrollService.evaluationReadiness(periodId);
+        const warn = ready.employeesNoEvaluation > 0
+          ? `Còn ${ready.employeesNoEvaluation}/${ready.totalActiveEmployees} nhân viên CHƯA có đánh giá đã duyệt.\n`
+          : "";
+        if (!window.confirm(`${warn}Chốt đánh giá kỳ ${period?.name}? Sau khi chốt sẽ không chấm/sửa điểm của kỳ này được nữa.`)) {
+          setBusy(false);
+          return;
+        }
+      }
+      if (lock) {
+        const { period: updated, autoRunning } = await payrollService.lockEvaluations(periodId);
+        setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+        toast.success("Đã chốt đánh giá");
+        notifyAutoRun(autoRunning);
+      } else {
+        const updated = await payrollService.unlockEvaluations(periodId);
+        setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
+        toast.success("Đã mở chốt đánh giá");
+      }
     } catch (e) {
       const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
       const msg = d?.error?.message ?? d?.message ?? "Thao tác thất bại.";
@@ -278,20 +320,6 @@ export default function Payroll() {
       setErr(msg); toast.error(msg);
     } finally { setBusy(false); }
   }
-  async function removePeriod() {
-    if (!periodId || !window.confirm("Xoá kỳ lương này? Chỉ xoá được khi chưa có bảng lương.")) return;
-    setBusy(true); setErr(null);
-    try {
-      await payrollService.deletePeriod(periodId);
-      setPeriods((ps) => ps.filter((p) => p._id !== periodId));
-      setPeriodId("");
-      toast.success("Đã xoá kỳ lương");
-    } catch (e) {
-      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
-      const msg = d?.error?.message ?? d?.message ?? "Không xoá được kỳ.";
-      setErr(msg); toast.error(msg);
-    } finally { setBusy(false); }
-  }
 
   const detail = detailId ? payrolls.find((p) => p._id === detailId) ?? null : null;
 
@@ -309,16 +337,13 @@ export default function Payroll() {
                 <h1 className="text-[26px] font-bold tracking-tight text-foreground">Bảng lương</h1>
                 <p className="mt-1 text-[13.5px] text-muted-foreground">
                   {period
-                    ? `Kỳ lương ${period.name} · ${period.standardWorkDays} ngày công chuẩn · chi ${new Date(period.payDate).toLocaleDateString("vi-VN")}.`
+                    ? `Kỳ lương ${fmtPeriodName(period.name)} · ${period.standardWorkDays} ngày công chuẩn · chi ${new Date(period.payDate).toLocaleDateString("vi-VN")}.`
                     : "Chưa có kỳ lương nào."}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <FilterSelect label="Kỳ lương" value={periodId} valueWidth={96}
-                  options={periods.map((p) => ({ value: p._id, label: p.name }))} onChange={setPeriodId} />
-                <Button size="sm" variant="outline" onClick={() => setPeriodDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
-                  <Plus className="size-3.5" strokeWidth={2} /> Tạo kỳ
-                </Button>
+                  options={periods.map((p) => ({ value: p._id, label: fmtPeriodName(p.name) }))} onChange={setPeriodId} />
                 <Button size="sm" variant="outline" disabled={empOptions.length === 0} onClick={() => setCompDlg(true)} className="h-9 gap-2 rounded-full text-[13px]">
                   <FilePlus2 className="size-3.5" strokeWidth={1.9} /> Nhập cấu phần
                 </Button>
@@ -359,8 +384,21 @@ export default function Payroll() {
                     </Button>
                   )
                 )}
-                <Button size="sm" disabled={busy || locked || !periodId || !attLocked}
-                  title={!attLocked ? "Hãy chốt chấm công trước khi tính lương" : undefined}
+                {period && !locked && (
+                  evalLocked ? (
+                    <Button size="sm" variant="outline" disabled={busy || !periodId}
+                      onClick={() => lockEval(false)} className="h-9 gap-2 rounded-full text-[13px]">
+                      <LockOpen className="size-3.5" strokeWidth={1.9} /> Mở chốt đánh giá
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled={busy || !periodId}
+                      onClick={() => lockEval(true)} className="h-9 gap-2 rounded-full text-[13px]">
+                      <Lock className="size-3.5" strokeWidth={1.9} /> Chốt đánh giá
+                    </Button>
+                  )
+                )}
+                <Button size="sm" disabled={busy || locked || !periodId || !attLocked || !evalLocked}
+                  title={!attLocked ? "Hãy chốt chấm công trước khi tính lương" : !evalLocked ? "Hãy chốt đánh giá trước khi tính lương" : undefined}
                   onClick={() => setPreflightOpen(true)}
                   className="h-9 gap-2 rounded-full text-[13px]">
                   {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" strokeWidth={1.9} />} Tính lương
@@ -378,12 +416,6 @@ export default function Payroll() {
                     <RotateCcw className="size-3.5" strokeWidth={1.9} /> Mở lại kỳ
                   </Button>
                 )}
-                {period && payrolls.length === 0 && (
-                  <Button size="sm" variant="outline" disabled={busy || !periodId} onClick={removePeriod}
-                    className="h-9 gap-2 rounded-full text-[13px] text-rose-600 hover:border-rose-200 hover:bg-rose-50">
-                    <Trash2 className="size-3.5" strokeWidth={1.9} /> Xoá kỳ
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -399,6 +431,7 @@ export default function Payroll() {
                     <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Kỳ lương {period?.name ?? "—"}</span>
                     {period && <Badge variant={PERIOD_STATUS[period.status]?.variant ?? "slate"} className="border border-white/10">{PERIOD_STATUS[period.status]?.label}</Badge>}
                     {attLocked && <Badge variant="emerald" className="border border-white/10">Đã chốt chấm công</Badge>}
+                    {evalLocked && <Badge variant="emerald" className="border border-white/10">Đã chốt đánh giá</Badge>}
                   </div>
                   <div className="mt-2 text-[12px] font-medium uppercase tracking-wider text-white/45">Tổng chi thực nhận (Net)</div>
                   <div className="mt-1 flex items-baseline gap-2">
@@ -461,8 +494,8 @@ export default function Payroll() {
                     <Th>Nhân viên</Th>
                     <Th className="text-right">Lương chuẩn</Th>
                     <Th className="text-right">Ngày công</Th>
-                    <Th className="text-right">Hiệu suất</Th>
-                    <Th className="text-right">Mục tiêu</Th>
+                    <Th className="text-right">Lương hiệu suất (60%)</Th>
+                    <Th className="text-right">Lương mục tiêu (20%)</Th>
                     <Th className="text-right">Lương theo KPI</Th>
                     <Th className="text-right">Thực nhận</Th>
                     <Th>Trạng thái</Th><Th className="text-right"> </Th>
@@ -485,8 +518,14 @@ export default function Payroll() {
                           </Td>
                           <Td className="text-right tabular-nums text-foreground/70">{fmtVND(p.baseSalary)}</Td>
                           <Td className="text-right tabular-nums text-foreground/80">{p.actualWorkDays}/{p.standardWorkDays}</Td>
-                          <Td className="text-right tabular-nums text-foreground/80">{Math.round(p.performanceRatio)}%</Td>
-                          <Td className="text-right tabular-nums text-foreground/80">{Math.round(p.goalRatio)}%</Td>
+                          <Td className="text-right tabular-nums">
+                            <div className="font-medium text-foreground">{fmtVND(p.performanceComponent)}</div>
+                            <div className="text-[11px] text-muted-foreground">tỷ lệ {Math.round(p.performanceRatio)}%</div>
+                          </Td>
+                          <Td className="text-right tabular-nums">
+                            <div className="font-medium text-foreground">{fmtVND(p.goalComponent)}</div>
+                            <div className="text-[11px] text-muted-foreground">tỷ lệ {Math.round(p.goalRatio)}%</div>
+                          </Td>
                           <Td className="text-right font-semibold tabular-nums text-foreground">{fmtVND(p.proRatedBaseSalary)}</Td>
                           <Td className="text-right font-bold tabular-nums text-foreground">{fmtVND(p.netSalary)}</Td>
                           <Td><Badge variant={PAY_STATUS[p.status].variant}>{PAY_STATUS[p.status].label}</Badge></Td>
@@ -499,7 +538,7 @@ export default function Payroll() {
                 </table>
               </div>
               <div className="flex items-center justify-between px-4 py-3 text-[12.5px] text-muted-foreground">
-                <span>Hiển thị <b className="text-foreground tabular-nums">{rows.length}</b> / {payrolls.length} bảng lương{period ? ` · kỳ ${period.name}` : ""}</span>
+                <span>Hiển thị <b className="text-foreground tabular-nums">{rows.length}</b> / {payrolls.length} bảng lương{period ? ` · kỳ ${fmtPeriodName(period.name)}` : ""}</span>
                 <span>Đơn vị: VND</span>
               </div>
             </Card>
@@ -507,9 +546,6 @@ export default function Payroll() {
         </main>
       </div>
 
-      {periodDlg && (
-        <CreatePeriodDialog open onOpenChange={setPeriodDlg} onSubmit={handleCreatePeriod} />
-      )}
       {compDlg && (
         <CompensationDialog
           open
@@ -534,7 +570,7 @@ export default function Payroll() {
           open
           onOpenChange={setPreflightOpen}
           periodId={period._id}
-          periodName={period.name}
+          periodName={fmtPeriodName(period.name)}
           onRun={runPayroll}
         />
       )}
@@ -543,7 +579,7 @@ export default function Payroll() {
           open
           onOpenChange={setLockDlg}
           periodId={period._id}
-          periodName={period.name}
+          periodName={fmtPeriodName(period.name)}
           onConfirm={() => lockAtt(true)}
         />
       )}
@@ -552,7 +588,7 @@ export default function Payroll() {
         <PayslipDrawer
           p={detail}
           emp={emp(detail.employeeId)}
-          periodName={period?.name ?? ""}
+          periodName={fmtPeriodName(period?.name)}
           busy={busy}
           onApprove={() => act(() => payrollService.approve(periodId, detail.employeeId))}
           onRevert={() => act(() => payrollService.revert(detail._id))}

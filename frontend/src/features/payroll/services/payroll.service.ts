@@ -2,6 +2,7 @@ import api from "@core/http/axios";
 import type {
   Allowance,
   AttendanceReadiness,
+  EvaluationReadiness,
   PayrollPreflight,
   ApprovalResult,
   Bonus,
@@ -19,6 +20,13 @@ import type {
 
 interface Env<T> {
   data: T;
+}
+
+/** Lock endpoints kick payroll off in the BACKGROUND when both locks are in
+ *  place; `autoRunning` tells the UI to point HR at the payroll page shortly. */
+export interface LockResult {
+  period: PayrollPeriod;
+  autoRunning?: boolean;
 }
 
 export interface ListPayrollsParams {
@@ -47,12 +55,24 @@ export const payrollService = {
     const { data } = await api.get<Env<AttendanceReadiness>>(`/payroll/periods/${id}/attendance-readiness`);
     return data.data;
   },
-  async lockAttendance(id: string): Promise<PayrollPeriod> {
-    const { data } = await api.post<Env<PayrollPeriod>>(`/payroll/periods/${id}/lock-attendance`);
-    return data.data;
+  async lockAttendance(id: string): Promise<LockResult> {
+    const { data } = await api.post<Env<PayrollPeriod> & { meta?: { autoRunning?: boolean } }>(`/payroll/periods/${id}/lock-attendance`);
+    return { period: data.data, autoRunning: data.meta?.autoRunning };
   },
   async unlockAttendance(id: string): Promise<PayrollPeriod> {
     const { data } = await api.post<Env<PayrollPeriod>>(`/payroll/periods/${id}/unlock-attendance`);
+    return data.data;
+  },
+  async evaluationReadiness(id: string): Promise<EvaluationReadiness> {
+    const { data } = await api.get<Env<EvaluationReadiness>>(`/payroll/periods/${id}/evaluation-readiness`);
+    return data.data;
+  },
+  async lockEvaluations(id: string): Promise<LockResult> {
+    const { data } = await api.post<Env<PayrollPeriod> & { meta?: { autoRunning?: boolean } }>(`/payroll/periods/${id}/lock-evaluations`);
+    return { period: data.data, autoRunning: data.meta?.autoRunning };
+  },
+  async unlockEvaluations(id: string): Promise<PayrollPeriod> {
+    const { data } = await api.post<Env<PayrollPeriod>>(`/payroll/periods/${id}/unlock-evaluations`);
     return data.data;
   },
   async reopenPeriod(id: string): Promise<PayrollPeriod> {
@@ -71,11 +91,11 @@ export const payrollService = {
   async runPeriod(id: string, requireApprovedEvaluation = true): Promise<RunResult> {
     const { data } = await api.post<Env<RunResult>>(`/payroll/periods/${id}/run`, {
       requireApprovedEvaluation,
-    });
+    }, { timeout: 120_000 });
     return data.data;
   },
   async runEmployee(id: string, employeeId: string): Promise<PayrollRecord> {
-    const { data } = await api.post<Env<PayrollRecord>>(`/payroll/periods/${id}/run/${employeeId}`);
+    const { data } = await api.post<Env<PayrollRecord>>(`/payroll/periods/${id}/run/${employeeId}`, undefined, { timeout: 120_000 });
     return data.data;
   },
 

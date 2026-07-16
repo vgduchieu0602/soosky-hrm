@@ -58,6 +58,7 @@ export interface EmployeeInfo {
   _id: string;
   employeeCode: string;
   departmentId: string | null;
+  positionId: string | null;
 }
 
 export interface ProfileInfo {
@@ -71,6 +72,8 @@ export interface EmployeeLookupData {
   employees: EmployeeInfo[];
   profiles: ProfileInfo[];
   departments: DeptName[];
+  /** Position id → title, for the employees in the lookup. */
+  positions: DeptName[];
 }
 
 export interface PayrollPeriodInfo {
@@ -95,6 +98,8 @@ export interface AuditRow {
   action: string;
   resource: string;
   timestamp: Date;
+  /** Username of the acting user, when resolvable. */
+  who?: string | null;
 }
 
 // ---- repository port ----

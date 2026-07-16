@@ -59,6 +59,36 @@ describe('buildPayrollDoc', () => {
     expect(num(doc.attendanceComponent)).toBe(6_000_000);
   });
 
+  it('prorateByAttendance=true scales perf & goal by attendance — a full unpaid month pays ~0', () => {
+    const doc = buildPayrollDoc(
+      baseCtx({
+        prorateByAttendance: true,
+        actualWorkDays: 0, workDays: 0, unpaidLeaveDays: 22,
+        totalTaxableAllowances: 0, totalNonTaxableAllowances: 0,
+        insuranceBaseSalary: 0, taxEnabled: false,
+      }),
+    );
+    // Without proration this would still pay 80% (perf 60% + goal 20% at score 100).
+    expect(num(doc.proRatedBaseSalary)).toBe(0);
+    expect(num(doc.netSalary)).toBe(0);
+  });
+
+  it('prorateByAttendance=true reduces the whole salary for partial unpaid absence', () => {
+    const doc = buildPayrollDoc(
+      baseCtx({
+        prorateByAttendance: true,
+        actualWorkDays: 11, workDays: 11, unpaidLeaveDays: 11,
+        totalTaxableAllowances: 0, totalNonTaxableAllowances: 0, taxEnabled: false,
+        insuranceBaseSalary: 0,
+      }),
+    );
+    // ratio 0.5 → every component halves: 3m + 9m + 3m = 15m (half of 30m).
+    expect(num(doc.attendanceComponent)).toBe(3_000_000);
+    expect(num(doc.performanceComponent)).toBe(9_000_000);
+    expect(num(doc.goalComponent)).toBe(3_000_000);
+    expect(num(doc.proRatedBaseSalary)).toBe(15_000_000);
+  });
+
   it('adds isInsuranceBase allowances to the insurance base', () => {
     const doc = buildPayrollDoc(baseCtx({ insuranceBaseAllowances: 2_000_000 }));
     // base = 30m + 2m = 32m × 10.5% = 3,360,000

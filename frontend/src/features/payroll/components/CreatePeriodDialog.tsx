@@ -3,9 +3,21 @@ import { FormModal } from "@shared/components/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
+import { MonthField } from "@/components/ui/month-field";
 import { Label } from "@/components/ui/label";
 import type { CreatePeriodInput } from "@features/payroll/types/payroll.types";
 import { fieldErrors, periodFormSchema } from "@features/payroll/schemas/payroll.schema";
+
+/** Canonical "YYYY-MM" → the month's calendar bounds (first/last day), yyyy-mm-dd. */
+function monthBounds(name: string): { start: string; end: string } | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(name);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const last = new Date(y, mo, 0).getDate();
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return { start: `${m[1]}-${m[2]}-01`, end: `${m[1]}-${m[2]}-${p2(last)}` };
+}
 
 interface Props {
   open: boolean;
@@ -49,10 +61,22 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
     }
   }
 
+  // When the month is set, pre-fill the date fields with that month's bounds
+  // (user can still override). Keeps "tạo kỳ" to two quick steps.
+  function onMonthChange(canonical: string) {
+    setName(canonical);
+    const b = monthBounds(canonical);
+    if (b) {
+      setStartDate((cur) => cur || b.start);
+      setEndDate((cur) => cur || b.end);
+      setPayDate((cur) => cur || b.end);
+    }
+  }
+
   const footer = (
     <>
       <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>Hủy</Button>
-      <Button type="submit" form="period-form" size="sm" disabled={submitting}>{submitting ? "Đang tạo…" : "Tạo kỳ lương"}</Button>
+      <Button type="submit" form="period-form" size="sm" disabled={submitting}>{submitting ? "Đang tạo…" : "Tạo kỳ"}</Button>
     </>
   );
 
@@ -60,15 +84,15 @@ export function CreatePeriodDialog({ open, onOpenChange, onSubmit }: Props) {
     <FormModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title="Tạo kỳ lương"
-      subtitle="Mỗi kỳ tương ứng một tháng lương, vd 2026-06."
+      title="Tạo kỳ"
+      subtitle="Một kỳ dùng chung cho chấm công, đánh giá và bảng lương. Nhập tháng vd 072026 → 07-2026."
       footer={footer}
     >
         <form id="period-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
-              <Label htmlFor="p-name">Mã kỳ (YYYY-MM) *</Label>
-              <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="2026-06" autoFocus />
+              <Label htmlFor="p-name">Tháng kỳ (MM-YYYY) *</Label>
+              <MonthField id="p-name" value={name} onChange={onMonthChange} autoFocus />
               {fErrors.name && <span className="text-[11px] text-destructive">{fErrors.name}</span>}
             </div>
             <div className="flex flex-col gap-1.5">

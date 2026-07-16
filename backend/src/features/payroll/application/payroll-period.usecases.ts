@@ -7,9 +7,12 @@ import type {
   EmployeeGateway,
   AttendanceGateway,
   WorkCalendarGateway,
+  EvaluationGateway,
+  PayrollRunPort,
   AuditPort,
   EventsPort,
   Id,
+  PeriodRecord,
 } from '@features/payroll/domain/ports';
 import type { CreatePeriodDto, UpdatePeriodDto } from '@features/payroll/dto/payroll-period.dto';
 
@@ -22,9 +25,35 @@ export class PayrollPeriodUseCases {
     private readonly employees: EmployeeGateway,
     private readonly attendance: AttendanceGateway,
     private readonly workCalendar: WorkCalendarGateway,
+    private readonly evaluations: EvaluationGateway,
     private readonly audit: AuditPort,
     private readonly events: EventsPort,
+    /** Late-bound: the run engine is constructed after this use-case. */
+    private readonly runner: () => PayrollRunPort,
   ) {}
+
+  /**
+   * When both locks are in place, kick off the payroll computation for the whole
+   * period IN THE BACKGROUND and return immediately — a large company can take
+   * far longer than any HTTP timeout. The lock has already persisted; compute is
+   * best-effort and never blocks (or fails) the lock response. Returns whether a
+   * background run was triggered so the UI can tell HR to check back shortly.
+   */
+  private autoRunIfFullyLocked(period: PeriodRecord | null): boolean {
+    if (!period?.attendanceLockedAt || !period.evaluationLockedAt) return false;
+    const periodId = String(period._id);
+    setImmediate(() => {
+      this.runner()
+        .forPeriod(periodId)
+        .then((run) =>
+          log.info({ action: 'auto-run-on-lock', periodId, computed: run.computed, failed: run.errors.length }),
+        )
+        .catch((err) =>
+          log.error({ action: 'auto-run-on-lock-failed', periodId, err: (err as Error).message }),
+        );
+    });
+    return true;
+  }
 
   list() {
     return this.periods.list();
@@ -150,7 +179,8 @@ export class PayrollPeriodUseCases {
     });
     log.info({ action: 'lock-attendance', periodId: id });
     this.events.attendanceLocked({ periodId: id, periodName: updated!.name });
-    return updated!;
+    const autoRunning = this.autoRunIfFullyLocked(updated);
+    return { period: updated!, autoRunning };
   }
 
   /**
@@ -205,6 +235,71 @@ export class PayrollPeriodUseCases {
     return { id };
   }
 
+  /**
+   * Pre-lock readiness for evaluations: how many active employees still lack a
+   * finalized (approved/acknowledged) monthly evaluation for this period.
+   */
+  async evaluationReadiness(id: Id) {
+    const period = await this.periods.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+
+    const activeEmployees = await this.employees.listNonTerminatedIds();
+    const finalized = new Set(await this.evaluations.finalizedEmployeeIds(id));
+    const employeesNoEvaluation = activeEmployees.filter((e) => !finalized.has(String(e._id))).length;
+
+    return {
+      evaluationLocked: !!period.evaluationLockedAt,
+      totalActiveEmployees: activeEmployees.length,
+      finalizedEvaluations: finalized.size,
+      employeesNoEvaluation,
+    };
+  }
+
+  /**
+   * Lock the period's monthly evaluations: scores are frozen (no more
+   * directEvaluate/reopen for this period) and payroll may consume them.
+   * Mirrors lockAttendance.
+   */
+  async lockEvaluations(id: Id, auditUserId: Id) {
+    const period = await this.periods.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+    if (period.status === 'paid') throw new HttpError(409, 'Kỳ lương đã thanh toán', 'PAY_PERIOD_LOCKED');
+    const updated = await this.periods.lockEvaluations(id, auditUserId);
+    await this.audit.record({
+      userId: auditUserId,
+      resource: 'payrollPeriod',
+      action: 'update',
+      resourceId: id,
+      changes: { evaluationLocked: true },
+    });
+    log.info({ action: 'lock-evaluations', periodId: id });
+    const autoRunning = this.autoRunIfFullyLocked(updated);
+    return { period: updated!, autoRunning };
+  }
+
+  /** Re-open evaluations for editing (only before the period is closed/paid). */
+  async unlockEvaluations(id: Id, auditUserId: Id) {
+    const period = await this.periods.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+    if (period.status === 'closed' || period.status === 'paid') {
+      throw new HttpError(409, `Kỳ lương đã ${period.status}, không thể mở chốt đánh giá`, 'PAY_PERIOD_LOCKED');
+    }
+    const updated = await this.periods.unlockEvaluations(id);
+    // Unlocking means inputs will change → any already-approved (not paid)
+    // payslip must go back to draft so re-locking recomputes it with the new
+    // data. Paid rows are money-out and stay untouched.
+    const reverted = await this.payrolls.reopenApprovedToDraft(id);
+    await this.audit.record({
+      userId: auditUserId,
+      resource: 'payrollPeriod',
+      action: 'update',
+      resourceId: id,
+      changes: { evaluationLocked: false, revertedPayrolls: reverted },
+    });
+    log.info({ action: 'unlock-evaluations', periodId: id, revertedPayrolls: reverted });
+    return updated!;
+  }
+
   /** Re-open attendance for editing (only before the period is closed/paid). */
   async unlockAttendance(id: Id, auditUserId: Id) {
     const period = await this.periods.findById(id);
@@ -213,14 +308,17 @@ export class PayrollPeriodUseCases {
       throw new HttpError(409, `Kỳ lương đã ${period.status}, không thể mở chốt`, 'PAY_PERIOD_LOCKED');
     }
     const updated = await this.periods.unlockAttendance(id);
+    // Same as unlockEvaluations: revert approved (not paid) payslips to draft so
+    // a subsequent re-lock recomputes them with the corrected attendance/salary.
+    const reverted = await this.payrolls.reopenApprovedToDraft(id);
     await this.audit.record({
       userId: auditUserId,
       resource: 'payrollPeriod',
       action: 'update',
       resourceId: id,
-      changes: { attendanceLocked: false },
+      changes: { attendanceLocked: false, revertedPayrolls: reverted },
     });
-    log.info({ action: 'unlock-attendance', periodId: id });
+    log.info({ action: 'unlock-attendance', periodId: id, revertedPayrolls: reverted });
     return updated!;
   }
 }

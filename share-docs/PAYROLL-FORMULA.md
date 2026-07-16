@@ -2,7 +2,7 @@
 
 > Tài liệu mô tả chi tiết cách hệ thống tính lương cho từng khoản.
 > Nguồn code: `backend/src/shared/utils/salary.util.ts` (engine tính toán thuần) +
-> `backend/src/features/payroll/services/payroll-run.service.ts` (ráp dữ liệu từ DB).
+> `backend/src/features/payroll/application/payroll-run.usecases.ts` (ráp dữ liệu từ DB).
 > Mọi số tiền lưu dưới dạng `Decimal128`, làm tròn về số nguyên VNĐ ở từng bước.
 
 ---
@@ -22,10 +22,23 @@ Thứ tự tính: **Lương theo công → Tổng thu nhập (Gross) → Bảo h
 
 Điều kiện để tính được lương:
 - Kỳ lương đang **mở** (chưa đóng/đã chi thì không tính lại).
-- Đã **chốt chấm công** của kỳ.
+- Đã **chốt chấm công** của kỳ (`PAY_ATT_NOT_LOCKED`).
+- Đã **chốt đánh giá** của kỳ (`PAY_EVAL_NOT_LOCKED`) — sau khi chốt, điểm của kỳ đóng băng: không chấm/sửa/mở lại được cho tới khi HR mở chốt.
 - Có **hợp đồng đang hiệu lực**.
-- Có **đánh giá tháng được duyệt** (có thể bỏ qua bằng cờ `requireApprovedEvaluation: false`).
+- Có **đánh giá tháng được HR duyệt** (`approved` — KHÔNG cần nhân viên xác nhận; bước "NV xác nhận" chỉ là ghi nhận đã xem). Có thể bỏ qua bằng cờ `requireApprovedEvaluation: false`.
 - Có **chính sách lương** hiệu lực tại ngày trả lương.
+
+Chu trình khóa mỗi tháng: **chấm công → chốt chấm công → HR chấm & duyệt đánh giá → chốt đánh giá → (bảng lương TỰ TÍNH) → duyệt → chốt kỳ → chi**.
+
+> **Auto-run:** ngay khi kỳ có đủ CẢ HAI chốt (chấm công + đánh giá), hệ thống tự chạy tính lương
+> cho toàn kỳ — bản `draft` được tính/tính lại, bản đã duyệt/đã chi giữ nguyên (báo trong danh sách lỗi).
+> Mở chốt để sửa dữ liệu rồi chốt lại → bảng lương tự tính lại. Nút "Tính lương" vẫn còn để chạy tay khi cần.
+> Chấm công, đánh giá và bảng lương dùng CHUNG một kỳ (`PayrollPeriod`) — một kỳ, ba bảng.
+>
+> **Nơi thao tác trên UI:**
+> - **Trang Chấm công** = nơi TẠO kỳ (theo tháng `YYYY-MM`) + chốt/mở chốt chấm công. Banner kỳ hiển thị trạng thái 2 chốt.
+> - **Trang Đánh giá** = HR chấm & duyệt điểm + chốt/mở chốt đánh giá.
+> - **Trang Bảng lương** = xem kết quả (đã tự tính), duyệt, chốt kỳ, đánh dấu đã chi. Nút "Tính lương" tay vẫn còn để chạy lại.
 
 ---
 
@@ -33,7 +46,7 @@ Thứ tự tính: **Lương theo công → Tổng thu nhập (Gross) → Bảo h
 
 Lương cơ bản được chia thành 3 phần theo trọng số (mặc định **20% chuyên cần / 60% hiệu suất / 20% mục tiêu**, có thể cấu hình trong chính sách lương).
 
-**Quan trọng:** cả 3 phần **đều được nhân với tỷ lệ ngày công** — nghỉ không lương làm giảm **toàn bộ** lương, không chỉ phần chuyên cần.
+**Quan trọng:** cả 3 phần **đều được nhân với tỷ lệ ngày công** — nghỉ không lương làm giảm **toàn bộ** lương, không chỉ phần chuyên cần. (Điều khiển bằng cờ `prorateByAttendance` trong chính sách lương, mặc định **bật**; tắt đi thì chỉ phần chuyên cần bị prorate.)
 
 ```
 tỷ lệ ngày công (attendanceRatio) = số ngày công thực tế / số ngày công chuẩn   (tối đa = 1)
@@ -51,16 +64,13 @@ Lương theo công (proRatedBaseSalary) = Phần chuyên cần + Phần hiệu s
 
 ### Lương cơ bản áp theo trạng thái lao động
 
-| Trạng thái | Lương cơ bản dùng để tính | Trọng số áp dụng |
-|---|---|---|
-| **Chính thức** | 100% lương hợp đồng | 20/60/20 (theo chính sách) |
-| **Thử việc** (`probation`) | 85% lương thỏa thuận (`probationPayRate`) | 100% chuyên cần (không tính hiệu suất/mục tiêu) |
-| **Thực tập** (`internship`) | **100% lương hợp đồng** | 100% chuyên cần |
-thực tập < 11 công thì sẽ tính lương theo ngày công
-thực tập > 11 công thì sẽ tính lương 20/60/20
+| Trạng thái | Lương cơ bản dùng để tính | Trọng số áp dụng | BH/đoàn phí |
+|---|---|---|---|
+| **Chính thức** | 100% lương hợp đồng | 20/60/20 | Có |
+| **Thử việc** (`probation`) | 85% lương thỏa thuận (`probationPayRate`) | **20/60/20** | Không |
+| **Thực tập** (`internship`) | 100% lương hợp đồng | **20/60/20** | Không |
 
-> Với thử việc & thực tập, lương = lương_cơ_bản × tỷ_lệ_ngày_công (chỉ prorate theo ngày công, không phụ thuộc điểm đánh giá).
-> **Thực tập sinh hưởng đúng lương ghi trên hợp đồng, chỉ chịu ảnh hưởng của chấm công** — không còn dùng mức cố định `internStipend`.
+> **Mọi loại (chính thức / thử việc / thực tập) đều áp CÙNG mô hình 20/60/20** (chấm công + hiệu suất + mục tiêu), đều cần đánh giá tháng đã duyệt. Trạng thái lao động chỉ đổi: (1) thử việc lấy 85% lương nền; (2) thử việc & thực tập miễn BHXH + đoàn phí. Thực tập hưởng đúng lương hợp đồng — không dùng `internStipend`.
 
 ---
 
@@ -72,15 +82,20 @@ Mỗi bản ghi chấm công có **trọng số ca**: cả ngày = 1; sáng = 0.
 |---|---|---|
 | `present`, `late`, `early_leave` | Ngày làm việc (có lương) | Tính đủ công (đi muộn/về sớm **không** trừ lương) |
 | `leave_paid` | Nghỉ phép có lương | Tính là ngày có lương, không tính "làm" |
-| `holiday` | Ngày lễ | Tính là ngày có lương |
+| `holiday` | Ngày lễ | **Trung tính** — không vào tử số lẫn mẫu số (ngày công chuẩn đã trừ lễ) |
 | `leave_unpaid` | Nghỉ không lương | **Giảm** lương |
 | `absent` | Vắng mặt | **Giảm** lương |
 | `incomplete` | Có check-in, thiếu check-out | **Không** tính cho đến khi HR sửa (không thổi phồng tỷ lệ) |
 
 ```
-số ngày công thực tế (actualWorkDays) = ngày làm + nghỉ phép có lương + ngày lễ
+số ngày công thực tế (actualWorkDays) = ngày làm + nghỉ phép có lương
 số ngày không lương                    = nghỉ không lương + vắng mặt
 ```
+
+> **Ngày lễ trung tính:** vì `standardWorkDays` đã loại trừ ngày lễ, record `holiday`
+> (nhập tay) KHÔNG được cộng vào `actualWorkDays` — nếu cộng sẽ thổi phồng tỷ lệ và
+> che mất ngày nghỉ không lương trong cùng kỳ. Lương ngày lễ được hưởng "ngầm":
+> ngày đó nằm ngoài cả tử số lẫn mẫu số nên không làm giảm tỷ lệ công.
 
 **Số ngày công chuẩn (standardWorkDays):** số ngày làm việc trong kỳ theo lịch làm việc của ca (mặc định T2–T6), **đã loại trừ ngày lễ**. Nếu nhân viên không gán ca thì lấy mặc định của kỳ lương.
 
@@ -273,6 +288,7 @@ Lưu trong `salaryPolicyConfigs`, áp theo `effectiveFrom ≤ ngày trả lươn
 | `probationPayRate` | % lương thử việc | 85% |
 | `internStipend` | *(Đã bỏ — thực tập hưởng lương hợp đồng)* | — |
 | `salaryComponentWeights` | Trọng số 20/60/20 | 20/60/20 |
+| `prorateByAttendance` | Nhân cả phần hiệu suất/mục tiêu với tỷ lệ ngày công | bật (true) |
 
 ---
 

@@ -61,6 +61,18 @@ export class MongooseContractGateway implements ContractGateway {
       .sort({ startDate: -1 })
       .lean() as unknown as Promise<ContractRecord | null>;
   }
+  /** All contracts whose active window intersects [start, end] — used to split
+   *  a payroll month across a mid-month contract change. Sorted by startDate. */
+  async findOverlapping(employeeId: Id, start: Date, end: Date) {
+    const rows = await EmployeeContractModel.find({
+      employeeId,
+      startDate: { $lte: end },
+      $or: [{ endDate: null }, { endDate: { $gte: start } }],
+    })
+      .sort({ startDate: 1 })
+      .lean();
+    return rows as unknown as ContractRecord[];
+  }
   async activeEmployeeIds(employeeIds: Id[]) {
     const rows = await EmployeeContractModel.find({ employeeId: { $in: employeeIds }, status: 'active' })
       .select('employeeId')
@@ -111,7 +123,7 @@ export class MongooseEmployeeProfileGateway implements EmployeeProfileGateway {
 export class MongooseAttendanceGateway implements AttendanceGateway {
   async aggregatePeriod(employeeId: Id, start: Date, end: Date): Promise<AttendanceSummary> {
     const raw = await Attendance.find({ employeeId, date: { $gte: start, $lte: end } })
-      .select('session status workHours date')
+      .select('session status workHours date congWeight')
       .lean<Array<AttendanceRow & { date: Date }>>();
     return summarizeAttendance(dedupeByDay(raw));
   }

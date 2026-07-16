@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Search, ChevronDown, Check, ClipboardCheck, Pencil, History, X, TrendingUp, TrendingDown, Minus, Download } from "lucide-react";
+import { Search, ChevronDown, Check, ClipboardCheck, Pencil, History, X, TrendingUp, TrendingDown, Minus, Download, Lock, LockOpen, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { scoreBand } from "@features/performance/utils/score-band";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/shared/utils/cn";
+import { fmtPeriodName } from "@/shared/utils/period.utils";
+import { ConfirmDialog } from "@shared/components/ConfirmDialog";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
 import { payrollService } from "@features/payroll/services/payroll.service";
@@ -17,11 +20,13 @@ import type { Evaluation, EvaluationStatus } from "@features/performance/types/p
 import type { PayrollPeriod } from "@features/payroll/types/payroll.types";
 import type { PerformanceCriterion } from "@features/settings/types/settings.types";
 
+type ApiErr = { response?: { data?: { error?: { message?: string } } } };
+
 type BadgeVariant = "slate" | "amber" | "emerald" | "blue" | "violet" | "rose";
 const STATUS: Record<EvaluationStatus, { label: string; variant: BadgeVariant }> = {
   draft: { label: "Nháp", variant: "amber" },
   approved: { label: "Đã duyệt", variant: "blue" },
-  acknowledged: { label: "NV đã xác nhận", variant: "emerald" },
+  acknowledged: { label: "NV đã xem", variant: "emerald" },
 };
 
 interface EmpRow { id: string; name: string; code: string; dept: string }
@@ -44,7 +49,7 @@ function PeriodSelect({ value, options, onChange }: { value: string; options: Pa
     <div className="relative">
       <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} className="h-9 gap-2 rounded-full text-[13px]">
         <span className="text-muted-foreground">Kỳ:</span>
-        <span className="font-semibold">{cur?.name ?? "—"}</span>
+        <span className="font-semibold">{fmtPeriodName(cur?.name)}</span>
         <ChevronDown className="size-3 text-muted-foreground" />
       </Button>
       {open && (<>
@@ -53,7 +58,7 @@ function PeriodSelect({ value, options, onChange }: { value: string; options: Pa
           {options.map((o) => (
             <button key={o._id} onClick={() => { onChange(o._id); setOpen(false); }}
               className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] hover:bg-muted", value === o._id && "font-semibold text-primary-600")}>
-              {o.name}{value === o._id && <Check className="size-3.5" strokeWidth={2.4} />}
+              {fmtPeriodName(o.name)}{value === o._id && <Check className="size-3.5" strokeWidth={2.4} />}
             </button>
           ))}
         </div>
@@ -138,10 +143,57 @@ export default function Performance() {
 
   const stats = useMemo(() => {
     const pendingApprove = evals.filter((e) => e.status === "draft").length;
-    const pendingAck = evals.filter((e) => e.status === "approved").length;
+    const finalized = evals.filter((e) => e.status === "approved" || e.status === "acknowledged").length;
     const avg = evals.length ? Math.round(evals.reduce((s, e) => s + e.performanceRatio, 0) / evals.length) : 0;
-    return { total: employees.length, pendingApprove, pendingAck, avg };
+    return { total: employees.length, pendingApprove, finalized, avg };
   }, [evals, employees]);
+
+  const currentPeriod = periods.find((p) => p._id === periodId);
+  const evalLocked = !!currentPeriod?.evaluationLockedAt;
+  const periodFinalized = currentPeriod?.status === "closed" || currentPeriod?.status === "paid";
+  const [locking, setLocking] = useState(false);
+  const [confirmLock, setConfirmLock] = useState<{ message: string } | null>(null);
+
+  // Open the confirm modal for chốt đánh giá — check readiness first so the
+  // dialog can warn about employees still missing an approved evaluation.
+  function openLockConfirm() {
+    if (!currentPeriod) return;
+    payrollService.evaluationReadiness(currentPeriod._id)
+      .then((ready) => {
+        const warn = ready.employeesNoEvaluation > 0
+          ? `Còn ${ready.employeesNoEvaluation}/${ready.totalActiveEmployees} nhân viên CHƯA có đánh giá đã duyệt.\n\n`
+          : "";
+        setConfirmLock({ message: `${warn}Chốt đánh giá kỳ ${fmtPeriodName(currentPeriod.name)}? Sau khi chốt, điểm sẽ đóng băng để tính lương và không sửa được cho tới khi mở chốt.` });
+      })
+      .catch(() => setConfirmLock({ message: `Chốt đánh giá kỳ ${fmtPeriodName(currentPeriod.name)}? Sau khi chốt, điểm sẽ đóng băng để tính lương.` }));
+  }
+
+  function doLock() {
+    if (!currentPeriod) return;
+    setLocking(true);
+    payrollService.lockEvaluations(currentPeriod._id)
+      .then(({ period: p, autoRunning }) => {
+        setPeriods((ps) => ps.map((x) => (x._id === p._id ? p : x)));
+        toast.success("Đã chốt đánh giá");
+        if (autoRunning) {
+          toast.info("Đủ 2 chốt — bảng lương đang được tính ở chế độ nền. Mở trang Bảng lương sau giây lát để xem.");
+        } else if (!p.attendanceLockedAt) {
+          toast.info("Còn thiếu chốt chấm công (trang Chấm công) — chốt nốt là bảng lương tự tính.");
+        }
+        setConfirmLock(null);
+      })
+      .catch((e) => toast.error((e as ApiErr)?.response?.data?.error?.message ?? "Không chốt được."))
+      .finally(() => setLocking(false));
+  }
+
+  function unlockEval() {
+    if (!currentPeriod) return;
+    setLocking(true);
+    payrollService.unlockEvaluations(currentPeriod._id)
+      .then((p) => { setPeriods((ps) => ps.map((x) => (x._id === p._id ? p : x))); toast.success("Đã mở chốt đánh giá — có thể chấm/sửa lại"); })
+      .catch((e) => toast.error((e as ApiErr)?.response?.data?.error?.message ?? "Không mở chốt được."))
+      .finally(() => setLocking(false));
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -152,8 +204,15 @@ export default function Performance() {
           <div className="mx-auto flex max-w-[1320px] flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h1 className="text-[26px] font-bold tracking-tight text-foreground">Đánh giá hiệu suất</h1>
-                <p className="mt-1 text-[13.5px] text-muted-foreground">Click vào nhân viên để chấm trực tiếp. Hiệu suất 60% + Mục tiêu 20% nuôi lương.</p>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-[26px] font-bold tracking-tight text-foreground">Đánh giá hiệu suất</h1>
+                  {evalLocked && <Badge variant="emerald">Đã chốt kỳ {fmtPeriodName(currentPeriod?.name)}</Badge>}
+                </div>
+                <p className="mt-1 text-[13.5px] text-muted-foreground">
+                  {evalLocked
+                    ? "Kỳ này đã chốt đánh giá — điểm giữ nguyên để tính lương, không sửa được nữa. Mở chốt tại trang Bảng lương."
+                    : "Click vào nhân viên để chấm trực tiếp. HR duyệt là có hiệu lực nuôi lương (Hiệu suất 60% + Mục tiêu 20%), không cần nhân viên xác nhận."}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" disabled={exporting || !periodId}
@@ -173,6 +232,17 @@ export default function Performance() {
                   <Download className="size-3.5" /> Xuất Excel
                 </Button>
                 <PeriodSelect value={periodId} options={periods} onChange={(v) => { setPeriodId(v); setPage(1); }} />
+                {currentPeriod && !periodFinalized && (
+                  evalLocked ? (
+                    <Button size="sm" variant="outline" disabled={locking} onClick={unlockEval} className="h-9 gap-2 rounded-full text-[13px]">
+                      <LockOpen className="size-3.5" /> Mở chốt đánh giá
+                    </Button>
+                  ) : (
+                    <Button size="sm" disabled={locking} onClick={openLockConfirm} className="h-9 gap-2 rounded-full text-[13px]">
+                      {locking ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />} Chốt đánh giá
+                    </Button>
+                  )
+                )}
               </div>
             </div>
 
@@ -181,7 +251,7 @@ export default function Performance() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Nhân sự" value={`${stats.total}`} />
               <StatCard label="Chờ duyệt" value={`${stats.pendingApprove}`} />
-              <StatCard label="Chờ NV xác nhận" value={`${stats.pendingAck}`} />
+              <StatCard label="Đã duyệt (có hiệu lực)" value={`${stats.finalized}`} />
               <StatCard label="Hiệu suất TB" value={`${stats.avg}%`} />
             </div>
 
@@ -194,7 +264,7 @@ export default function Performance() {
                 <div className="flex flex-wrap gap-1.5">
                   {([
                     ["all", "Tất cả"], ["none", "Chưa đánh giá"], ["draft", "Chờ duyệt"],
-                    ["approved", "Chờ xác nhận"], ["acknowledged", "Đã xác nhận"],
+                    ["approved", "Đã duyệt"], ["acknowledged", "NV đã xem"],
                   ] as const).map(([val, label]) => (
                     <button key={val} type="button" onClick={() => { setStatusFilter(val); setPage(1); }}
                       className={cn("rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
@@ -229,7 +299,8 @@ export default function Performance() {
                           <Td className="text-right tabular-nums">{ev ? <RatioCell value={ev.goalRatio} /> : "—"}</Td>
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <Button size="sm" variant={ev ? "outline" : "default"} disabled={acked}
+                              <Button size="sm" variant={ev ? "outline" : "default"} disabled={acked || evalLocked}
+                                title={evalLocked ? "Kỳ đã chốt đánh giá — không sửa được" : undefined}
                                 onClick={() => setScoreEmp(emp)} className="h-8 gap-1.5 rounded-lg text-[12.5px]">
                                 {ev ? <><Pencil className="size-3.5" /> Sửa</> : <><ClipboardCheck className="size-3.5" /> Đánh giá</>}
                               </Button>
@@ -287,6 +358,16 @@ export default function Performance() {
           onClose={() => setHistoryEmp(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmLock}
+        title="Chốt đánh giá kỳ"
+        message={confirmLock?.message}
+        confirmLabel="Chốt đánh giá"
+        loading={locking}
+        onConfirm={doLock}
+        onCancel={() => setConfirmLock(null)}
+      />
     </div>
   );
 }
@@ -348,7 +429,7 @@ function EvaluationHistoryDrawer({ employee, periodNameById, onClose }: {
               return (
                 <div key={ev._id} className="rounded-xl border px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-foreground">{periodNameById.get(ev.payrollPeriodId) ?? "—"}</span>
+                    <span className="text-[13px] font-semibold text-foreground">{fmtPeriodName(periodNameById.get(ev.payrollPeriodId))}</span>
                     <Badge variant={STATUS[ev.status].variant}>{STATUS[ev.status].label}</Badge>
                   </div>
                   <div className="mt-2 flex items-center gap-4 text-[12.5px]">

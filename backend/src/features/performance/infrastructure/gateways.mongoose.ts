@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Employee } from '@shared/models/employee.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
 import { Payroll } from '@shared/models/payroll.model';
+import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import type {
   EmployeeGateway,
   CriterionGateway,
@@ -43,5 +44,11 @@ export class MongoosePayrollLockGateway implements PayrollLockGateway {
       .select('_id status')
       .lean();
     return p ? { status: String(p.status) } : null;
+  }
+
+  async evaluationLockedAt(payrollPeriodId: Id): Promise<Date | null> {
+    if (!mongoose.Types.ObjectId.isValid(payrollPeriodId)) return null;
+    const period = await PayrollPeriod.findById(payrollPeriodId).select('evaluationLockedAt').lean();
+    return period?.evaluationLockedAt ?? null;
   }
 }

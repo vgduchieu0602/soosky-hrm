@@ -95,6 +95,18 @@ export class MongooseLeaveRequestRepository implements LeaveRequestRepository {
     return rows.map((r) => toLeave(r)!);
   }
 
+  async findOverlapping(employeeId: Id, start: Date, end: Date, tx?: Tx): Promise<LeaveRequestRecord[]> {
+    const rows = await LeaveRequest.find({
+      employeeId: oid(employeeId),
+      status: { $in: ['pending', 'approved'] },
+      startDate: { $lte: end },
+      endDate: { $gte: start },
+    })
+      .session(qSess(tx))
+      .lean();
+    return rows.map((r) => toLeave(r)!);
+  }
+
   listWithEmployee(filter: { status?: string }): Promise<Record<string, unknown>[]> {
     const match: Record<string, unknown> = {};
     if (filter.status) match.status = filter.status;

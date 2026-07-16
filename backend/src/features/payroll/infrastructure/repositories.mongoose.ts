@@ -110,6 +110,24 @@ export class MongoosePayrollPeriodRepository implements PayrollPeriodRepository 
     return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
   }
 
+  async lockEvaluations(id: Id, byUserId: Id) {
+    const updated = await PayrollPeriod.findByIdAndUpdate(
+      id,
+      { evaluationLockedAt: new Date(), evaluationLockedBy: new Types.ObjectId(byUserId) },
+      { new: true },
+    );
+    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
+  }
+
+  async unlockEvaluations(id: Id) {
+    const updated = await PayrollPeriod.findByIdAndUpdate(
+      id,
+      { evaluationLockedAt: null, evaluationLockedBy: null },
+      { new: true },
+    );
+    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
+  }
+
   async markProcessing(id: Id, tx: Tx) {
     await PayrollPeriod.updateOne({ _id: id }, { $set: { status: 'processing' } }, { session: session(tx) });
   }
@@ -144,8 +162,12 @@ export class MongoosePayrollRepository implements PayrollRepository {
     return doc ? { _id: doc._id, status: doc.status as string } : null;
   }
 
-  async findExisting(periodId: Id, employeeId: Id) {
-    const doc = await Payroll.findOne({ payrollPeriodId: periodId, employeeId }).lean();
+  async findExisting(periodId: Id, employeeId: Id, contractId?: Id | null) {
+    const doc = await Payroll.findOne({
+      payrollPeriodId: periodId,
+      employeeId,
+      contractId: contractId ? new Types.ObjectId(contractId) : null,
+    }).lean();
     return doc ? { status: doc.status as string } : null;
   }
 
@@ -214,7 +236,7 @@ export class MongoosePayrollRepository implements PayrollRepository {
 
   async upsertComputed(periodId: Id, employeeId: Id, doc: IPayroll, tx: Tx): Promise<IPayroll> {
     const row = await Payroll.findOneAndUpdate(
-      { payrollPeriodId: periodId, employeeId },
+      { payrollPeriodId: periodId, employeeId, contractId: doc.contractId ?? null },
       { $set: doc },
       { upsert: true, new: true, session: session(tx) },
     );

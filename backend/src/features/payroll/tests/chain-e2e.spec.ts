@@ -122,6 +122,8 @@ describe('Evaluation workflow → payroll (full chain)', () => {
     });
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
 
+    // Evaluations stay unlocked here — HR scores first, then locks (below)
+    // before payroll runs, mirroring the real monthly flow.
     const period = await PayrollPeriod.create({
       name: '2026-05', startDate: utc('2026-05-01'), endDate: utc('2026-05-31'),
       payDate: utc('2026-05-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
@@ -147,6 +149,20 @@ describe('Evaluation workflow → payroll (full chain)', () => {
     expect(approved.status).toBe('approved');
     expect(approved.performanceRatio).toBe(90); // avg performance criteria
     expect(approved.goalRatio).toBe(95); // avg goal criteria
+
+    // Payroll refuses to run until the month's evaluations are locked.
+    await expect(runPayrollForEmployee(String(period._id), employeeId)).rejects.toMatchObject({
+      code: 'PAY_EVAL_NOT_LOCKED',
+    });
+    await PayrollPeriod.updateOne({ _id: period._id }, { evaluationLockedAt: new Date() });
+
+    // Once locked, scoring that period is frozen.
+    await expect(
+      evaluationService.directEvaluate(
+        { employeeId, payrollPeriodId: String(period._id), criteriaScores: allScores, finalize: true },
+        String(hrUser),
+      ),
+    ).rejects.toMatchObject({ code: 'EVAL_LOCKED' });
 
     const payroll = await runPayrollForEmployee(String(period._id), employeeId);
     // Payroll consumed the approved evaluation ratios.

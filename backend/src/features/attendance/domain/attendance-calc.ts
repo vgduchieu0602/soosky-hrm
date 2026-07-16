@@ -212,6 +212,9 @@ export interface MatchedShift {
   shiftId: string;
   session: AttendanceSession;
   weight: number;
+  /** Công this ca contributes when counted = 1 / (số ca cấu hình trong ngày),
+   *  so a full day across all ca sums to 1.0 regardless of each ca's type. */
+  congWeight: number;
   counted: boolean; // true → contributes công
   status: AttendanceStatus; // present | late | early_leave | absent
   workHours: number;
@@ -242,6 +245,11 @@ export function matchShifts(
   checkOut: Date | null | undefined,
   policy: AttendancePolicy = DEFAULT_POLICY,
 ): MatchDayResult {
+  // Công is split evenly across the day's CONFIGURED ca: each counted ca is
+  // worth 1/N of a day, so working all ca = 1.0 full day and one of two = 0.5,
+  // independent of how HR typed each ca (morning/afternoon/full_day).
+  const dayShare = shiftDefs.length > 0 ? 1 / shiftDefs.length : 1;
+
   const shifts: MatchedShift[] = shiftDefs.map((s) => {
     const start = parseHHmm(s.startTime);
     const end = parseHHmm(s.endTime);
@@ -251,6 +259,7 @@ export function matchShifts(
       shiftId: s.id,
       session: s.type,
       weight: s.weight,
+      congWeight: dayShare,
       counted: false,
       status: 'absent',
       workHours: 0,
@@ -288,7 +297,7 @@ export function matchShifts(
   });
 
   const totalCong = round2(
-    shifts.reduce((sum, s) => (s.counted ? sum + s.weight : sum), 0),
+    shifts.reduce((sum, s) => (s.counted ? sum + s.congWeight : sum), 0),
   );
   return { shifts, totalCong };
 }

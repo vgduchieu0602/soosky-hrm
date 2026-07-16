@@ -1,9 +1,9 @@
 import { Fragment } from "react";
-import { Search, ChevronRight, Calendar, ChevronDown, SlidersHorizontal, Menu } from "lucide-react";
+import { Search, ChevronRight, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@features/notification/NotificationBell";
 import { useUiStore } from "@core/store/ui.store";
+import { useAuthStore } from "@core/store/auth.store";
 
 interface TopBarProps {
   crumbs?: string[];
@@ -62,28 +62,37 @@ function cnCrumb(last: boolean, total: number): string {
   return [base, hideEarly].filter(Boolean).join(" ");
 }
 
-export function PageHeader() {
+interface PageHeaderProps {
+  /** Số đơn đang chờ phê duyệt; ẩn câu nhắc khi chưa có dữ liệu. */
+  pendingCount?: number;
+}
+
+export function PageHeader({ pendingCount }: PageHeaderProps) {
+  const user = useAuthStore((s) => s.user);
+  const raw = new Intl.DateTimeFormat("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date());
+  const today = raw.charAt(0).toUpperCase() + raw.slice(1);
+
   return (
     <div className="flex items-end justify-between gap-6">
       <div>
-        <h1 className="text-[24px] font-semibold tracking-tight text-foreground">Xin chào, Hiếu</h1>
+        <h1 className="text-[24px] font-semibold tracking-tight text-foreground">
+          Xin chào, {user?.username ?? "bạn"}
+        </h1>
         <p className="mt-1 text-[13.5px] text-muted-foreground">
-          Thứ năm, 28/05/2026 · Bạn có{" "}
-          <span className="font-semibold text-foreground">7 yêu cầu</span> đang chờ phê duyệt.
+          {today}
+          {pendingCount != null && (
+            <>
+              {" · "}Bạn có{" "}
+              <span className="font-semibold text-foreground">{pendingCount} yêu cầu</span> đang chờ
+              phê duyệt.
+            </>
+          )}
         </p>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button variant="outline" className="h-9 gap-2 text-[13px] font-medium">
-          <Calendar className="size-3.5" />
-          Tháng 5, 2026
-          <ChevronDown className="size-3 text-muted-foreground" />
-        </Button>
-        <Button variant="outline" className="h-9 gap-2 text-[13px] font-medium">
-          <SlidersHorizontal className="size-3.5" />
-          Tất cả phòng ban
-          <ChevronDown className="size-3 text-muted-foreground" />
-        </Button>
       </div>
     </div>
   );

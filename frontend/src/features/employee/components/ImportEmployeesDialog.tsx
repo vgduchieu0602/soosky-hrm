@@ -58,15 +58,37 @@ function rowsToObjects(matrix: string[][]): { rows: ImportEmployeeRow[]; error: 
   return { rows: out, error: null };
 }
 
+// Reference sheets so the template mirrors the full export (employee + hồ sơ
+// liên quan). Import ingests the "NhanVien" sheet; the others document the
+// columns HR fills per employee via the detail tabs.
+const CONTRACT_HEADER = ["employeeCode", "contractNumber", "contractType", "employmentStatus", "baseSalary", "startDate", "endDate", "status"];
+const DOCUMENT_HEADER = ["employeeCode", "documentType", "documentNumber", "issuedDate", "expiryDate", "issuedBy"];
+const ASSET_HEADER = ["employeeCode", "assetName", "assetCode", "assignedDate", "returnedDate", "condition", "note"];
+
+function sheetOf(rows: string[][]) {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = rows[0].map((h) => ({ wch: Math.max(12, String(h).length + 2) }));
+  return ws;
+}
+
 function downloadTemplate() {
-  const sample = [
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetOf([
     HEADER,
     ["NV001", "An", "Văn", "Nguyễn", "KT", "NV", "full_time", "2026-01-15", "an.nv@gmail.com", "0901234567", "male", "zone1"],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(sample);
-  ws["!cols"] = HEADER.map((h) => ({ wch: Math.max(12, h.length + 2) }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "NhanVien");
+  ]), "NhanVien");
+  XLSX.utils.book_append_sheet(wb, sheetOf([
+    CONTRACT_HEADER,
+    ["NV001", "HD-2026-001", "indefinite", "official", "20000000", "2026-01-15", "", "active"],
+  ]), "HopDong");
+  XLSX.utils.book_append_sheet(wb, sheetOf([
+    DOCUMENT_HEADER,
+    ["NV001", "id_card", "012345678901", "2020-01-01", "2035-01-01", "Cục CS QLHC"],
+  ]), "TaiLieu");
+  XLSX.utils.book_append_sheet(wb, sheetOf([
+    ASSET_HEADER,
+    ["NV001", "Laptop Dell", "TS-001", "2026-01-15", "", "good", "Bàn giao khi onboarding"],
+  ]), "TaiSan");
   XLSX.writeFile(wb, "mau-import-nhan-vien.xlsx");
 }
 

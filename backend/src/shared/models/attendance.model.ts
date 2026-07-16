@@ -27,6 +27,10 @@ export interface IAttendance {
   checkOut?: Date | null;
   status: AttendanceStatus;
   workHours?: number | null;
+  /** Công this record contributes to the day = 1 / (số ca cấu hình trong ngày),
+   *  so N ca in a day always sum to 1.0 full day regardless of ca type. Null on
+   *  legacy/leave rows → callers fall back to the session weight. */
+  congWeight?: number | null;
   lateMinutes: number;
   earlyMinutes: number;
   leaveRequestId?: Types.ObjectId | null; // set on records generated from an approved leave
@@ -51,6 +55,7 @@ const attendanceSchema = new Schema<IAttendance>(
     checkOut: { type: Date, default: null },
     status: { type: String, enum: ATTENDANCE_STATUS, required: true, index: true },
     workHours: { type: Number, default: null },
+    congWeight: { type: Number, default: null },
     lateMinutes: { type: Number, default: 0 },
     earlyMinutes: { type: Number, default: 0 },
     leaveRequestId: { type: Schema.Types.ObjectId, ref: 'leaveRequests', default: null, index: true },

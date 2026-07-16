@@ -30,6 +30,7 @@ export interface PayrollPeriod {
   status: PayrollPeriodStatus;
   closedAt?: string | null;
   attendanceLockedAt?: string | null;
+  evaluationLockedAt?: string | null;
   created_at?: string;
 }
 
@@ -39,6 +40,13 @@ export interface AttendanceReadiness {
   employeesNoRecords: number;
   incompleteRecords: number;
   employeesWithIncomplete: number;
+}
+
+export interface EvaluationReadiness {
+  evaluationLocked: boolean;
+  totalActiveEmployees: number;
+  finalizedEvaluations: number;
+  employeesNoEvaluation: number;
 }
 
 export interface CreatePeriodInput {

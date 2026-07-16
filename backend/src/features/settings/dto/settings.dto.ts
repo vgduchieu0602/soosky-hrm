@@ -49,6 +49,7 @@ export const createSalaryPolicyDto = z
     unionFeeRate: z.coerce.number().min(0).max(100).optional(),
     unionFeeEnabled: z.coerce.boolean().optional(),
     probationPayRate: z.coerce.number().min(0).max(100).optional(),
+    prorateByAttendance: z.coerce.boolean().optional(),
   })
   .strict();
 export type CreateSalaryPolicyDto = z.infer<typeof createSalaryPolicyDto>;
@@ -69,6 +70,7 @@ export const updateSalaryPolicyDto = z
     unionFeeRate: z.coerce.number().min(0).max(100).optional(),
     unionFeeEnabled: z.coerce.boolean().optional(),
     probationPayRate: z.coerce.number().min(0).max(100).optional(),
+    prorateByAttendance: z.coerce.boolean().optional(),
   })
   .strict();
 export type UpdateSalaryPolicyDto = z.infer<typeof updateSalaryPolicyDto>;

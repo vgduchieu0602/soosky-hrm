@@ -69,7 +69,7 @@ async function seedEmployee(code: string, periodMonth = '2026-05') {
   return { employeeId, empUser: String(empUser) };
 }
 
-/** Create a period over HTTP and lock its attendance. */
+/** Create a period over HTTP and lock its attendance + evaluations. */
 async function createLockedPeriod(month = '2026-05') {
   const create = await api.post('/api/v1/payroll/periods').set(hr()).send({
     name: month, startDate: utc(`${month}-01`), endDate: utc(`${month}-28`),
@@ -77,6 +77,7 @@ async function createLockedPeriod(month = '2026-05') {
   });
   const periodId = create.body.data._id ?? create.body.data.id;
   await api.post(`/api/v1/payroll/periods/${periodId}/lock-attendance`).set(hr());
+  await api.post(`/api/v1/payroll/periods/${periodId}/lock-evaluations`).set(hr());
   return periodId;
 }
 
@@ -158,6 +159,32 @@ describe('Payroll period lifecycle — HTTP state machine', () => {
     const reopen = await api.post(`/api/v1/payroll/periods/${periodId}/reopen`).set(adminTok());
     expect(reopen.status).toBe(409);
   });
+
+  it('unlock attendance reverts approved payslips to draft so re-lock recomputes', async () => {
+    await seedPolicy();
+    const { employeeId } = await seedEmployee('REDO');
+    const periodId = await createLockedPeriod(); // locks attendance + evaluations
+
+    await api.post(`/api/v1/payroll/periods/${periodId}/run`).set(hr()).send({ requireApprovedEvaluation: false });
+    await api.post(`/api/v1/payroll/periods/${periodId}/approve`).set(hr()).send({});
+
+    // Recompute is refused while the row is approved.
+    const blocked = await api.post(`/api/v1/payroll/periods/${periodId}/run/${employeeId}`).set(hr());
+    expect(blocked.status).toBe(409);
+
+    // Unlock attendance → the approved row reverts to draft automatically.
+    const unlock = await api.post(`/api/v1/payroll/periods/${periodId}/unlock-attendance`).set(hr());
+    expect(unlock.status).toBe(200);
+    const afterUnlock = await api.get(`/api/v1/payroll/payrolls?payrollPeriodId=${periodId}`).set(hr());
+    // Reverted to draft → editing data + re-locking will recompute it (no
+    // PAY_ALREADY_FINALIZED). Before the fix it stayed 'approved' and was frozen.
+    expect(afterUnlock.body.data[0].status).toBe('draft');
+
+    // Re-locking attendance must succeed (this is what the user reported failing).
+    const relock = await api.post(`/api/v1/payroll/periods/${periodId}/lock-attendance`).set(hr());
+    expect(relock.status).toBe(200);
+    expect(relock.body.data.attendanceLockedAt).toBeTruthy();
+  });
 });
 
 describe('Payslip access control (HTTP)', () => {
@@ -190,10 +217,17 @@ describe('Payslip access control (HTTP)', () => {
 });
 
 describe('Evaluation reopen blocked once payroll approved (PERF-1, HTTP)', () => {
-  it('reopen returns 409 after payroll for the period+employee is approved', async () => {
+  it('reopen returns 409 after evaluations are locked and payroll approved', async () => {
     await seedPolicy();
     const { employeeId } = await seedEmployee('EVAL');
-    const periodId = await createLockedPeriod();
+
+    // Create + lock ATTENDANCE only — HR must still be able to score.
+    const create = await api.post('/api/v1/payroll/periods').set(hr()).send({
+      name: '2026-05', startDate: utc('2026-05-01'), endDate: utc('2026-05-28'),
+      payDate: utc('2026-05-28'), standardWorkDays: 22,
+    });
+    const periodId = create.body.data._id ?? create.body.data.id;
+    await api.post(`/api/v1/payroll/periods/${periodId}/lock-attendance`).set(hr());
 
     const perf = await PerformanceCriterion.create({ key: 'quality', label: 'quality', type: 'performance', status: 'active' });
     const goal = await PerformanceCriterion.create({ key: 'goal_x', label: 'goal_x', type: 'goal', status: 'active' });
@@ -207,7 +241,23 @@ describe('Evaluation reopen blocked once payroll approved (PERF-1, HTTP)', () =>
     expect(evalRes.status).toBe(201);
     const evalId = evalRes.body.data._id ?? evalRes.body.data.id;
 
-    // Run + approve payroll (eval now satisfies the requirement).
+    // Payroll refuses to run while evaluations are still unlocked.
+    const early = await api.post(`/api/v1/payroll/periods/${periodId}/run/${employeeId}`).set(hr());
+    expect(early.status).toBe(409);
+    expect(early.body.error?.code ?? early.body.code).toBe('PAY_EVAL_NOT_LOCKED');
+
+    // Lock evaluations → both locks in place → payroll auto-run is TRIGGERED in
+    // the background (meta.autoRunning). The lock response returns immediately.
+    const lockRes = await api.post(`/api/v1/payroll/periods/${periodId}/lock-evaluations`).set(hr());
+    expect(lockRes.status).toBe(200);
+    expect(lockRes.body.meta?.autoRunning).toBe(true);
+    const rescored = await api.post('/api/v1/performance/evaluations').set(hr()).send({
+      employeeId, payrollPeriodId: periodId,
+      criteriaScores: [{ criterionId: String(perf._id), score: 10 }, { criterionId: String(goal._id), score: 10 }],
+      finalize: true,
+    });
+    expect(rescored.status).toBe(409); // EVAL_LOCKED
+
     await api.post(`/api/v1/payroll/periods/${periodId}/run`).set(hr()).send({});
     await api.post(`/api/v1/payroll/periods/${periodId}/approve`).set(hr()).send({});
 

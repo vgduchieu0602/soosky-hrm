@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X, Layers } from "lucide-react";
+import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X, Layers, Lock, LockOpen, Plus, Loader2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TimeInput } from "@/components/ui/time-input";
 import { cn } from "@/shared/utils/cn";
+import { fmtPeriodName } from "@/shared/utils/period.utils";
+import { ConfirmDialog } from "@shared/components/ConfirmDialog";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
 import type { ChipColor } from "@features/dashboard/data";
 import { attendanceService } from "@features/attendance/services/attendance.service";
+import { payrollService } from "@features/payroll/services/payroll.service";
+import { CreatePeriodDialog } from "@features/payroll/components/CreatePeriodDialog";
+import type { CreatePeriodInput, PayrollPeriod } from "@features/payroll/types/payroll.types";
 import { settingsService } from "@features/settings/services/settings.service";
 import type { AttendanceSymbol } from "@features/settings/types/settings.types";
 import type {
@@ -84,6 +91,146 @@ interface EditTarget {
   records: Record<string, AttendanceRecord>; // keyed by shiftId
 }
 
+/**
+ * Workflow bar: attendance is where the monthly period is BORN. One period
+ * (stored "YYYY-MM", shown "MM-YYYY") is shared by attendance, evaluations and
+ * payroll. Create/delete the period here, lock attendance here; once
+ * evaluations are locked too (Đánh giá page), payroll auto-computes.
+ */
+function PeriodWorkflowBar({ month }: { month: string }) {
+  const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [rk, setRk] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [confirmLock, setConfirmLock] = useState<{ message: string } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    payrollService.listPeriods().then((ps) => { if (active) setPeriods(ps); }).catch(() => {});
+    return () => { active = false; };
+  }, [rk]);
+
+  const period = periods.find((p) => p.name === month);
+  const attLocked = !!period?.attendanceLockedAt;
+  const evalLocked = !!period?.evaluationLockedAt;
+  const finalized = period?.status === "closed" || period?.status === "paid";
+
+  function fail(e: unknown, fallback: string) {
+    const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
+    toast.error(d?.error?.message ?? d?.message ?? fallback);
+  }
+
+  async function handleCreate(input: CreatePeriodInput) {
+    await payrollService.createPeriod(input);
+    toast.success(`Đã tạo kỳ ${fmtPeriodName(input.name)} — dùng chung cho chấm công, đánh giá và bảng lương`);
+    setRk((k) => k + 1);
+  }
+
+  function deletePeriod() {
+    if (!period) return;
+    if (!window.confirm(`Xoá kỳ ${fmtPeriodName(period.name)}? Chỉ xoá được khi kỳ chưa có bảng lương.`)) return;
+    setBusy(true);
+    payrollService.deletePeriod(period._id)
+      .then(() => { toast.success("Đã xoá kỳ"); setRk((k) => k + 1); })
+      .catch((e) => fail(e, "Không xoá được kỳ (có thể đã có bảng lương)."))
+      .finally(() => setBusy(false));
+  }
+
+  // Open the confirm modal for chốt chấm công. Locking never fails on
+  // incomplete attendance (backend only blocks a paid period) — the modal just
+  // warns which employees are still missing records; HR may lock anyway.
+  function openLockConfirm() {
+    if (!period) return;
+    payrollService.attendanceReadiness(period._id)
+      .then((r) => {
+        const gaps: string[] = [];
+        if (r.employeesNoRecords > 0) gaps.push(`${r.employeesNoRecords}/${r.totalActiveEmployees} nhân viên CHƯA có bản ghi chấm công`);
+        if (r.incompleteRecords > 0) gaps.push(`${r.incompleteRecords} bản ghi còn thiếu giờ ra (không tính công)`);
+        const warn = gaps.length ? `Còn: ${gaps.join("; ")}.\n\nVẫn có thể chốt — phần chưa chấm sẽ tính là thiếu công.\n\n` : "";
+        setConfirmLock({ message: `${warn}Chốt chấm công kỳ ${fmtPeriodName(period.name)}? Sau khi chốt sẽ không sửa được bảng công của kỳ này (mở chốt lại nếu cần sửa).` });
+      })
+      .catch(() => setConfirmLock({ message: `Chốt chấm công kỳ ${fmtPeriodName(period.name)}? Sau khi chốt sẽ không sửa được bảng công của kỳ này.` }));
+  }
+
+  function doLockAttendance() {
+    if (!period) return;
+    setBusy(true);
+    payrollService.lockAttendance(period._id)
+      .then(({ autoRunning }) => {
+        toast.success("Đã chốt chấm công");
+        if (autoRunning) {
+          toast.info("Đủ 2 chốt — bảng lương đang được tính ở chế độ nền. Mở trang Bảng lương sau giây lát để xem.");
+        }
+        setConfirmLock(null);
+        setRk((k) => k + 1);
+      })
+      .catch((e) => fail(e, "Không chốt được chấm công."))
+      .finally(() => setBusy(false));
+  }
+
+  function unlockAttendance() {
+    if (!period) return;
+    setBusy(true);
+    payrollService.unlockAttendance(period._id)
+      .then(() => { toast.success("Đã mở chốt chấm công"); setRk((k) => k + 1); })
+      .catch((e) => fail(e, "Không mở chốt được."))
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3 border-primary-100 bg-primary-50/40 p-4">
+      <div className="flex flex-wrap items-center gap-2 text-[13px]">
+        <span className="font-semibold text-foreground">Kỳ {fmtPeriodName(month)}</span>
+        {!period && <Badge variant="amber">Chưa tạo kỳ</Badge>}
+        {period && <Badge variant={finalized ? "slate" : "blue"}>{period.status === "paid" ? "Đã chi" : period.status === "closed" ? "Đã chốt kỳ" : "Đang mở"}</Badge>}
+        {period && <Badge variant={attLocked ? "emerald" : "amber"}>{attLocked ? "✓ Đã chốt chấm công" : "Chưa chốt chấm công"}</Badge>}
+        {period && <Badge variant={evalLocked ? "emerald" : "amber"}>{evalLocked ? "✓ Đã chốt đánh giá" : "Chưa chốt đánh giá"}</Badge>}
+        <span className="text-muted-foreground">
+          {!period
+            ? "Tạo kỳ tại đây — kỳ dùng chung cho chấm công, đánh giá và bảng lương."
+            : attLocked && evalLocked
+              ? "Đủ 2 chốt — bảng lương đã tự tính. Xem tại trang Bảng lương."
+              : "Chốt chấm công ở đây + chốt đánh giá ở trang Đánh giá → bảng lương tự tính."}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        {!period && (
+          <Button size="sm" disabled={busy} onClick={() => setCreateOpen(true)} className="h-8 gap-1.5 rounded-full text-[12.5px]">
+            <Plus className="size-3.5" /> Tạo kỳ
+          </Button>
+        )}
+        {period && !finalized && (
+          attLocked ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={unlockAttendance} className="h-8 gap-1.5 rounded-full text-[12.5px]">
+              <LockOpen className="size-3.5" /> Mở chốt chấm công
+            </Button>
+          ) : (
+            <Button size="sm" disabled={busy} onClick={openLockConfirm} className="h-8 gap-1.5 rounded-full text-[12.5px]">
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />} Chốt chấm công
+            </Button>
+          )
+        )}
+        {period && !finalized && (
+          <Button size="sm" variant="outline" disabled={busy} onClick={deletePeriod}
+            className="h-8 gap-1.5 rounded-full text-[12.5px] text-rose-600 hover:border-rose-200 hover:bg-rose-50">
+            <Trash2 className="size-3.5" /> Xoá kỳ
+          </Button>
+        )}
+      </div>
+      <CreatePeriodDialog open={createOpen} onOpenChange={setCreateOpen} onSubmit={handleCreate} />
+      <ConfirmDialog
+        open={!!confirmLock}
+        title="Chốt chấm công kỳ"
+        message={confirmLock?.message}
+        confirmLabel="Vẫn chốt chấm công"
+        loading={busy}
+        onConfirm={doLockAttendance}
+        onCancel={() => setConfirmLock(null)}
+      />
+    </Card>
+  );
+}
+
 export default function AttendancePage() {
   const [month, setMonth] = useState(MONTH_OPTIONS[0].value);
   const [dept, setDept] = useState(ALL);
@@ -140,7 +287,9 @@ export default function AttendancePage() {
     const m = new Map<string, { work: number; leave: number; holiday: number; regime: number }>();
     for (const r of grid?.records ?? []) {
       const cur = m.get(r.employeeId) ?? { work: 0, leave: 0, holiday: 0, regime: 0 };
-      const w = W[r.session] ?? 1;
+      // Prefer the per-record công (1/số ca) stored by the server; fall back to
+      // the session weight for legacy/leave rows.
+      const w = r.congWeight ?? W[r.session] ?? 1;
       if (r.status === "present" || r.status === "late" || r.status === "early_leave") cur.work += w;
       else if (r.status === "leave_paid") cur.leave += w;
       else if (r.status === "holiday") cur.holiday += w;
@@ -199,6 +348,8 @@ export default function AttendancePage() {
                 </Button>
               </div>
             </div>
+
+            <PeriodWorkflowBar month={month} />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard chip="blue" icon={Users} label="Nhân sự" value={stats.people} />
@@ -286,7 +437,7 @@ export default function AttendancePage() {
                             <td key={d.key} className={cn("px-0 py-2 text-center", d.weekend && "bg-slate-50/40")}>
                               <button
                                 onClick={() => setEdit({ employee: e, dateKey: d.key, records })}
-                                className="inline-flex h-7 items-center justify-center gap-0.5 rounded-full px-1 transition hover:bg-muted"
+                                className="press inline-flex h-7 items-center justify-center gap-0.5 rounded-full px-1 transition-colors hover:bg-muted"
                                 title={title || "Chưa chấm"}
                               >
                                 {shifts.length === 0 ? (
@@ -426,9 +577,9 @@ function BulkEditor({ month, employees, shifts, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
-        <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+      <div className="animate-fade-in absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="animate-pop-in relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
+        <button onClick={onClose} className="press absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"><X className="size-4" /></button>
         <h3 className="text-[16px] font-bold text-foreground">Chấm công hàng loạt</h3>
         <p className="mt-0.5 text-[12.5px] text-muted-foreground">Áp 1 trạng thái cho <b className="text-foreground">{employees.length}</b> nhân viên đang lọc, theo khoảng ngày &amp; ca.</p>
 
@@ -535,9 +686,9 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
-        <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+      <div className="animate-fade-in absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="animate-pop-in relative max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
+        <button onClick={onClose} className="press absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"><X className="size-4" /></button>
         <h3 className="text-[16px] font-bold text-foreground">Chấm công theo ngày</h3>
         <p className="mt-0.5 text-[12.5px] text-muted-foreground">{employee.fullName || employee.employeeCode} · {dateKey}</p>
 

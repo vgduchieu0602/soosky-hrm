@@ -20,6 +20,7 @@ const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(Math.roun
 export interface PayrollRunContext {
   payrollPeriodId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId;
+  contractId?: mongoose.Types.ObjectId | null;
   policyConfigId?: mongoose.Types.ObjectId | null;
   monthlyEvaluationId?: mongoose.Types.ObjectId | null;
 
@@ -32,6 +33,9 @@ export interface PayrollRunContext {
   performanceRatio: number;
   goalRatio: number;
   weights?: SalaryComponentWeights;
+  /** Scale the performance & goal components by attendance too (policy-driven;
+   *  true = unpaid absence reduces the whole salary). */
+  prorateByAttendance?: boolean;
 
   baseSalary: number;
   totalTaxableAllowances: number;
@@ -76,6 +80,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     performanceRatio: ctx.performanceRatio,
     goalRatio: ctx.goalRatio,
     weights: ctx.weights,
+    prorateByAttendance: ctx.prorateByAttendance,
     totalTaxableAllowances: ctx.totalTaxableAllowances,
     totalNonTaxableAllowances: ctx.totalNonTaxableAllowances,
     insuranceBaseSalary: ctx.insuranceBaseSalary,
@@ -102,6 +107,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
   return {
     payrollPeriodId: ctx.payrollPeriodId,
     employeeId: ctx.employeeId,
+    contractId: ctx.contractId ?? null,
     policyConfigId: ctx.policyConfigId ?? null,
     monthlyEvaluationId: ctx.monthlyEvaluationId ?? null,
 

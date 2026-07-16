@@ -24,10 +24,20 @@ const money = (v: unknown) => `${fmtVND(v as never)} ₫`;
  * identically in the isolated print window (browser handles Vietnamese fonts).
  */
 function buildPayslipHtml(p: PayrollRecord, emp: EmpInfo, periodName: string): string {
+  const base = parseDecimal(p.baseSalary);
+  const att = p.attendanceRatio;
+  const attPct = Math.round(att * 100);
+  const money0 = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n));
+  const kpiDetail = (weightPct: number, scorePct: number, amount: number): string => {
+    const full = (weightPct / 100) * base * (scorePct / 100);
+    const isProrated = Math.abs(amount - full * att) < Math.abs(amount - full);
+    const head = `${weightPct}% × ${money0(base)} × ${Math.round(scorePct)}%`;
+    return isProrated ? `${head} × ${attPct}% công` : head;
+  };
   const groups = [
-    { w: "20%", color: "#0E97C8", title: "Lương ngày công", detail: `${p.actualWorkDays} / ${p.standardWorkDays} ngày công`, ratio: Math.round(p.attendanceRatio * 100), amount: parseDecimal(p.attendanceComponent) },
-    { w: "60%", color: "#2F66E0", title: "Tỷ lệ hiệu suất", detail: `Điểm hiệu suất ${Math.round(p.performanceRatio)}%`, ratio: Math.round(p.performanceRatio), amount: parseDecimal(p.performanceComponent) },
-    { w: "20%", color: "#7C5CD6", title: "Tỷ lệ mục tiêu", detail: `Kết quả mục tiêu ${Math.round(p.goalRatio)}% / 100%`, ratio: Math.round(p.goalRatio), amount: parseDecimal(p.goalComponent) },
+    { w: "20%", color: "#0E97C8", title: "Lương ngày công", detail: `20% × ${money0(base)} × ${attPct}% công (${p.actualWorkDays}/${p.standardWorkDays} ngày)`, ratio: attPct, amount: parseDecimal(p.attendanceComponent) },
+    { w: "60%", color: "#2F66E0", title: "Lương hiệu suất", detail: kpiDetail(60, p.performanceRatio, parseDecimal(p.performanceComponent)), ratio: Math.round(p.performanceRatio), amount: parseDecimal(p.performanceComponent) },
+    { w: "20%", color: "#7C5CD6", title: "Lương mục tiêu", detail: kpiDetail(20, p.goalRatio, parseDecimal(p.goalComponent)), ratio: Math.round(p.goalRatio), amount: parseDecimal(p.goalComponent) },
   ];
   const addons = [
     { label: "Phụ cấp", value: parseDecimal(p.totalAllowances) },

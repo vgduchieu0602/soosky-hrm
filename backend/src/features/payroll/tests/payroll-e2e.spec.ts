@@ -175,7 +175,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
       startDate: utc('2026-05-01'),
       endDate: utc('2026-05-31'),
       payDate: utc('2026-05-31'),
-      standardWorkDays: 22, attendanceLockedAt: new Date(),
+      standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(),
       status: 'open',
     });
 
@@ -237,7 +237,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, insuranceAmount: 577_500, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-08', startDate: utc('2026-08-01'), endDate: utc('2026-08-31'),
-      payDate: utc('2026-08-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+      payDate: utc('2026-08-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(), status: 'open',
     });
     for (let d = 1; d <= 22; d += 1) {
       await Attendance.create({ employeeId, date: utc(`2026-08-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
@@ -274,7 +274,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
-      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(), status: 'open',
     });
     for (let d = 1; d <= 22; d += 1) {
       await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
@@ -307,7 +307,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
-      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(), status: 'open',
     });
     for (let d = 1; d <= 22; d += 1) {
       await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
@@ -319,10 +319,127 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     });
 
     const payroll = await runPayrollForEmployee(String(period._id), employeeId);
-    // Intern pay follows the contract salary, attendance-prorated only (no perf/goal,
-    // no insurance/union fee). Full attendance on the 20M contract → 20,000,000.
+    // 22 công > 11 → intern earns the full 20/60/20 split; with 100/100 scores and
+    // full attendance that still equals the whole 20M contract. No insurance/union fee.
     expect(num(payroll.proRatedBaseSalary)).toBe(20_000_000);
     expect(num(payroll.grossSalary)).toBe(20_000_000);
+    expect(num(payroll.insurance)).toBe(0);
+    expect(num(payroll.unionFee)).toBe(0);
+  });
+
+  it('mid-month contract change → one payslip line per contract, days split by window', async () => {
+    await seedCompanyPolicy();
+    const criteria = await seedCriteria();
+    const employee = await Employee.create({
+      employeeCode: 'EMP-SPLIT', departmentId: oid(), positionId: oid(),
+      hireDate: utc('2024-01-01'), employeeType: 'full_time', status: 'active', salaryZone: 'zone1',
+    });
+    const employeeId = String(employee._id);
+    // Intern contract until 15/06, probation contract from 16/06.
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'fixed_term', employmentStatus: 'internship', contractNumber: 'HD-I',
+      startDate: utc('2026-01-01'), endDate: utc('2026-06-15'), baseSalary: dec(10_000_000), status: 'expired',
+    });
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'fixed_term', employmentStatus: 'probation', contractNumber: 'HD-P',
+      startDate: utc('2026-06-16'), baseSalary: dec(20_000_000), status: 'active',
+    });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    const period = await PayrollPeriod.create({
+      name: '2026-06', startDate: utc('2026-06-01'), endDate: utc('2026-06-30'),
+      payDate: utc('2026-06-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(), status: 'open',
+    });
+    // 5 present days in the intern window (1..5), 8 in the probation window (16..23).
+    for (const d of [1, 2, 3, 4, 5, 16, 17, 18, 19, 20, 21, 22, 23]) {
+      await Attendance.create({ employeeId, date: utc(`2026-06-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
+    }
+    await MonthlyEvaluation.create({
+      employeeId, payrollPeriodId: period._id,
+      criteriaScores: criteria.map((criterionId) => ({ criterionId, score: 100 })),
+      performanceRatio: 100, goalResult: 100, goalRatio: 100, status: 'approved',
+    });
+
+    await runPayrollForEmployee(String(period._id), employeeId, { requireApprovedEvaluation: false });
+    const rows = await Payroll.find({ payrollPeriodId: period._id }).sort({ actualWorkDays: 1 }).lean();
+    expect(rows).toHaveLength(2); // one line per contract
+    // Intern line: 5 days; probation line: 8 days. Standard stays the full month (22).
+    expect(num(rows[0]!.actualWorkDays as never)).toBe(5);
+    expect(num(rows[1]!.actualWorkDays as never)).toBe(8);
+    expect(rows.every((r) => r.contractId != null)).toBe(true);
+  });
+
+  it('intern uses the 20/60/20 split like everyone (scores DO affect pay)', async () => {
+    await seedCompanyPolicy();
+    const criteria = await seedCriteria();
+    const employee = await Employee.create({
+      employeeCode: 'EMP-INTERN-10', departmentId: oid(), positionId: oid(),
+      hireDate: utc('2024-01-01'), employeeType: 'intern', status: 'active', salaryZone: 'zone1',
+    });
+    const employeeId = String(employee._id);
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'fixed_term', employmentStatus: 'internship', contractNumber: 'HD-INTERN-10',
+      startDate: utc('2024-01-01'), baseSalary: dec(20_000_000), status: 'active',
+    });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    const period = await PayrollPeriod.create({
+      name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(), status: 'open',
+    });
+    for (let d = 1; d <= 10; d += 1) {
+      await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
+    }
+    await MonthlyEvaluation.create({
+      employeeId, payrollPeriodId: period._id,
+      criteriaScores: criteria.map((criterionId) => ({ criterionId, score: 50 })),
+      performanceRatio: 50, goalResult: 50, goalRatio: 50, status: 'approved',
+    });
+
+    const payroll = await runPayrollForEmployee(String(period._id), employeeId);
+    // 20/60/20 with score 50/50, ratio 10/22 (prorate on): all three parts count.
+    //   att  = 0.2×20M×10/22        = 1,818,182
+    //   perf = 0.6×20M×50%×10/22    = 2,727,273
+    //   goal = 0.2×20M×50%×10/22    =   909,091
+    expect(num(payroll.performanceComponent)).toBe(2_727_273);
+    expect(num(payroll.goalComponent)).toBe(909_091);
+    expect(num(payroll.proRatedBaseSalary)).toBe(5_454_546);
+    expect(num(payroll.insurance)).toBe(0); // intern still insurance-exempt
+  });
+
+  it('intern > 11 công: full 20/60/20 split, prorated by attendance', async () => {
+    await seedCompanyPolicy();
+    const criteria = await seedCriteria();
+    const employee = await Employee.create({
+      employeeCode: 'EMP-INTERN-15', departmentId: oid(), positionId: oid(),
+      hireDate: utc('2024-01-01'), employeeType: 'intern', status: 'active', salaryZone: 'zone1',
+    });
+    const employeeId = String(employee._id);
+    await EmployeeContractModel.create({
+      employeeId, contractType: 'fixed_term', employmentStatus: 'internship', contractNumber: 'HD-INTERN-15',
+      startDate: utc('2024-01-01'), baseSalary: dec(20_000_000), status: 'active',
+    });
+    await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
+    const period = await PayrollPeriod.create({
+      name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(), status: 'open',
+    });
+    for (let d = 1; d <= 15; d += 1) {
+      await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
+    }
+    await MonthlyEvaluation.create({
+      employeeId, payrollPeriodId: period._id,
+      criteriaScores: criteria.map((criterionId) => ({ criterionId, score: 80 })),
+      performanceRatio: 80, goalResult: 70, goalRatio: 70, status: 'approved',
+    });
+
+    const payroll = await runPayrollForEmployee(String(period._id), employeeId);
+    // ratio 15/22; prorateByAttendance default ON scales every component:
+    //   attendance = 0.2×20M×15/22            = 2,727,273
+    //   performance = 0.6×20M×0.80×15/22      = 6,545,455
+    //   goal        = 0.2×20M×0.70×15/22      = 1,909,091
+    expect(num(payroll.attendanceComponent)).toBe(2_727_273);
+    expect(num(payroll.performanceComponent)).toBe(6_545_455);
+    expect(num(payroll.goalComponent)).toBe(1_909_091);
+    expect(num(payroll.proRatedBaseSalary)).toBe(11_181_819);
     expect(num(payroll.insurance)).toBe(0);
     expect(num(payroll.unionFee)).toBe(0);
   });
@@ -352,7 +469,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
       startDate: utc('2026-06-01'),
       endDate: utc('2026-06-30'),
       payDate: utc('2026-06-30'),
-      standardWorkDays: 22, attendanceLockedAt: new Date(),
+      standardWorkDays: 22, attendanceLockedAt: new Date(), evaluationLockedAt: new Date(),
       status: 'open',
     });
 

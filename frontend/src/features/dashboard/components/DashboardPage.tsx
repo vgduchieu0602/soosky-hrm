@@ -40,27 +40,32 @@ function buildKpis(o: DashboardOverview): TopKpi[] {
 
 type LoadState = "loading" | "error" | "ok";
 
+// Key-remount wrapper: bumping the key restarts DashboardContent in its
+// initial "loading" state, so the fetch effect never sets state synchronously.
 export default function DashboardPage() {
+  const [reloadKey, setReloadKey] = useState(0);
+  return <DashboardContent key={reloadKey} onReload={() => setReloadKey((k) => k + 1)} />;
+}
+
+function DashboardContent({ onReload }: { onReload: () => void }) {
   const [data, setData] = useState<DashboardOverview | null>(null);
   const [state, setState] = useState<LoadState>("loading");
-  const [reloadKey, setReloadKey] = useState(0);
   const [busyLeave, setBusyLeave] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    setState("loading");
     dashboardService
       .overview()
       .then((d) => { if (active) { setData(d); setState("ok"); } })
       .catch(() => { if (active) { setData(null); setState("error"); } });
     return () => { active = false; };
-  }, [reloadKey]);
+  }, []);
 
   function approveLeave(id: string) {
     setBusyLeave(id);
     attendanceService
       .approveLeave(id)
-      .then(() => { toast.success("Đã phê duyệt đơn nghỉ"); setReloadKey((k) => k + 1); })
+      .then(() => { toast.success("Đã phê duyệt đơn nghỉ"); onReload(); })
       .catch((e) => toast.error(e?.response?.data?.error?.message ?? "Không thể phê duyệt"))
       .finally(() => setBusyLeave(null));
   }
@@ -71,7 +76,7 @@ export default function DashboardPage() {
     setBusyLeave(id);
     attendanceService
       .rejectLeave(id, reason.trim())
-      .then(() => { toast.success("Đã từ chối đơn nghỉ"); setReloadKey((k) => k + 1); })
+      .then(() => { toast.success("Đã từ chối đơn nghỉ"); onReload(); })
       .catch((e) => toast.error(e?.response?.data?.error?.message ?? "Không thể từ chối"))
       .finally(() => setBusyLeave(null));
   }
@@ -96,7 +101,7 @@ export default function DashboardPage() {
         <TopBar />
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto flex max-w-[1480px] flex-col gap-8">
-            <PageHeader />
+            <PageHeader pendingCount={data?.kpis.pendingLeaves} />
 
             {state === "loading" && (
               <div className="flex flex-col items-center justify-center gap-3 py-32 text-muted-foreground">
@@ -113,7 +118,7 @@ export default function DashboardPage() {
                   Kiểm tra kết nối tới máy chủ API và thử lại. (Máy chủ backend phải đang chạy.)
                 </div>
                 <button
-                  onClick={() => setReloadKey((k) => k + 1)}
+                  onClick={onReload}
                   className="mt-1 rounded-lg bg-primary-500 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-primary-600"
                 >
                   Thử lại

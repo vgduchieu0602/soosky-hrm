@@ -36,7 +36,7 @@ describe('summarizeAttendance', () => {
     expect(s.unpaidDays).toBe(0);
   });
 
-  it('treats paid leave and holiday as paid (counts toward actualWorkDays, not worked)', () => {
+  it('counts paid leave toward actualWorkDays; holiday stays NEUTRAL', () => {
     const s = summarizeAttendance([
       row('present', 'full_day', 8),
       row('leave_paid'),
@@ -45,7 +45,9 @@ describe('summarizeAttendance', () => {
     expect(s.workedDays).toBe(1);
     expect(s.paidLeaveDays).toBe(1);
     expect(s.holidayDays).toBe(1);
-    expect(s.actualWorkDays).toBe(3); // 1 worked + 1 paid leave + 1 holiday
+    // Holiday excluded: standardWorkDays already omits public holidays, so
+    // counting the row here would inflate the ratio and mask unpaid absence.
+    expect(s.actualWorkDays).toBe(2); // 1 worked + 1 paid leave
     expect(s.unpaidDays).toBe(0);
   });
 

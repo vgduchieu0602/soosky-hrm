@@ -79,6 +79,13 @@ export class EvaluationUseCases {
   async directEvaluate(input: DirectEvaluateDto, hrUserId: string) {
     const finalize = input.finalize === true;
 
+    // Period-level freeze: once HR locks the month's evaluations (chốt đánh
+    // giá), no score of that period may change — payroll consumes them as-is.
+    const lockedAt = await this.payrollLock.evaluationLockedAt(input.payrollPeriodId);
+    if (lockedAt) {
+      throw conflict('Kỳ đánh giá đã chốt — không thể chấm/sửa. Hãy mở chốt đánh giá trước.', 'EVAL_LOCKED');
+    }
+
     const employee = await this.employees.findManager(input.employeeId);
     if (!employee) throw new NotFoundError('Employee');
 
@@ -169,6 +176,10 @@ export class EvaluationUseCases {
   async reopen(id: string, hrUserId: string, reason?: string) {
     const doc = await this.load(id);
     if (doc.status !== 'approved') throw conflict('Chỉ mở lại bản đã duyệt', 'EVAL_NOT_APPROVED');
+    const lockedAt = await this.payrollLock.evaluationLockedAt(String(doc.payrollPeriodId));
+    if (lockedAt) {
+      throw conflict('Kỳ đánh giá đã chốt — không thể mở lại. Hãy mở chốt đánh giá trước.', 'EVAL_LOCKED');
+    }
     // Refuse if payroll has already locked this evaluation's ratios into a
     // finalized payslip — reopening would let HR change scores that an
     // approved/paid payroll already snapshotted, silently diverging the two.

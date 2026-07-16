@@ -184,7 +184,12 @@ function ScoreGroup({ title, items, scores, setScores }: {
             <Input
               type="number" min={0} max={100}
               value={scores[c._id] ?? 0}
-              onChange={(e) => setScores((s) => ({ ...s, [c._id]: Number(e.target.value) }))}
+              onChange={(e) => {
+                // Cap at 100 immediately (111 → 100), floor at 0; blanks → 0.
+                const n = Number(e.target.value);
+                const clamped = Number.isNaN(n) ? 0 : Math.min(100, Math.max(0, n));
+                setScores((s) => ({ ...s, [c._id]: clamped }));
+              }}
               className="h-8 w-full pr-7 text-right text-[13px] tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
             <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">%</span>

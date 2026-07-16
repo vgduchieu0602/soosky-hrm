@@ -64,6 +64,30 @@ export class LeaveUseCases {
     }
   }
 
+  /**
+   * Reject when another pending/approved request already covers any day in
+   * [start, end]. Two half-day requests on the same day are allowed only when
+   * they take different sessions (morning vs afternoon).
+   */
+  private async assertNoOverlap(
+    employeeId: string,
+    start: Date,
+    end: Date,
+    halfDaySession: string | null,
+    opts: { excludeId?: string; statuses?: ReadonlyArray<string>; tx?: Tx } = {},
+  ): Promise<void> {
+    const others = await this.leaveReq.findOverlapping(employeeId, start, end, opts.tx);
+    const conflict = others.find((r) => {
+      if (opts.excludeId && r._id === opts.excludeId) return false;
+      if (opts.statuses && !opts.statuses.includes(r.status)) return false;
+      const bothHalf = Boolean(halfDaySession) && Boolean(r.halfDaySession);
+      return !(bothHalf && r.halfDaySession !== halfDaySession);
+    });
+    if (conflict) {
+      throw new HttpError(409, 'Đã có đơn nghỉ khác trùng ngày trong khoảng này', 'LV_007');
+    }
+  }
+
   async submit(userId: string, dto: SubmitLeaveDto) {
     const employeeId = await this.employeeOfUser(userId);
     if (vnDateKey(dto.endDate).getTime() < vnDateKey(dto.startDate).getTime()) {
@@ -76,6 +100,7 @@ export class LeaveUseCases {
     const days = countWorkingDays(dto.startDate, dto.endDate, dto.halfDaySession, isHoliday);
     if (days <= 0) throw new HttpError(400, 'Khoảng nghỉ không có ngày làm việc nào', 'LV_003');
 
+    await this.assertNoOverlap(employeeId, dto.startDate, dto.endDate, dto.halfDaySession ?? null);
     await this.entitlement.assertAvailable(employeeId, dto.leaveType, dto.startDate, days);
     const doc = await this.leaveReq.create({
       employeeId,
@@ -115,6 +140,13 @@ export class LeaveUseCases {
       if (!req) throw new HttpError(404, 'Không tìm thấy đơn', 'LV_001');
       if (req.status !== 'pending') throw new HttpError(409, 'Đơn đã được xử lý', 'LV_002');
 
+      // Guard against racing approvals: another APPROVED request on the same
+      // days would double-charge the balance and overwrite attendance rows.
+      await this.assertNoOverlap(req.employeeId, req.startDate, req.endDate, req.halfDaySession ?? null, {
+        excludeId: req._id,
+        statuses: ['approved'],
+        tx,
+      });
       await this.entitlement.assertAvailable(req.employeeId, req.leaveType, req.startDate, req.days, tx);
 
       const updated = await this.leaveReq.updateStatus(

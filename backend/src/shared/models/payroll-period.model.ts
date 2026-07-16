@@ -21,6 +21,10 @@ export interface IPayrollPeriod {
   /** Set when attendance is locked — must precede payroll run; blocks edits. */
   attendanceLockedAt?: Date | null;
   attendanceLockedBy?: Types.ObjectId | null;
+  /** Set when monthly evaluations are locked — must precede payroll run;
+   *  blocks scoring/reopening evaluations of this period. */
+  evaluationLockedAt?: Date | null;
+  evaluationLockedBy?: Types.ObjectId | null;
   createdBy?: Types.ObjectId | null;
   created_at?: Date;
   updated_at?: Date;
@@ -40,6 +44,8 @@ const payrollPeriodSchema = new Schema<IPayrollPeriod>(
     closedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     attendanceLockedAt: { type: Date, default: null },
     attendanceLockedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
+    evaluationLockedAt: { type: Date, default: null },
+    evaluationLockedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
   },
   {

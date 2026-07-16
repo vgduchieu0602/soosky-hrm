@@ -124,6 +124,47 @@
     to   { opacity: 1; }
   }
 
+  /* ---- Apple-style motion primitives (Emil Kowalski curves) ------------- */
+  :root {
+    /* Strong ease-out for entering/pressing UI — punchier than CSS defaults. */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    /* Natural accel/decel for on-screen movement. */
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+
+  /* Dialog/panel entrance: never from scale(0) — start visible-but-small so it
+     grows into place rather than popping out of nothing. Origin-aware via
+     --pop-origin (default center for modals). */
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .animate-pop-in {
+    transform-origin: var(--pop-origin, center);
+    animation: popIn 200ms var(--ease-out) both;
+    will-change: transform, opacity;
+  }
+  .animate-fade-in {
+    animation: fadeIn 180ms var(--ease-out) both;
+  }
+
+  /* Press feedback: any pressable element scales down slightly on :active, so
+     the UI feels like it heard the tap. Fast, transform-only (GPU). */
+  .press {
+    transition: transform 160ms var(--ease-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .press:active:not(:disabled) { transform: scale(0.97); }
+  }
+  @media (hover: none) {
+    .press:active:not(:disabled) { transform: scale(0.97); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pop-in, .animate-fade-in { animation: fadeIn 0.01ms both; }
+    .press:active:not(:disabled) { transform: none; }
+  }
+
   /* Floating-label inputs */
   .field {
     position: relative;

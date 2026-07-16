@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, Building2, Clock, CalendarDays, Wallet, Trophy,
-  ReceiptText, ClipboardList, Settings, ChevronDown, LogOut,
+  ReceiptText, ClipboardList, Settings, LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { X } from "lucide-react";
@@ -110,10 +110,9 @@ export default function Sidebar({ active }: SidebarProps) {
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-white">Soosky JSC</span>
           <span className="block truncate text-[11px] font-normal text-white/45">
-            Hà Nội · 248 nhân sự
+            Hệ thống quản trị nhân sự
           </span>
         </span>
-        <ChevronDown className="size-3.5 text-white/40" />
       </Button>
 
       <nav className="mt-6 flex flex-1 flex-col gap-0.5 px-3">

@@ -54,10 +54,25 @@ export function PayslipDrawer({ p, emp, periodName, busy, onApprove, onRevert, o
     { label: "Thưởng", value: parseDecimal(p.totalBonuses) },
   ].filter((r) => r.value);
 
+  // Transparent breakdown so an employee sees HOW each amount is derived. Every
+  // employment type (intern/probation/official) uses the 20/60/20 split.
+  const base = parseDecimal(p.baseSalary);
+  const att = p.attendanceRatio; // 0..1
+  const attPct = Math.round(att * 100);
+  const money0 = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n));
+  /** Perf/goal formula string; detects whether the stored amount was prorated
+   *  by attendance and shows the exact factors that reconstruct it. */
+  const kpiDetail = (weightPct: number, scorePct: number, amount: number): string => {
+    const full = (weightPct / 100) * base * (scorePct / 100);
+    const isProrated = full > 0 && Math.abs(amount - full * att) < Math.abs(amount - full);
+    const head = `${weightPct}% × ${money0(base)} × ${Math.round(scorePct)}%`;
+    return isProrated ? `${head} × ${attPct}% công` : head;
+  };
+
   const groups = [
-    { color: "#0E97C8", weight: "20%", title: "Lương ngày công", ratio: Math.round(p.attendanceRatio * 100), amount: parseDecimal(p.attendanceComponent), detail: `${p.actualWorkDays} / ${p.standardWorkDays} ngày công` },
-    { color: "#2F66E0", weight: "60%", title: "Tỷ lệ hiệu suất", ratio: Math.round(p.performanceRatio), amount: parseDecimal(p.performanceComponent), detail: `Điểm hiệu suất ${Math.round(p.performanceRatio)}%` },
-    { color: "#7C5CD6", weight: "20%", title: "Tỷ lệ mục tiêu", ratio: Math.round(p.goalRatio), amount: parseDecimal(p.goalComponent), detail: `Kết quả mục tiêu ${Math.round(p.goalRatio)}% / 100%` },
+    { color: "#0E97C8", weight: "20%", title: "Lương ngày công", ratio: attPct, amount: parseDecimal(p.attendanceComponent), detail: `20% × ${money0(base)} × ${attPct}% công (${p.actualWorkDays}/${p.standardWorkDays} ngày)` },
+    { color: "#2F66E0", weight: "60%", title: "Lương hiệu suất", ratio: Math.round(p.performanceRatio), amount: parseDecimal(p.performanceComponent), detail: kpiDetail(60, p.performanceRatio, parseDecimal(p.performanceComponent)) },
+    { color: "#7C5CD6", weight: "20%", title: "Lương mục tiêu", ratio: Math.round(p.goalRatio), amount: parseDecimal(p.goalComponent), detail: kpiDetail(20, p.goalRatio, parseDecimal(p.goalComponent)) },
   ];
 
   return (

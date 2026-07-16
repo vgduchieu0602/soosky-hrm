@@ -63,17 +63,18 @@ const uow = new MongooseUnitOfWork();
 void clock; // reserved for future time-dependent rules
 
 // --- application ---
+export const runUseCases = new RunPayrollUseCases(
+  periodRepo, payrollRepo, employeeGw, contractGw, shiftGw, policyGw, evaluationGw,
+  taxProfileRepo, allowanceRepo, bonusRepo, deductionRepo, attendanceGw, workCalendarGw, uow,
+);
 export const payrollPeriodUseCases = new PayrollPeriodUseCases(
-  periodRepo, payrollRepo, employeeGw, attendanceGw, workCalendarGw, audit, events,
+  periodRepo, payrollRepo, employeeGw, attendanceGw, workCalendarGw, evaluationGw, audit, events,
+  () => ({ forPeriod: (id) => runUseCases.forPeriod(id) }),
 );
 export const payrollUseCases = new PayrollUseCases(
   payrollRepo, periodRepo, policyGw, employeeGw, contractGw, evaluationGw, taxProfileRepo, profileGw,
 );
 export const approvalUseCases = new PayrollApprovalUseCases(periodRepo, payrollRepo, audit, events, uow);
-export const runUseCases = new RunPayrollUseCases(
-  periodRepo, payrollRepo, employeeGw, contractGw, shiftGw, policyGw, evaluationGw,
-  taxProfileRepo, allowanceRepo, bonusRepo, deductionRepo, attendanceGw, workCalendarGw, uow,
-);
 
 export const allowanceUseCases = new AllowanceUseCases(allowanceRepo, audit);
 export const bonusUseCases = new BonusUseCases(bonusRepo, audit);
