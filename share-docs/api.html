@@ -1,0 +1,1047 @@
+<style>
+* { box-sizing: border-box; }
+#app {
+    --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #e5e7eb;
+    --head: #f8fafc; --chip: #475569; --chipbg: #f1f5f9;
+    --status: #b45309; --statusbg: #fef3c7;
+    --type: #2563eb; --field: #0f172a;
+    --org: #0891b2;
+    background: #ffffff; min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text); line-height: 1.55; font-size: 14px;
+}
+#app .layout { display: grid; grid-template-columns: 250px 1fr; gap: 28px; align-items: start; max-width: 1024px; margin: 0 auto; }
+#app .sidebar { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; padding: 16px 8px 40px; font-size: 13px; }
+#app .sb-title { font-weight: 700; font-size: 15px; margin: 0 8px 14px; }
+#app .nav-mod { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+    margin: 16px 8px 6px; display: flex; align-items: center; gap: 7px; cursor: pointer; }
+#app .nav-mod:hover { opacity: .75; }
+#app .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+#app .nav-sub { display: block; color: var(--muted); font-size: 11px; font-weight: 600; margin: 10px 8px 3px; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; }
+#app .nav-sub:hover { color: var(--text); }
+#app .nav-uc { display: flex; align-items: center; gap: 7px; padding: 4px 10px; margin: 1px 0; border-radius: 6px; color: var(--muted);
+    cursor: pointer; border-left: 2px solid transparent; font-family: ui-monospace, monospace; font-size: 12px; }
+#app .nav-uc:hover { background: var(--head); color: var(--text); }
+#app .nav-uc.active { color: var(--text); border-left-color: var(--accent); background: var(--head); font-weight: 600; }
+#app .nav-m { font-size: 9px; font-weight: 700; letter-spacing: .03em; min-width: 34px; display: inline-block; }
+#app [id^="mod-"], #app [id^="sub-"] { scroll-margin-top: 14px; }
+#app .content { padding: 16px 4px 80px; min-width: 0; }
+#app h1 { font-size: 24px; margin: 0 0 4px; }
+#app .lead { color: var(--muted); margin: 0 0 20px; }
+#app .callout { background: var(--head); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 0 0 24px; }
+#app .callout .label { margin-top: 0; }
+#app .callout ul { margin: 4px 0 0; padding-left: 18px; }
+#app .callout li { margin: 4px 0; }
+#app .roadmap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#app .roadmap span { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); }
+#app .roadmap .done { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+#app .roadmap .todo { background: var(--head); color: var(--muted); }
+#app .module { margin-bottom: 12px; }
+#app .mod-title { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: #fff; padding: 5px 14px; border-radius: 999px; margin: 28px 0 6px; }
+#app .sub-title { font-size: 17px; font-weight: 700; margin: 22px 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+#app .ep { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 16px 18px; margin: 14px 0; scroll-margin-top: 12px; }
+#app .ep-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#app .method { color: #fff; font-family: ui-monospace, monospace; font-weight: 700; font-size: 12px;
+    padding: 3px 9px; border-radius: 6px; min-width: 64px; text-align: center; display: inline-block; }
+#app .m-GET { background: #059669; } #app .m-POST { background: #2563eb; }
+#app .m-PATCH { background: #d97706; } #app .m-PUT { background: #4f46e5; } #app .m-DELETE { background: #dc2626; }
+#app .path { font-family: ui-monospace, monospace; font-size: 15px; font-weight: 600; color: var(--field); word-break: break-all; }
+#app .path .pp { color: #c026d3; font-weight: 700; }
+#app .ep-meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 9px 0 2px; }
+#app .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+#app .badge.bearer { background: #eef2ff; color: #4338ca; }
+#app .badge.public { background: #ecfdf5; color: #047857; }
+#app .badge.access { background: #f1f5f9; color: #475569; }
+#app .badge.uc { background: #fff7ed; color: #c2410c; font-family: ui-monospace, monospace; }
+#app .uc-desc { color: var(--muted); margin: 10px 0 4px; }
+#app .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 16px 0 6px; }
+#app table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 4px; table-layout: fixed; }
+#app th:nth-child(1), #app td:nth-child(1) { width: 30%; }
+#app th:nth-child(2), #app td:nth-child(2) { width: 16%; }
+#app th:nth-child(3), #app td:nth-child(3) { width: 54%; }
+#app table.errs th:nth-child(1), #app table.errs td:nth-child(1) { width: 12%; }
+#app table.errs th:nth-child(2), #app table.errs td:nth-child(2) { width: 34%; }
+#app table.errs th:nth-child(3), #app table.errs td:nth-child(3) { width: 54%; }
+#app th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    padding: 6px 10px; background: var(--head); border: 1px solid var(--border); }
+#app td { padding: 6px 10px; border: 1px solid var(--border); vertical-align: top; }
+#app td.f { font-family: ui-monospace, monospace; color: var(--field); white-space: nowrap; }
+#app td.t { font-family: ui-monospace, monospace; color: var(--type); white-space: nowrap; }
+#app .void { color: var(--muted); font-style: italic; margin: 0; }
+#app code.chip { font-family: ui-monospace, monospace; font-size: 12px; background: var(--chipbg); color: var(--chip); padding: 1px 6px; border-radius: 5px; }
+#app .status { font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; background: var(--statusbg); color: var(--status); padding: 1px 6px; border-radius: 5px; }
+@media (max-width: 820px) {
+    #app .layout { grid-template-columns: 1fr; }
+    #app .sidebar { position: static; max-height: none; border-bottom: 1px solid var(--border); }
+}
+</style>
+<div id="app"></div>
+<script>
+const O = "var(--org)";
+const data = [
+{ name: "Organization", accent: O, subs: [
+  { name: "Department", eps: [
+    { id:"createdepartment", method:"POST", path:"/organization/departments", uc:"CreateDepartment", auth:"Bearer",
+      desc:"Tạo phòng ban mới. Mã (`code`) chuẩn hoá về in hoa và là duy nhất. Có `parentDepartmentId` thì phòng ban cha phải tồn tại.",
+      body:[["code","string","Mã phòng ban (duy nhất, ≤20, tự in hoa)"],["name","string","Tên phòng ban (≤120)"],["description","string?","Mô tả (tuỳ chọn, ≤500)"],["parentDepartmentId","string?","Phòng ban cha (tuỳ chọn)"],["managerId","string?","Trưởng phòng — id nhân viên, mờ ở pilot (tuỳ chọn)"]],
+      resp:{ code:"201", body:[["departmentId","uuid","ID phòng ban vừa tạo"]] },
+      errors:[["409","DEPARTMENT_CODE_CONFLICT","Mã phòng ban đã tồn tại"],["404","PARENT_DEPARTMENT_NOT_FOUND","Phòng ban cha không tồn tại"],["422","DEPARTMENT_CODE_INVALID","Mã rỗng hoặc quá dài"],["422","DEPARTMENT_NAME_INVALID","Tên rỗng hoặc quá dài"]] },
+    { id:"listdepartments", method:"GET", path:"/organization/departments", uc:"ListDepartments", auth:"Bearer",
+      desc:"Liệt kê phòng ban ở dạng phẳng, hoặc cây (rừng) khi `tree=true`.",
+      query:[["tree","boolean?","`true` để trả cây lồng nhau; mặc định phẳng"]],
+      resp:{ code:"200", body:[["departments","DeptNode[] | Department[]","Danh sách phòng ban (lồng cây nếu `tree=true`)"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"getdepartment", method:"GET", path:"/organization/departments/{departmentId}", uc:"GetDepartment", auth:"Bearer",
+      desc:"Lấy chi tiết một phòng ban.",
+      params:[["departmentId","uuid","Phòng ban cần lấy"]],
+      resp:{ code:"200", body:[["department","Department","Chi tiết phòng ban"]] },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"]] },
+    { id:"updatedepartment", method:"PATCH", path:"/organization/departments/{departmentId}", uc:"UpdateDepartment", auth:"Bearer",
+      desc:"Cập nhật tên/mã/mô tả phòng ban; chỉ áp trường có mặt. Đổi mã thì mã mới phải chưa dùng bởi phòng ban khác.",
+      params:[["departmentId","uuid","Phòng ban cần cập nhật"]],
+      body:[["code","string?","Mã mới (tuỳ chọn)"],["name","string?","Tên mới (tuỳ chọn)"],["description","string?","Mô tả mới (tuỳ chọn)"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"],["409","DEPARTMENT_CODE_CONFLICT","Mã mới trùng phòng ban khác"],["422","DEPARTMENT_CODE_INVALID","Mã không hợp lệ"],["422","DEPARTMENT_NAME_INVALID","Tên không hợp lệ"]] },
+    { id:"reparentdepartment", method:"PATCH", path:"/organization/departments/{departmentId}/parent", uc:"ReparentDepartment", auth:"Bearer",
+      desc:"Di chuyển phòng ban sang cha mới. Chặn tự làm cha và chặn tạo chu trình (cha mới nằm trong cây con). Gửi `parentDepartmentId` rỗng/null để đưa về gốc.",
+      params:[["departmentId","uuid","Phòng ban cần di chuyển"]],
+      body:[["parentDepartmentId","string?","Cha mới; bỏ trống để đưa về gốc"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"],["404","PARENT_DEPARTMENT_NOT_FOUND","Cha mới không tồn tại"],["409","DEPARTMENT_CANNOT_BE_OWN_PARENT","Cha mới trùng chính nó"],["409","DEPARTMENT_CYCLE","Cha mới nằm trong cây con"]] },
+    { id:"assigndepartmenthead", method:"PATCH", path:"/organization/departments/{departmentId}/head", uc:"AssignDepartmentHead", auth:"Bearer",
+      desc:"Gán hoặc gỡ trưởng phòng. `managerId` là id nhân viên, mờ ở pilot (chưa ràng buộc module employee). Bỏ trống để gỡ.",
+      params:[["departmentId","uuid","Phòng ban"]],
+      body:[["managerId","string?","Trưởng phòng mới; bỏ trống để gỡ"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"]] },
+    { id:"archivedepartment", method:"POST", path:"/organization/departments/{departmentId}/archive", uc:"ArchiveDepartment", auth:"Bearer",
+      desc:"Lưu trữ (archive) phòng ban. Chặn nếu còn phòng ban con đang `active`.",
+      params:[["departmentId","uuid","Phòng ban cần lưu trữ"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"],["409","DEPARTMENT_HAS_CHILDREN","Còn phòng ban con đang hoạt động"]] },
+    { id:"deletedepartment", method:"DELETE", path:"/organization/departments/{departmentId}", uc:"DeleteDepartment", auth:"Bearer",
+      desc:"Xoá cứng phòng ban — chỉ khi không còn phòng ban con và không còn vị trí nào trỏ tới.",
+      params:[["departmentId","uuid","Phòng ban cần xoá"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"],["409","DEPARTMENT_HAS_CHILDREN","Còn phòng ban con hoặc vị trí phụ thuộc"]] },
+  ]},
+  { name: "Position", eps: [
+    { id:"createposition", method:"POST", path:"/organization/positions", uc:"CreatePosition", auth:"Bearer",
+      desc:"Tạo vị trí trong một phòng ban. Phòng ban phải tồn tại; mã vị trí duy nhất. `level` mặc định 1.",
+      body:[["code","string","Mã vị trí (duy nhất, ≤20, tự in hoa)"],["title","string","Tên vị trí (≤120)"],["departmentId","string","Phòng ban chứa vị trí"],["level","number?","Cấp bậc 1..10 (mặc định 1)"],["description","string?","Mô tả (tuỳ chọn)"]],
+      resp:{ code:"201", body:[["positionId","uuid","ID vị trí vừa tạo"]] },
+      errors:[["404","DEPARTMENT_NOT_FOUND","Phòng ban không tồn tại"],["409","POSITION_CODE_CONFLICT","Mã vị trí đã tồn tại"],["422","POSITION_CODE_INVALID","Mã không hợp lệ"],["422","POSITION_TITLE_INVALID","Tên không hợp lệ"],["422","POSITION_LEVEL_INVALID","`level` ngoài 1..10 hoặc không nguyên"]] },
+    { id:"listpositions", method:"GET", path:"/organization/positions", uc:"ListPositions", auth:"Bearer",
+      desc:"Liệt kê vị trí, lọc tuỳ chọn theo phòng ban và trạng thái.",
+      query:[["departmentId","string?","Lọc theo phòng ban"],["status","string?","Lọc theo trạng thái (`active`/`archived`)"]],
+      resp:{ code:"200", body:[["positions","Position[]","Danh sách vị trí"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"getposition", method:"GET", path:"/organization/positions/{positionId}", uc:"GetPosition", auth:"Bearer",
+      desc:"Lấy chi tiết một vị trí.",
+      params:[["positionId","uuid","Vị trí cần lấy"]],
+      resp:{ code:"200", body:[["position","Position","Chi tiết vị trí"]] },
+      errors:[["404","POSITION_NOT_FOUND","Vị trí không tồn tại"]] },
+    { id:"updateposition", method:"PATCH", path:"/organization/positions/{positionId}", uc:"UpdatePosition", auth:"Bearer",
+      desc:"Cập nhật vị trí: đổi tên/level/mô tả, chuyển phòng ban, đổi trạng thái; chỉ áp trường có mặt.",
+      params:[["positionId","uuid","Vị trí cần cập nhật"]],
+      body:[["title","string?","Tên mới"],["departmentId","string?","Chuyển sang phòng ban khác (phải tồn tại)"],["level","number?","Cấp bậc mới 1..10"],["description","string?","Mô tả mới"],["status","string?","`active` hoặc `archived`"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","POSITION_NOT_FOUND","Vị trí không tồn tại"],["404","DEPARTMENT_NOT_FOUND","Phòng ban đích không tồn tại"],["422","POSITION_TITLE_INVALID","Tên không hợp lệ"],["422","POSITION_LEVEL_INVALID","`level` không hợp lệ"],["422","POSITION_STATUS_INVALID","`status` không hợp lệ"]] },
+    { id:"archiveposition", method:"POST", path:"/organization/positions/{positionId}/archive", uc:"ArchivePosition", auth:"Bearer",
+      desc:"Lưu trữ (soft) một vị trí — ẩn khỏi bộ chọn nhưng giữ tham chiếu lịch sử.",
+      params:[["positionId","uuid","Vị trí cần lưu trữ"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","POSITION_NOT_FOUND","Vị trí không tồn tại"]] },
+    { id:"deleteposition", method:"DELETE", path:"/organization/positions/{positionId}", uc:"DeletePosition", auth:"Bearer",
+      desc:"Xoá cứng một vị trí. Pilot chưa đếm nhân viên tham chiếu — ràng buộc đó bổ sung khi có module employee.",
+      params:[["positionId","uuid","Vị trí cần xoá"]],
+      resp:{ code:"200", note:"Không có nội dung." },
+      errors:[["404","POSITION_NOT_FOUND","Vị trí không tồn tại"]] },
+  ]},
+]},
+{ name: "IAM", accent: "#7c3aed", subs: [
+  { name: "Auth", eps: [
+    { id:"iam-login", method:"POST", path:"/api/v1/auth/login", uc:"Login", auth:"Public",
+      desc:"Đăng nhập bằng `identifier` (username hoặc email) + `password`. Thành công thì phát `accessToken` (JSON) và set cookie `refreshToken` (httpOnly).",
+      body:[["identifier","string","Username hoặc email (≤120)"],["password","string","Mật khẩu (≤200)"]],
+      resp:{ code:"200", body:[["accessToken","string","JWT truy cập"],["user.id","string","ID user"],["user.username","string","Username"],["user.email","string","Email"],["user.roles","string[]","Tên các vai trò"],["user.permissions","string[]","Danh sách khoá quyền"],["user.mustChangePassword","boolean","Có bắt buộc đổi mật khẩu không"]] },
+      errors:[["401","IAM_001","Sai `identifier`/`password`, hoặc không tìm thấy user"],["403","IAM_003","Tài khoản không ở trạng thái `active` (`disabled`/`locked`)"]] },
+    { id:"iam-refresh", method:"POST", path:"/api/v1/auth/refresh", uc:"Refresh", auth:"Public",
+      desc:"Cấp lại `accessToken` + xoay `refreshToken` từ cookie `refreshToken`. Phát hiện tái sử dụng token (reuse) thì thu hồi toàn bộ session của user.",
+      resp:{ code:"200", body:[["accessToken","string","JWT truy cập mới"]] },
+      errors:[["401","IAM_005","Thiếu/không hợp lệ/hết hạn `refreshToken`, hoặc phát hiện reuse, hoặc user không còn `active`"]] },
+    { id:"iam-logout", method:"POST", path:"/api/v1/auth/logout", uc:"Logout", auth:"Bearer",
+      desc:"Thu hồi session hiện tại (`sessionId` lấy từ access token) và xoá cookie `refreshToken`.",
+      resp:{ code:"200", body:[["ok","boolean","Luôn `true` khi thành công"]] },
+      errors:[["401","IAM_002","Chưa xác thực (thiếu/hỏng access token)"]] },
+    { id:"iam-change-password", method:"PATCH", path:"/api/v1/auth/change-password", uc:"ChangePassword", auth:"Bearer",
+      desc:"Đổi mật khẩu của chính user đang đăng nhập. Thu hồi mọi session khác (giữ lại session hiện tại nếu có `sessionId`).",
+      body:[["currentPassword","string","Mật khẩu hiện tại"],["newPassword","string","Mật khẩu mới (8-72 ký tự)"]],
+      resp:{ code:"200", body:[["ok","boolean","Luôn `true` khi thành công"]] },
+      errors:[["401","IAM_002","Chưa xác thực hoặc không tìm thấy user"],["400","IAM_011","`currentPassword` không đúng"],["400","IAM_012","`newPassword` trùng mật khẩu hiện tại"]] },
+    { id:"iam-me", method:"GET", path:"/api/v1/auth/me", uc:"Me", auth:"Bearer",
+      desc:"Lấy thông tin user đang đăng nhập kèm vai trò/quyền hiện hành.",
+      resp:{ code:"200", body:[["id","string","ID user"],["username","string","Username"],["email","string","Email"],["roles","string[]","Tên các vai trò"],["permissions","string[]","Danh sách khoá quyền"],["mustChangePassword","boolean","Có bắt buộc đổi mật khẩu không"]] },
+      errors:[["401","IAM_002","Chưa xác thực hoặc không tìm thấy user"]] },
+    { id:"iam-check-set-password-token", method:"GET", path:"/api/v1/auth/set-password", uc:"CheckSetupToken", auth:"Public",
+      desc:"Kiểm tra token thiết lập/đặt lại mật khẩu (từ liên kết email) còn hiệu lực hay không, dùng để render form trước khi submit.",
+      query:[["token","string","Token thô lấy từ liên kết email"]],
+      resp:{ code:"200", body:[["purpose","string","`setup` hoặc `reset`"],["username","string","Username của tài khoản liên kết"],["email","string","Email của tài khoản liên kết"]] },
+      errors:[["400","IAM_011","Thiếu `token`, hoặc token không hợp lệ/đã hết hạn"],["404","IAM_002","Tài khoản gắn với token không tồn tại"]] },
+    { id:"iam-set-password", method:"POST", path:"/api/v1/auth/set-password", uc:"SetPassword", auth:"Public",
+      desc:"Dùng token thiết lập/đặt lại mật khẩu (một lần dùng) để đặt mật khẩu mới. Thu hồi mọi session đang sống của user.",
+      body:[["token","string","Token thô (≥10 ký tự)"],["password","string","Mật khẩu mới (8-72 ký tự)"]],
+      resp:{ code:"200", body:[["userId","string","ID user vừa đặt mật khẩu"]] },
+      errors:[["400","IAM_011","Token không hợp lệ hoặc đã hết hạn"],["404","IAM_002","Tài khoản gắn với token không tồn tại"]] },
+  ]},
+  { name: "User", eps: [
+    { id:"iam-create-user", method:"POST", path:"/api/v1/users", uc:"CreateUser", auth:"Bearer", access:"admin",
+      desc:"Tạo tài khoản user mới. `username`/`email` phải chưa tồn tại; mật khẩu được hash trước khi lưu.",
+      body:[["username","string","Username (3-120, duy nhất)"],["email","string","Email (duy nhất, tự lowercase)"],["password","string","Mật khẩu (8-200)"],["employeeId","string?","Liên kết employee (24 ký tự, tuỳ chọn)"]],
+      resp:{ code:"201", body:[["id","string","ID user vừa tạo"],["username","string","Username"],["email","string","Email"],["status","string","`active`/`disabled`/`locked`"],["mustChangePassword","boolean","Có bắt buộc đổi mật khẩu không"]] },
+      errors:[["409","IAM_004","`username` hoặc `email` đã tồn tại"],["401","IAM_002","Chưa xác thực"]] },
+    { id:"iam-list-users", method:"GET", path:"/api/v1/users", uc:"ListUsers", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Liệt kê user, lọc tuỳ chọn theo trạng thái và từ khoá tìm kiếm.",
+      query:[["status","string?","Lọc theo `status`"],["search","string?","Tìm theo username/email"]],
+      resp:{ code:"200", body:[["users","User[]","Danh sách user"]] },
+      errors:[["401","IAM_002","Chưa xác thực"]] },
+    { id:"iam-get-user", method:"GET", path:"/api/v1/users/{id}", uc:"GetUser", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Lấy chi tiết một user theo id.",
+      params:[["id","string","ID user cần lấy"]],
+      resp:{ code:"200", body:[["user","User","Chi tiết user"]] },
+      errors:[["404","IAM_002","User không tồn tại"],["401","IAM_002","Chưa xác thực"]] },
+    { id:"iam-update-user", method:"PATCH", path:"/api/v1/users/{id}", uc:"UpdateUser", auth:"Bearer", access:"admin",
+      desc:"Cập nhật email/trạng thái/cờ `mustChangePassword` của user; chỉ áp trường có mặt.",
+      params:[["id","string","ID user cần cập nhật"]],
+      body:[["email","string?","Email mới"],["status","string?","`active`/`disabled`/`locked`"],["mustChangePassword","boolean?","Bắt buộc đổi mật khẩu ở lần đăng nhập sau"]],
+      resp:{ code:"200", body:[["user","User","User sau khi cập nhật"]] },
+      errors:[["404","IAM_002","User không tồn tại"],["401","IAM_002","Chưa xác thực"]] },
+    { id:"iam-delete-user", method:"DELETE", path:"/api/v1/users/{id}", uc:"DeleteUser", auth:"Bearer", access:"admin",
+      desc:"Xoá mềm — chuyển `status` của user sang `disabled` (không xoá cứng bản ghi).",
+      params:[["id","string","ID user cần vô hiệu hoá"]],
+      resp:{ code:"200", body:[["user","User","User sau khi vô hiệu hoá"]] },
+      errors:[["404","IAM_002","User không tồn tại"],["401","IAM_002","Chưa xác thực"]] },
+  ]},
+  { name: "Role", eps: [
+    { id:"iam-create-role", method:"POST", path:"/api/v1/roles", uc:"CreateRole", auth:"Bearer", access:"admin",
+      desc:"Tạo vai trò mới, tuỳ chọn gán ngay danh sách `permissionIds`. Tên vai trò phải duy nhất.",
+      body:[["name","string","Tên vai trò (≤120, duy nhất)"],["description","string?","Mô tả (≤500)"],["permissionIds","string[]?","Danh sách id quyền gán ngay"]],
+      resp:{ code:"201", body:[["id","string","ID vai trò vừa tạo"],["name","string","Tên vai trò"],["description","string","Mô tả"],["isSystem","boolean","Vai trò hệ thống hay không"]] },
+      errors:[["409","IAM_006","Tên vai trò đã tồn tại"],["401","IAM_002","Chưa xác thực"]] },
+    { id:"iam-list-roles", method:"GET", path:"/api/v1/roles", uc:"ListRoles", auth:"Bearer",
+      desc:"Liệt kê toàn bộ vai trò.",
+      resp:{ code:"200", body:[["roles","Role[]","Danh sách vai trò"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"iam-get-role", method:"GET", path:"/api/v1/roles/{id}", uc:"GetRole", auth:"Bearer",
+      desc:"Lấy chi tiết một vai trò kèm danh sách `permissionIds` đang gán.",
+      params:[["id","string","ID vai trò cần lấy"]],
+      resp:{ code:"200", body:[["role","Role","Chi tiết vai trò"],["permissionIds","string[]","Danh sách id quyền đang gán"]] },
+      errors:[["404","IAM_007","Vai trò không tồn tại"]] },
+    { id:"iam-update-role", method:"PATCH", path:"/api/v1/roles/{id}", uc:"UpdateRole", auth:"Bearer", access:"admin",
+      desc:"Cập nhật mô tả và/hoặc thay toàn bộ danh sách quyền của vai trò; tên vai trò hệ thống không thể đổi qua endpoint này.",
+      params:[["id","string","ID vai trò cần cập nhật"]],
+      body:[["description","string?","Mô tả mới (≤500)"],["permissionIds","string[]?","Danh sách id quyền — thay thế toàn bộ"]],
+      resp:{ code:"200", body:[["role","Role","Vai trò sau khi cập nhật"]] },
+      errors:[["404","IAM_007","Vai trò không tồn tại"]] },
+    { id:"iam-delete-role", method:"DELETE", path:"/api/v1/roles/{id}", uc:"DeleteRole", auth:"Bearer", access:"admin",
+      desc:"Xoá cứng vai trò và gỡ toàn bộ gán quyền liên quan. Vai trò hệ thống (`isSystem`) không thể xoá.",
+      params:[["id","string","ID vai trò cần xoá"]],
+      resp:{ code:"200", body:[["role","Role","Vai trò vừa xoá"]] },
+      errors:[["404","IAM_007","Vai trò không tồn tại"],["403","IAM_008","Vai trò hệ thống không thể xoá"]] },
+  ]},
+  { name: "Permission", eps: [
+    { id:"iam-create-permission", method:"POST", path:"/api/v1/permissions", uc:"CreatePermission", auth:"Bearer", access:"admin",
+      desc:"Tạo định nghĩa quyền RBAC mới. `key` phải duy nhất (ví dụ `employee:create`).",
+      body:[["key","string","Khoá quyền duy nhất (≤120), ví dụ `employee:create`"],["resource","string","Tài nguyên (≤120)"],["action","string","`create`/`read`/`update`/`delete`/`approve`"],["description","string?","Mô tả (≤500)"]],
+      resp:{ code:"201", body:[["id","string","ID quyền vừa tạo"],["key","string","Khoá quyền"],["resource","string","Tài nguyên"],["action","string","Hành động"]] },
+      errors:[["409","IAM_009","`key` đã tồn tại"],["401","IAM_002","Chưa xác thực"]] },
+    { id:"iam-list-permissions", method:"GET", path:"/api/v1/permissions", uc:"ListPermissions", auth:"Bearer",
+      desc:"Liệt kê toàn bộ định nghĩa quyền.",
+      resp:{ code:"200", body:[["permissions","Permission[]","Danh sách quyền"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"iam-get-permission", method:"GET", path:"/api/v1/permissions/{id}", uc:"GetPermission", auth:"Bearer",
+      desc:"Lấy chi tiết một định nghĩa quyền.",
+      params:[["id","string","ID quyền cần lấy"]],
+      resp:{ code:"200", body:[["permission","Permission","Chi tiết quyền"]] },
+      errors:[["404","IAM_010","Quyền không tồn tại"]] },
+    { id:"iam-update-permission", method:"PATCH", path:"/api/v1/permissions/{id}", uc:"UpdatePermission", auth:"Bearer", access:"admin",
+      desc:"Cập nhật mô tả của một quyền; `key`/`resource`/`action` không đổi qua endpoint này.",
+      params:[["id","string","ID quyền cần cập nhật"]],
+      body:[["description","string?","Mô tả mới (≤500)"]],
+      resp:{ code:"200", body:[["permission","Permission","Quyền sau khi cập nhật"]] },
+      errors:[["404","IAM_010","Quyền không tồn tại"]] },
+    { id:"iam-delete-permission", method:"DELETE", path:"/api/v1/permissions/{id}", uc:"DeletePermission", auth:"Bearer", access:"admin",
+      desc:"Xoá cứng một định nghĩa quyền.",
+      params:[["id","string","ID quyền cần xoá"]],
+      resp:{ code:"200", body:[["permission","Permission","Quyền vừa xoá"]] },
+      errors:[["404","IAM_010","Quyền không tồn tại"]] },
+  ]},
+  { name: "Audit", eps: [
+    { id:"iam-list-audit-logs", method:"GET", path:"/api/v1/admin/audit-logs", uc:"ListAuditLogs", auth:"Bearer", access:"admin",
+      desc:"Liệt kê nhật ký audit, lọc tuỳ chọn theo `resource`/`action`, giới hạn số dòng trả về.",
+      query:[["resource","string?","Lọc theo tài nguyên (`auth`/`user`/`role`/`permission`/`session`...)"],["action","string?","Lọc theo hành động"],["limit","number?","Giới hạn số dòng trả về"]],
+      resp:{ code:"200", body:[["logs","AuditLog[]","Danh sách nhật ký audit"]] },
+      errors:[["401","IAM_002","Chưa xác thực"]] },
+  ]},
+]},
+{ name: "Employee", accent: "#0d9488", subs: [
+  { name: "Employee", eps: [
+    { id:"emp-listemployees", method:"GET", path:"/employees", uc:"ListEmployees", auth:"Bearer",
+      desc:"Liệt kê nhân viên có phân trang, lọc theo phòng ban/trạng thái/loại HĐ/quản lý và tìm kiếm `q`.",
+      query:[["page","number?","Trang (mặc định 1)"],["limit","number?","Số dòng/trang"],["sort","string?","Sắp xếp, vd `-hireDate`"],["departmentId","string?","Lọc theo phòng ban"],["status","string?","Lọc theo trạng thái"],["employeeType","string?","Lọc theo loại nhân viên"],["managerId","string?","Lọc theo quản lý"],["q","string?","Tìm theo mã/tên"]],
+      resp:{ code:"200", body:[["data","Employee[]","Danh sách nhân viên"],["meta","PageMeta","`{ page, limit, total, totalPages }`"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"emp-statsemployees", method:"GET", path:"/employees/stats", uc:"EmployeeStats", auth:"Bearer",
+      desc:"Thống kê số lượng nhân viên theo trạng thái và theo phòng ban.",
+      resp:{ code:"200", body:[["data","EmployeeStats","`{ total, active, onboarding, onLeave, terminated, byDepartment[] }`"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"emp-remindersemployees", method:"GET", path:"/employees/reminders", uc:"EmployeeReminders", auth:"Bearer", access:"HR/Admin",
+      desc:"Danh sách nhân viên sắp hết hạn thử việc/thực tập/hợp đồng trong `withinDays` ngày tới.",
+      query:[["withinDays","number?","Số ngày tới cần xét (mặc định 30, tối đa 365)"]],
+      resp:{ code:"200", body:[["data","RemindersResult","`{ probation: ReminderItem[], contract: ReminderItem[] }`"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"emp-runreminders", method:"POST", path:"/admin/employees/reminders/run", uc:"RunContractReminders", auth:"Bearer", access:"HR/Admin",
+      desc:"Chạy job gửi thông báo cho HR/Admin về các hợp đồng/thử việc sắp hết hạn (chạm ngưỡng 30/15/7/3/1 ngày).",
+      resp:{ code:"200", body:[["data","{ notified: number }","Số lượng thông báo đã gửi"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"emp-exportemployees", method:"GET", path:"/employees/export", uc:"ExportEmployeesXlsx", auth:"Bearer",
+      desc:"Xuất danh sách nhân viên (theo cùng bộ lọc như `ListEmployees`) ra file `.xlsx`.",
+      query:[["departmentId","string?","Lọc theo phòng ban"],["status","string?","Lọc theo trạng thái"],["employeeType","string?","Lọc theo loại nhân viên"],["managerId","string?","Lọc theo quản lý"],["q","string?","Tìm theo mã/tên"],["sort","string?","Sắp xếp"]],
+      resp:{ code:"200", note:"Trả file nhị phân `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (`employees.xlsx`)." },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"emp-getme", method:"GET", path:"/employees/me", uc:"GetMyEmployee", auth:"Bearer",
+      desc:"Lấy hồ sơ nhân viên của chính người dùng đang đăng nhập (theo `userId` từ token).",
+      resp:{ code:"200", body:[["data","Employee & { profile }","Hồ sơ nhân viên kèm profile"]] },
+      errors:[["404","EMP_001","Không tìm thấy hồ sơ nhân viên gắn với tài khoản hiện tại"]] },
+    { id:"emp-getbyid", method:"GET", path:"/employees/{id}", uc:"GetEmployee", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Lấy chi tiết một nhân viên kèm profile.",
+      params:[["id","objectId","Nhân viên cần lấy"]],
+      resp:{ code:"200", body:[["data","Employee & { profile }","Chi tiết nhân viên kèm profile"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["403","IAM_004","Không phải chính mình và không phải HR/Admin"]] },
+    { id:"emp-createemployee", method:"POST", path:"/admin/employees", uc:"CreateEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Tạo nhân viên mới cùng profile. `employeeCode` duy nhất; phòng ban/vị trí phải tồn tại. Tự động ghi lịch sử `hired` và seed ngày phép.",
+      body:[["employeeCode","string","Mã nhân viên (duy nhất, 3-40 ký tự)"],["fingerprintId","string?","Mã vân tay (tuỳ chọn, duy nhất)"],["departmentId","objectId","Phòng ban"],["positionId","objectId","Vị trí"],["managerId","objectId?","Quản lý trực tiếp (tuỳ chọn)"],["shiftId","objectId?","Ca làm việc mặc định (tuỳ chọn)"],["hireDate","date","Ngày vào làm"],["employeeType","string","`full_time`/`part_time`/`contract`/`intern`"],["salaryZone","string?","`zone1`..`zone4` (tuỳ chọn)"],["profile","object","Thông tin cá nhân — xem bảng Profile"]],
+      resp:{ code:"201", body:[["data","Employee","Nhân viên vừa tạo"],["message","string","`Employee created. Run grant-login to provision account.`"]] },
+      errors:[["404","ORG_001","Phòng ban hoặc vị trí không tồn tại"],["409","EMP_002","Mã nhân viên đã tồn tại"]] },
+    { id:"emp-updateemployee", method:"PATCH", path:"/admin/employees/{id}", uc:"UpdateEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật thông tin công việc của nhân viên; chỉ áp trường có mặt. Đổi phòng ban ghi lịch sử `transfer`; đổi vị trí/quản lý/loại/vùng lương ghi `info_update`.",
+      params:[["id","objectId","Nhân viên cần cập nhật"]],
+      body:[["employeeCode","string?","Mã mới (duy nhất)"],["fingerprintId","string?|null","Mã vân tay mới"],["departmentId","objectId?","Phòng ban mới"],["positionId","objectId?","Vị trí mới"],["managerId","objectId?|null","Quản lý mới"],["shiftId","objectId?|null","Ca làm việc mới"],["employeeType","string?","Loại nhân viên mới"],["status","string?","Trạng thái mới"],["salaryZone","string?","Vùng lương mới"]],
+      resp:{ code:"200", body:[["data","Employee","Nhân viên sau cập nhật"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["404","ORG_001","Phòng ban hoặc vị trí đích không tồn tại"],["409","EMP_002","Mã nhân viên hoặc mã vân tay đã tồn tại"]] },
+    { id:"emp-terminateemployee", method:"POST", path:"/admin/employees/{id}/terminate", uc:"TerminateEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Cho nghỉ việc một nhân viên: đặt `status = terminated`, vô hiệu hoá & thu hồi phiên tài khoản liên kết (nếu có), gỡ quan hệ quản lý. Ghi lịch sử `terminated`.",
+      params:[["id","objectId","Nhân viên cần cho nghỉ việc"]],
+      body:[["terminationDate","date?","Ngày nghỉ việc (mặc định hôm nay)"],["reason","string?","Lý do (tuỳ chọn, ≤500)"]],
+      resp:{ code:"200", body:[["data","Employee","Nhân viên sau khi nghỉ việc"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["409","EMP_004","Nhân viên đã ở trạng thái `terminated`"]] },
+    { id:"emp-terminatemany", method:"POST", path:"/admin/employees/bulk/terminate", uc:"BulkTerminateEmployees", auth:"Bearer", access:"HR/Admin",
+      desc:"Cho nghỉ việc hàng loạt; mỗi id xử lý độc lập — lỗi ở một nhân viên không chặn các nhân viên khác.",
+      body:[["employeeIds","string[]","Danh sách id nhân viên (1-500)"],["terminationDate","date?","Ngày nghỉ việc (mặc định hôm nay)"],["reason","string?","Lý do (tuỳ chọn)"]],
+      resp:{ code:"200", body:[["data.terminated","number","Số nhân viên đã cho nghỉ thành công"],["data.skipped","{ id, reason }[]","Danh sách id bị bỏ qua kèm lý do"]] },
+      errors:[["—","—","Không lỗi ở tầng use-case — lỗi từng dòng gom vào `data.skipped`"]] },
+    { id:"emp-removeemployee", method:"DELETE", path:"/admin/employees/{id}", uc:"RemoveEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá cứng nhân viên và toàn bộ dữ liệu liên quan theo tầng (cascade), bao gồm cả tài khoản đăng nhập nếu có.",
+      params:[["id","objectId","Nhân viên cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id, deleted: true }","Xác nhận đã xoá"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"]] },
+    { id:"emp-importemployees", method:"POST", path:"/admin/employees/import", uc:"ImportEmployees", auth:"Bearer", access:"HR/Admin",
+      desc:"Nhập hàng loạt nhân viên từ CSV đã parse; `departmentCode`/`positionCode` được resolve sang id. Mỗi dòng xử lý độc lập, dòng lỗi không chặn cả batch.",
+      body:[["rows","ImportRow[]","1-500 dòng — mỗi dòng: `employeeCode`, `firstName`, `middleName?`, `lastName`, `departmentCode`, `positionCode`, `employeeType`, `hireDate`, `email?`, `phone?`, `gender?`, `salaryZone?`"]],
+      resp:{ code:"200", body:[["data.total","number","Tổng số dòng"],["data.created","number","Số dòng tạo thành công"],["data.failed","number","Số dòng lỗi"],["data.results","ImportRowResult[]","Chi tiết từng dòng: `{ index, employeeCode, status, employeeId?, error? }`"]] },
+      errors:[["—","—","Lỗi từng dòng (`ORG_001` mã phòng ban/chức vụ không tồn tại, `EMP_002` mã trùng) gom vào `data.results`"]] },
+  ]},
+  { name: "Profile", eps: [
+    { id:"emp-getprofile", method:"GET", path:"/employees/{id}/profile", uc:"GetEmployeeProfile", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Lấy hồ sơ cá nhân (profile) của một nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeProfile","Hồ sơ cá nhân"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["403","IAM_004","Không phải chính mình và không phải HR/Admin"]] },
+    { id:"emp-updateprofile", method:"PATCH", path:"/employees/{id}/profile", uc:"UpdateEmployeeProfile", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Cập nhật hồ sơ cá nhân (upsert); chỉ áp trường có mặt. Ghi lịch sử `info_update` nếu có trường thay đổi ngoài avatar.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["firstName","string?","Tên"],["middleName","string?","Tên đệm"],["lastName","string?","Họ"],["dateOfBirth","date?","Ngày sinh"],["gender","string?","`male`/`female`/`other`/`undisclosed`"],["nationality","string?","Quốc tịch (2-3 ký tự)"],["maritalStatus","string?","`single`/`married`/`divorced`/`widowed`"],["avatarUrl","string?","Object-storage key ảnh đại diện"],["avatarId","string?","Id file ảnh đại diện"],["email","string?","Email cá nhân"],["workEmail","string?","Email công ty"],["phone","string?","Số điện thoại"],["address","string?","Địa chỉ"],["socialInsuranceNo","string?","Số sổ BHXH"],["taxCode","string?","Mã số thuế cá nhân"],["vehiclePlate","string?","Biển số xe"]],
+      resp:{ code:"200", body:[["data","EmployeeProfile","Hồ sơ sau cập nhật"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["403","IAM_004","Không phải chính mình và không phải HR/Admin"]] },
+    { id:"emp-completeness", method:"GET", path:"/employees/{id}/completeness", uc:"EmployeeCompleteness", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Tính phần trăm hoàn thiện hồ sơ onboarding dựa trên profile, liên hệ khẩn cấp, tài khoản ngân hàng, hợp đồng, tài liệu, tài khoản đăng nhập.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data.percent","number","Phần trăm hoàn thiện"],["data.items","ChecklistItem[]","`{ key, label, done, required }` từng mục"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"],["404","EMP_001","Nhân viên không tồn tại"],["403","IAM_004","Không phải chính mình và không phải HR/Admin"]] },
+  ]},
+  { name: "Account", eps: [
+    { id:"emp-getaccount", method:"GET", path:"/employees/{id}/account", uc:"GetEmployeeAccount", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Lấy tóm tắt tài khoản đăng nhập gắn với nhân viên. Không báo lỗi khi chưa có tài khoản — trả `hasAccount:false`. Tự \"chữa\" liên kết `userId` nếu tìm thấy user trỏ ngược tới nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","AccountSummary","`{ hasAccount:false }` hoặc `{ hasAccount:true, userId, username, email, role, status, lastLoginAt, mustChangePassword, mfaEnabled }`"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"],["404","EMP_001","Nhân viên không tồn tại"],["403","IAM_004","Không phải chính mình và không phải HR/Admin"]] },
+    { id:"emp-grantlogin", method:"POST", path:"/admin/employees/{id}/grant-login", uc:"GrantLogin", auth:"Bearer", access:"HR/Admin",
+      desc:"Cấp (hoặc cấp lại) tài khoản đăng nhập cho nhân viên — atomic qua transaction (`users`, `employees.userId`, `userRoles`, `auditLogs`). Phát `employee.granted-login` để worker email gửi link đặt mật khẩu.",
+      params:[["id","objectId","Nhân viên cần cấp tài khoản"]],
+      body:[["username","string?","Tên đăng nhập (mặc định suy từ email/mã NV)"],["email","string?","Bổ sung/ghi đè email cá nhân (bắt buộc nếu profile chưa có email)"],["sendEmail","boolean","Có gửi email link đặt mật khẩu hay không (mặc định `true`)"]],
+      resp:{ code:"200", body:[["data","{ userId, username, linkSentTo }","Kết quả cấp tài khoản"],["message","string","`Login credentials sent to personal email`"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["400","EMP_008","Nhân viên chưa có email cá nhân và request không kèm `email`"],["500","IAM_009","Thiếu role hệ thống `employee`"],["409","IAM_006","Username hoặc email đã được dùng"]] },
+    { id:"emp-resetpassword", method:"POST", path:"/admin/employees/{id}/reset-password", uc:"ResetEmployeePassword", auth:"Bearer", access:"HR/Admin",
+      desc:"Gửi lại link đặt mật khẩu mới cho tài khoản đang liên kết (không đặt mật khẩu tại đây); mở khoá nếu tài khoản đang bị khoá do đăng nhập sai.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","{ userId, linkSentTo }","Kết quả gửi link"],["message","string","`Temporary password sent to user email`"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"],["404","EMP_001","Nhân viên không tồn tại"],["409","EMP_010","Nhân viên chưa có tài khoản đăng nhập"],["404","IAM_002","Tài khoản liên kết không tồn tại"]] },
+    { id:"emp-resendinvite", method:"POST", path:"/admin/employees/{id}/resend-invite", uc:"ResendInvite", auth:"Bearer", access:"HR/Admin",
+      desc:"Gửi lại lời mời kích hoạt (link đặt mật khẩu mới) cho tài khoản đang liên kết.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","{ userId, linkSentTo }","Kết quả gửi lời mời"],["message","string","`Invite re-sent to user email`"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"],["404","EMP_001","Nhân viên không tồn tại"],["409","EMP_010","Nhân viên chưa có tài khoản đăng nhập"],["404","IAM_002","Tài khoản liên kết không tồn tại"]] },
+    { id:"emp-updateaccount", method:"PATCH", path:"/admin/employees/{id}/account", uc:"UpdateEmployeeAccount", auth:"Bearer", access:"HR/Admin",
+      desc:"Bật/tắt đăng nhập và/hoặc đổi vai trò của tài khoản liên kết. Vô hiệu hoá tài khoản sẽ thu hồi toàn bộ phiên đang hoạt động.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["status","string?","`active`/`disabled` (phải có ít nhất `status` hoặc `role`)"],["role","string?","Tên vai trò mới"]],
+      resp:{ code:"200", body:[["data","AccountSummary","Tóm tắt tài khoản sau cập nhật"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"],["404","EMP_001","Nhân viên không tồn tại"],["409","EMP_010","Nhân viên chưa có tài khoản đăng nhập"],["404","IAM_002","Tài khoản liên kết không tồn tại"],["404","IAM_008","Vai trò không tồn tại"]] },
+  ]},
+  { name: "Document", eps: [
+    { id:"emp-listdocuments", method:"GET", path:"/employees/{id}/documents", uc:"ListEmployeeDocuments", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Liệt kê tài liệu (CMND/hộ chiếu/bằng cấp/chứng chỉ/visa/khác) của nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeDocument[]","Danh sách tài liệu"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"]] },
+    { id:"emp-createdocument", method:"POST", path:"/employees/{id}/documents", uc:"CreateEmployeeDocument", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Thêm một tài liệu cho nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["documentType","string","`id_card`/`passport`/`degree`/`certificate`/`visa`/`other`"],["documentNumber","string","Số hiệu tài liệu"],["fileUrl","string?","Object-storage key file"],["issuedDate","date?","Ngày cấp"],["expiryDate","date?","Ngày hết hạn"],["issuedBy","string?","Nơi cấp"]],
+      resp:{ code:"201", body:[["data","EmployeeDocument","Tài liệu vừa tạo"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"]] },
+    { id:"emp-updatedocument", method:"PATCH", path:"/admin/employees/{id}/documents/{docId}", uc:"UpdateEmployeeDocument", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật một tài liệu; chỉ áp trường có mặt.",
+      params:[["id","objectId","Nhân viên"],["docId","objectId","Tài liệu cần cập nhật"]],
+      body:[["documentType","string?","Loại tài liệu mới"],["documentNumber","string?","Số hiệu mới"],["fileUrl","string?","File mới"],["issuedDate","date?","Ngày cấp mới"],["expiryDate","date?","Ngày hết hạn mới"],["issuedBy","string?","Nơi cấp mới"]],
+      resp:{ code:"200", body:[["data","EmployeeDocument","Tài liệu sau cập nhật"]] },
+      errors:[["404","EMP_005","Tài liệu không tồn tại"]] },
+    { id:"emp-removedocument", method:"DELETE", path:"/admin/employees/{id}/documents/{docId}", uc:"RemoveEmployeeDocument", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá một tài liệu.",
+      params:[["id","objectId","Nhân viên"],["docId","objectId","Tài liệu cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","Xác nhận đã xoá"]] },
+      errors:[["404","EMP_005","Tài liệu không tồn tại"]] },
+  ]},
+  { name: "Contact", eps: [
+    { id:"emp-listcontacts", method:"GET", path:"/employees/{id}/contacts", uc:"ListEmployeeContacts", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Liệt kê người liên hệ khẩn cấp của nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeContact[]","Danh sách liên hệ"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"]] },
+    { id:"emp-createcontact", method:"POST", path:"/employees/{id}/contacts", uc:"CreateEmployeeContact", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Thêm một người liên hệ khẩn cấp. Đặt `isPrimary=true` sẽ gỡ cờ chính khỏi các liên hệ khác.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["name","string","Họ tên người liên hệ"],["relationship","string","`spouse`/`parent`/`sibling`/`other`"],["phone","string?","Số điện thoại"],["email","string?","Email"],["address","string?","Địa chỉ"],["isPrimary","boolean","Liên hệ chính (mặc định `false`)"]],
+      resp:{ code:"201", body:[["data","EmployeeContact","Liên hệ vừa tạo"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"]] },
+    { id:"emp-updatecontact", method:"PATCH", path:"/employees/{id}/contacts/{contactId}", uc:"UpdateEmployeeContact", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Cập nhật một người liên hệ; chỉ áp trường có mặt. Đặt `isPrimary=true` sẽ gỡ cờ chính khỏi các liên hệ khác.",
+      params:[["id","objectId","Nhân viên"],["contactId","objectId","Liên hệ cần cập nhật"]],
+      body:[["name","string?","Họ tên mới"],["relationship","string?","Quan hệ mới"],["phone","string?","SĐT mới"],["email","string?","Email mới"],["address","string?","Địa chỉ mới"],["isPrimary","boolean?","Đặt làm liên hệ chính"]],
+      resp:{ code:"200", body:[["data","EmployeeContact","Liên hệ sau cập nhật"]] },
+      errors:[["404","EMP_005","Liên hệ không tồn tại"]] },
+    { id:"emp-removecontact", method:"DELETE", path:"/employees/{id}/contacts/{contactId}", uc:"RemoveEmployeeContact", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Xoá một người liên hệ.",
+      params:[["id","objectId","Nhân viên"],["contactId","objectId","Liên hệ cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","Xác nhận đã xoá"]] },
+      errors:[["404","EMP_005","Liên hệ không tồn tại"]] },
+  ]},
+  { name: "Bank Account", eps: [
+    { id:"emp-listbankaccounts", method:"GET", path:"/employees/{id}/bank-accounts", uc:"ListEmployeeBankAccounts", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Liệt kê tài khoản ngân hàng của nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeBankAccount[]","Danh sách tài khoản"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"]] },
+    { id:"emp-createbankaccount", method:"POST", path:"/employees/{id}/bank-accounts", uc:"CreateEmployeeBankAccount", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Thêm một tài khoản ngân hàng. Đặt `isPrimary=true` sẽ gỡ cờ chính khỏi các tài khoản khác.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["bankName","string","Tên ngân hàng"],["branch","string?","Chi nhánh"],["accountNumber","string","Số tài khoản (giữ nguyên số 0 đầu)"],["accountHolder","string","Chủ tài khoản"],["isPrimary","boolean","Tài khoản chính (mặc định `false`)"]],
+      resp:{ code:"201", body:[["data","EmployeeBankAccount","Tài khoản vừa tạo"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"]] },
+    { id:"emp-updatebankaccount", method:"PATCH", path:"/employees/{id}/bank-accounts/{accountId}", uc:"UpdateEmployeeBankAccount", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Cập nhật một tài khoản ngân hàng; chỉ áp trường có mặt. Đặt `isPrimary=true` sẽ gỡ cờ chính khỏi các tài khoản khác.",
+      params:[["id","objectId","Nhân viên"],["accountId","objectId","Tài khoản cần cập nhật"]],
+      body:[["bankName","string?","Tên ngân hàng mới"],["branch","string?","Chi nhánh mới"],["accountNumber","string?","Số tài khoản mới"],["accountHolder","string?","Chủ tài khoản mới"],["isPrimary","boolean?","Đặt làm tài khoản chính"]],
+      resp:{ code:"200", body:[["data","EmployeeBankAccount","Tài khoản sau cập nhật"]] },
+      errors:[["404","EMP_005","Tài khoản ngân hàng không tồn tại"]] },
+    { id:"emp-removebankaccount", method:"DELETE", path:"/employees/{id}/bank-accounts/{accountId}", uc:"RemoveEmployeeBankAccount", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Xoá một tài khoản ngân hàng.",
+      params:[["id","objectId","Nhân viên"],["accountId","objectId","Tài khoản cần xoá"]],
+      resp:{ code:"200", body:[["data","{ deleted: true }","Xác nhận đã xoá"]] },
+      errors:[["404","EMP_005","Tài khoản ngân hàng không tồn tại"]] },
+  ]},
+  { name: "Contract", eps: [
+    { id:"emp-listcontracts", method:"GET", path:"/employees/{id}/contracts", uc:"ListEmployeeContracts", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Liệt kê hợp đồng lao động của nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeContract[]","Danh sách hợp đồng"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"]] },
+    { id:"emp-createcontract", method:"POST", path:"/admin/employees/{id}/contracts", uc:"CreateEmployeeContract", auth:"Bearer", access:"HR/Admin",
+      desc:"Tạo hợp đồng mới cho nhân viên; tự chuyển các hợp đồng `active` hiện có sang `expired` (atomic). Ghi lịch sử `contract_renew`. `contractNumber` duy nhất toàn hệ thống.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["contractType","string","`fixed_term`/`indefinite`"],["employmentStatus","string","`probation`/`official`/`internship` (mặc định `official`)"],["contractNumber","string","Số hợp đồng (duy nhất)"],["startDate","date","Ngày bắt đầu"],["endDate","date?","Ngày kết thúc (tuỳ chọn)"],["baseSalary","number","Lương cơ bản (≥0)"],["currency","string","Mã tiền tệ (mặc định `VND`)"],["fileUrl","string?","Object-storage key file hợp đồng"],["status","string","`active`/`expired`/`terminated` (mặc định `active`)"]],
+      resp:{ code:"201", body:[["data","EmployeeContract","Hợp đồng vừa tạo"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["409","EMP_006","Số hợp đồng đã tồn tại"]] },
+    { id:"emp-updatecontract", method:"PATCH", path:"/admin/employees/{id}/contracts/{contractId}", uc:"UpdateEmployeeContract", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật một hợp đồng; chỉ áp trường có mặt. Đặt `status=active` sẽ tự chuyển các hợp đồng `active` khác của cùng nhân viên sang `expired`.",
+      params:[["id","objectId","Nhân viên"],["contractId","objectId","Hợp đồng cần cập nhật"]],
+      body:[["contractType","string?","Loại HĐ mới"],["employmentStatus","string?","Tình trạng làm việc mới"],["contractNumber","string?","Số hợp đồng mới"],["startDate","date?","Ngày bắt đầu mới"],["endDate","date?","Ngày kết thúc mới"],["baseSalary","number?","Lương cơ bản mới"],["currency","string?","Tiền tệ mới"],["fileUrl","string?","File mới"],["status","string?","Trạng thái mới"]],
+      resp:{ code:"200", body:[["data","EmployeeContract","Hợp đồng sau cập nhật"]] },
+      errors:[["404","EMP_006","Hợp đồng không tồn tại"]] },
+  ]},
+  { name: "Asset", eps: [
+    { id:"emp-listassets", method:"GET", path:"/employees/{id}/assets", uc:"ListEmployeeAssets", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Liệt kê tài sản công ty đang/đã cấp phát cho nhân viên.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeAsset[]","Danh sách tài sản"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"]] },
+    { id:"emp-createasset", method:"POST", path:"/admin/employees/{id}/assets", uc:"CreateEmployeeAsset", auth:"Bearer", access:"HR/Admin",
+      desc:"Cấp phát một tài sản cho nhân viên. `assetCode` duy nhất toàn hệ thống.",
+      params:[["id","objectId","Nhân viên"]],
+      body:[["assetName","string","Tên tài sản"],["assetCode","string","Mã tài sản (duy nhất)"],["assignedDate","date","Ngày cấp phát"],["condition","string","`new`/`good`/`fair`/`damaged` (mặc định `good`)"],["note","string?","Ghi chú"]],
+      resp:{ code:"201", body:[["data","EmployeeAsset","Tài sản vừa tạo"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"]] },
+    { id:"emp-returnasset", method:"PATCH", path:"/admin/employees/{id}/assets/{assetId}/return", uc:"ReturnEmployeeAsset", auth:"Bearer", access:"HR/Admin",
+      desc:"Ghi nhận nhân viên trả lại tài sản.",
+      params:[["id","objectId","Nhân viên"],["assetId","objectId","Tài sản được trả"]],
+      body:[["returnedDate","date","Ngày trả (mặc định hôm nay)"],["condition","string?","Tình trạng khi trả"],["note","string?","Ghi chú"]],
+      resp:{ code:"200", body:[["data","EmployeeAsset","Tài sản sau khi ghi nhận trả"]] },
+      errors:[["404","EMP_007","Tài sản không tồn tại"]] },
+    { id:"emp-updateasset", method:"PATCH", path:"/admin/employees/{id}/assets/{assetId}", uc:"UpdateEmployeeAsset", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật một tài sản; chỉ áp trường có mặt. Gửi `returnedDate: null` để cấp phát lại một tài sản đã trả.",
+      params:[["id","objectId","Nhân viên"],["assetId","objectId","Tài sản cần cập nhật"]],
+      body:[["assetName","string?","Tên mới"],["assetCode","string?","Mã mới"],["assignedDate","date?","Ngày cấp phát mới"],["condition","string?","Tình trạng mới"],["note","string?","Ghi chú mới"],["returnedDate","date?|null","Ngày trả mới; `null` để cấp phát lại"]],
+      resp:{ code:"200", body:[["data","EmployeeAsset","Tài sản sau cập nhật"]] },
+      errors:[["404","EMP_007","Tài sản không tồn tại"]] },
+    { id:"emp-removeasset", method:"DELETE", path:"/admin/employees/{id}/assets/{assetId}", uc:"RemoveEmployeeAsset", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá một tài sản.",
+      params:[["id","objectId","Nhân viên"],["assetId","objectId","Tài sản cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","Xác nhận đã xoá"]] },
+      errors:[["404","EMP_007","Tài sản không tồn tại"]] },
+  ]},
+  { name: "History", eps: [
+    { id:"emp-listhistory", method:"GET", path:"/employees/{id}/history", uc:"ListEmployeeHistory", auth:"Bearer", access:"Self hoặc HR/Admin",
+      desc:"Liệt kê dòng thời gian thay đổi của nhân viên (`hired`/`promotion`/`transfer`/`salary_change`/`contract_renew`/`info_update`/`terminated`), mới nhất trước.",
+      params:[["id","objectId","Nhân viên"]],
+      resp:{ code:"200", body:[["data","EmployeeHistory[]","Danh sách sự kiện lịch sử"]] },
+      errors:[["400","EMP_001","Id nhân viên không hợp lệ"]] },
+  ]},
+]},
+{ name: "Attendance", accent: "#d97706", subs: [
+  { name: "Shift", eps: [
+    { id:"att-listshifts", method:"GET", path:"/attendance/shifts", uc:"ListShifts", auth:"Bearer",
+      desc:"Liệt kê tất cả ca làm (kể cả đã lưu trữ).",
+      resp:{ code:"200", body:[["data","Shift[]","Danh sách ca làm"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"att-createshift", method:"POST", path:"/attendance/admin/shifts", uc:"CreateShift", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Tạo ca làm mới. `weight` mặc định theo `type` (`full_day`=1, còn lại=0.5) nếu bỏ trống. Có `effectiveFrom`/`effectiveTo` thì khoảng phải hợp lệ (kết thúc ≥ bắt đầu).",
+      body:[["name","string","Tên ca (≤120)"],["type","string?","`morning`/`afternoon`/`full_day` (mặc định `full_day`)"],["startTime","string","Giờ vào `HH:mm`"],["endTime","string","Giờ ra `HH:mm`"],["breakMinutes","number?","Số phút nghỉ giữa ca (0..480)"],["weight","number?","Trọng số công 0..1 (mặc định theo `type`)"],["workingDays","number[]?","Các thứ áp dụng (ISO 1..7, mặc định T2–T6)"],["effectiveFrom","date?","Bắt đầu áp dụng theo mùa"],["effectiveTo","date?","Kết thúc áp dụng theo mùa"]],
+      resp:{ code:"201", body:[["data","Shift","Ca làm vừa tạo"]] },
+      errors:[["422","INVALID_REQUEST","`effectiveTo` trước `effectiveFrom`, hoặc body sai schema"]] },
+    { id:"att-updateshift", method:"PATCH", path:"/attendance/admin/shifts/{id}", uc:"UpdateShift", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Cập nhật ca làm (từng phần); có thể đổi `status` sang `active`/`archived`.",
+      params:[["id","objectId","Ca làm cần cập nhật"]],
+      body:[["name","string?","Tên mới"],["type","string?","Loại ca mới"],["startTime","string?","Giờ vào mới"],["endTime","string?","Giờ ra mới"],["breakMinutes","number?","Số phút nghỉ mới"],["weight","number?","Trọng số công mới"],["workingDays","number[]?","Các thứ áp dụng mới"],["effectiveFrom","date?","Bắt đầu áp dụng mới"],["effectiveTo","date?","Kết thúc áp dụng mới"],["status","string?","`active`/`archived`"]],
+      resp:{ code:"200", body:[["data","Shift","Ca làm sau cập nhật"]] },
+      errors:[["404","ATT_001","Ca làm không tồn tại"],["422","INVALID_REQUEST","Khoảng ngày hiệu lực không hợp lệ, hoặc body sai schema"]] },
+    { id:"att-removeshift", method:"DELETE", path:"/attendance/admin/shifts/{id}", uc:"RemoveShift", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Lưu trữ (archive) một ca làm — giữ tham chiếu cho các bản ghi chấm công lịch sử, không xoá cứng.",
+      params:[["id","objectId","Ca làm cần lưu trữ"]],
+      resp:{ code:"200", body:[["data.id","objectId","Id ca làm vừa lưu trữ"]] },
+      errors:[["404","ATT_001","Ca làm không tồn tại"]] },
+  ]},
+  { name: "Holiday", eps: [
+    { id:"att-listholidays", method:"GET", path:"/attendance/holidays", uc:"ListHolidays", auth:"Bearer",
+      desc:"Liệt kê tất cả ngày lễ đã cấu hình.",
+      resp:{ code:"200", body:[["data","Holiday[]","Danh sách ngày lễ"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"att-createholiday", method:"POST", path:"/attendance/admin/holidays", uc:"CreateHoliday", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Tạo ngày lễ mới. `isRecurring=true` thì lễ lặp lại hằng năm theo ngày/tháng (bỏ qua năm).",
+      body:[["name","string","Tên ngày lễ (≤160)"],["date","date","Ngày lễ"],["isRecurring","boolean?","Lặp lại hằng năm (mặc định false)"],["country","string?","Mã quốc gia (≤3 ký tự, mặc định `*`)"],["description","string?","Mô tả (≤255)"]],
+      resp:{ code:"201", body:[["data","Holiday","Ngày lễ vừa tạo"]] },
+      errors:[["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-updateholiday", method:"PATCH", path:"/attendance/admin/holidays/{id}", uc:"UpdateHoliday", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Cập nhật ngày lễ (từng phần).",
+      params:[["id","objectId","Ngày lễ cần cập nhật"]],
+      body:[["name","string?","Tên mới"],["date","date?","Ngày mới"],["isRecurring","boolean?","Lặp lại hằng năm"],["country","string?","Mã quốc gia mới"],["description","string?","Mô tả mới"]],
+      resp:{ code:"200", body:[["data","Holiday","Ngày lễ sau cập nhật"]] },
+      errors:[["404","ATT_002","Ngày lễ không tồn tại"],["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-removeholiday", method:"DELETE", path:"/attendance/admin/holidays/{id}", uc:"RemoveHoliday", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Xoá cứng một ngày lễ.",
+      params:[["id","objectId","Ngày lễ cần xoá"]],
+      resp:{ code:"200", body:[["data.id","objectId","Id ngày lễ vừa xoá"]] },
+      errors:[["404","ATT_002","Ngày lễ không tồn tại"]] },
+  ]},
+  { name: "Attendance Symbol", eps: [
+    { id:"att-listsymbols", method:"GET", path:"/attendance/attendance-symbols", uc:"ListSymbols", auth:"Bearer",
+      desc:"Liệt kê tất cả ký hiệu chấm công (hiển thị trên lưới/chú giải).",
+      resp:{ code:"200", body:[["data","AttendanceSymbol[]","Danh sách ký hiệu"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"att-createsymbol", method:"POST", path:"/attendance/admin/attendance-symbols", uc:"CreateSymbol", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Tạo ký hiệu chấm công mới. `code` phải là duy nhất.",
+      body:[["code","string","Mã ký hiệu (≤10, duy nhất)"],["label","string","Nhãn hiển thị (≤120)"],["paidStatus","string?","`paid`/`unpaid`/`neutral` (mặc định `neutral`)"],["affectsPayroll","boolean?","Có ảnh hưởng tính lương không (mặc định false)"],["leaveType","string?","Loại nghỉ liên kết (≤40)"],["color","string?","Màu hiển thị (≤20)"],["appliesTo","string?","Trạng thái chấm công áp dụng"]],
+      resp:{ code:"201", body:[["data","AttendanceSymbol","Ký hiệu vừa tạo"]] },
+      errors:[["409","ATT_003","Mã ký hiệu đã tồn tại"],["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-updatesymbol", method:"PATCH", path:"/attendance/admin/attendance-symbols/{id}", uc:"UpdateSymbol", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Cập nhật ký hiệu chấm công (từng phần); `appliesTo` có thể gửi null để gỡ gán.",
+      params:[["id","objectId","Ký hiệu cần cập nhật"]],
+      body:[["code","string?","Mã mới"],["label","string?","Nhãn mới"],["paidStatus","string?","Trạng thái trả lương mới"],["affectsPayroll","boolean?","Ảnh hưởng lương mới"],["leaveType","string?","Loại nghỉ liên kết mới"],["color","string?","Màu mới"],["appliesTo","string?|null","Trạng thái áp dụng mới, null để gỡ"]],
+      resp:{ code:"200", body:[["data","AttendanceSymbol","Ký hiệu sau cập nhật"]] },
+      errors:[["404","ATT_003","Ký hiệu không tồn tại"],["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-removesymbol", method:"DELETE", path:"/attendance/admin/attendance-symbols/{id}", uc:"RemoveSymbol", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Xoá cứng một ký hiệu chấm công.",
+      params:[["id","objectId","Ký hiệu cần xoá"]],
+      resp:{ code:"200", body:[["data.id","objectId","Id ký hiệu vừa xoá"]] },
+      errors:[["404","ATT_003","Ký hiệu không tồn tại"]] },
+  ]},
+  { name: "Attendance", eps: [
+    { id:"att-mymonth", method:"GET", path:"/attendance/attendances/me", uc:"MyMonth", auth:"Bearer",
+      desc:"Nhân viên xem chấm công của chính mình theo tháng (`month` mặc định tháng hiện tại theo giờ VN).",
+      query:[["month","string?","Định dạng `YYYY-MM`; bỏ trống dùng tháng hiện tại"]],
+      resp:{ code:"200", body:[["data.employeeId","objectId","Id nhân viên"],["data.month","string","Tháng đã lấy"],["data.records","Attendance[]","Bản ghi chấm công trong tháng"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"]] },
+    { id:"att-checkin", method:"POST", path:"/attendance/attendances/check-in", uc:"Punch(in)", auth:"Bearer",
+      desc:"Nhân viên tự check-in cho ca mặc định của hôm nay (giờ VN). Chặn nếu ngày đã có đơn nghỉ phép được duyệt cả ngày, hoặc kỳ chấm công đã chốt.",
+      resp:{ code:"201", body:[["data","Attendance","Bản ghi chấm công vừa cập nhật"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"],["400","ATT_005","Chưa cấu hình ca làm mặc định"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"],["409","ATT_007","Đang có đơn nghỉ phép đã duyệt trong ngày này"]] },
+    { id:"att-checkout", method:"POST", path:"/attendance/attendances/check-out", uc:"Punch(out)", auth:"Bearer",
+      desc:"Nhân viên tự check-out cho ca mặc định của hôm nay; phải đã check-in trước đó.",
+      resp:{ code:"200", body:[["data","Attendance","Bản ghi chấm công vừa cập nhật"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"],["400","ATT_005","Chưa cấu hình ca làm mặc định"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"],["409","ATT_007","Đang có đơn nghỉ phép đã duyệt trong ngày này"],["409","ATT_006","Chưa check-in hôm nay"]] },
+    { id:"att-admingrid", method:"GET", path:"/attendance/admin/attendances", uc:"AdminGrid", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR xem lưới chấm công toàn công ty theo tháng: roster, ca làm đang hoạt động, bản ghi và phép năm còn lại/thâm niên mỗi nhân viên.",
+      query:[["month","string?","Định dạng `YYYY-MM`; bỏ trống dùng tháng hiện tại"],["departmentId","string?","Lọc theo phòng ban"],["q","string?","Tìm theo tên/mã nhân viên"]],
+      resp:{ code:"200", body:[["data.month","string","Tháng đã lấy"],["data.employees","object[]","Roster kèm `annualLeaveRemaining`, `tenureMonths`"],["data.shifts","Shift[]","Ca làm đang hoạt động"],["data.records","Attendance[]","Bản ghi chấm công trong tháng"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"att-upsert", method:"POST", path:"/attendance/admin/attendances", uc:"Upsert", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR tạo mới hoặc cập nhật bản ghi chấm công cho một `(nhân viên, ngày, ca)`. `status` thủ công (`leave_paid`/`leave_unpaid`/`holiday`/`absent`) bỏ qua giờ vào/ra.",
+      body:[["employeeId","objectId","Nhân viên"],["date","date","Ngày chấm công"],["shiftId","objectId","Ca làm"],["checkIn","date?|null","Giờ vào"],["checkOut","date?|null","Giờ ra"],["status","string?","`leave_paid`/`leave_unpaid`/`holiday`/`absent`"],["note","string?|null","Ghi chú (≤255)"]],
+      resp:{ code:"201", body:[["data","Attendance","Bản ghi chấm công sau khi tạo/cập nhật"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["404","ATT_005","Ca làm không tồn tại"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"],["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-upsertday", method:"POST", path:"/attendance/admin/attendances/day", uc:"UpsertDay", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR nhập MỘT giờ vào/ra cho cả ngày; hệ thống tự phân bổ vào từng ca áp dụng trong ngày đó (theo thứ + mùa), công mỗi ca = 1/số ca áp dụng.",
+      body:[["employeeId","objectId","Nhân viên"],["date","date","Ngày chấm công"],["checkIn","date","Giờ vào"],["checkOut","date","Giờ ra (phải sau giờ vào)"],["note","string?|null","Ghi chú (≤255)"]],
+      resp:{ code:"201", body:[["data.employeeId","objectId","Nhân viên"],["data.date","date","Ngày đã xử lý"],["data.totalCong","number","Tổng công trong ngày"],["data.records","Attendance[]","Các bản ghi ca đã tạo/cập nhật"]] },
+      errors:[["404","EMP_001","Nhân viên không tồn tại"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"],["409","ATT_007","Ngày này đã có đơn nghỉ phép đã duyệt"],["400","ATT_005","Chưa cấu hình ca làm áp dụng cho ngày này (theo thứ hoặc theo mùa)"],["422","INVALID_REQUEST","`checkOut` không sau `checkIn`, hoặc body sai schema"]] },
+    { id:"att-bulkupsert", method:"POST", path:"/attendance/admin/attendances/bulk", uc:"BulkUpsert", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR nhập hàng loạt bản ghi chấm công (tối đa 500 dòng); mỗi dòng chạy qua `Upsert` tuần tự.",
+      body:[["rows","UpsertAttendanceDto[]","Danh sách bản ghi cần tạo/cập nhật (1..500)"]],
+      resp:{ code:"200", body:[["data.count","number","Số dòng đã xử lý"]] },
+      errors:[["404","EMP_001","Một dòng có nhân viên không tồn tại"],["404","ATT_005","Một dòng có ca làm không tồn tại"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"],["422","INVALID_REQUEST","`rows` rỗng/quá 500, hoặc một dòng sai schema"]] },
+    { id:"att-adjust", method:"PATCH", path:"/attendance/admin/attendances/{id}", uc:"Adjust", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR sửa một bản ghi đã có theo id (có `reason` để ghi vào audit log). `session` giữ nguyên, không đổi khi adjust.",
+      params:[["id","objectId","Bản ghi cần sửa"]],
+      body:[["shiftId","objectId?","Đổi sang ca khác"],["checkIn","date?|null","Giờ vào mới"],["checkOut","date?|null","Giờ ra mới"],["status","string?","`leave_paid`/`leave_unpaid`/`holiday`/`absent`"],["note","string?|null","Ghi chú mới"],["reason","string?","Lý do chỉnh sửa (≤255, chỉ để audit)"]],
+      resp:{ code:"200", body:[["data","Attendance","Bản ghi sau khi sửa"]] },
+      errors:[["404","ATT_004","Bản ghi không tồn tại"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"],["400","ATT_005","Thiếu ca làm (bản ghi chưa có `shiftId` và không truyền `shiftId`)"],["404","ATT_005","Ca làm không tồn tại"],["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-remove", method:"DELETE", path:"/attendance/admin/attendances/{id}", uc:"Remove", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR xoá cứng một bản ghi chấm công (gỡ một ca khỏi ngày).",
+      params:[["id","objectId","Bản ghi cần xoá"]],
+      resp:{ code:"200", body:[["data.id","objectId","Id bản ghi vừa xoá"],["data.deleted","boolean","Luôn `true`"]] },
+      errors:[["404","ATT_004","Bản ghi không tồn tại"],["409","ATT_LOCKED","Kỳ chấm công đã chốt — không thể sửa"]] },
+  ]},
+  { name: "Leave Request", eps: [
+    { id:"att-submitleave", method:"POST", path:"/attendance/leave-requests", uc:"Submit", auth:"Bearer",
+      desc:"Nhân viên nộp đơn xin nghỉ. Nghỉ nửa ngày chỉ áp dụng cho đơn trong cùng một ngày. Chặn nếu khoảng nghỉ không có ngày làm việc nào (toàn cuối tuần/lễ), trùng đơn khác, hoặc vượt quỹ phép.",
+      body:[["leaveType","string","`annual`/`sick`/`personal`/`unpaid`/`maternity`/`paternity`"],["startDate","date","Ngày bắt đầu"],["endDate","date","Ngày kết thúc (≥ `startDate`)"],["halfDaySession","string?|null","`morning`/`afternoon` — chỉ khi nghỉ nửa ngày trong 1 ngày"],["reason","string?","Lý do (≤500)"]],
+      resp:{ code:"201", body:[["data","LeaveRequest","Đơn nghỉ vừa tạo (`status = pending`)"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"],["400","LV_003","Ngày kết thúc trước ngày bắt đầu, hoặc khoảng nghỉ không có ngày làm việc nào"],["400","LV_006","Nghỉ nửa ngày áp cho khoảng nhiều hơn 1 ngày"],["409","LV_007","Đã có đơn nghỉ khác trùng ngày trong khoảng này"],["409","LV_005","Nhân viên chưa chính thức hoặc chưa cấu hình hạn mức phép cho loại/năm này"],["409","LV_004","Vượt quỹ phép còn lại"],["422","INVALID_REQUEST","Body sai schema"]] },
+    { id:"att-mineleave", method:"GET", path:"/attendance/leave-requests/me", uc:"Mine", auth:"Bearer",
+      desc:"Nhân viên xem tất cả đơn nghỉ của chính mình.",
+      resp:{ code:"200", body:[["data","LeaveRequest[]","Danh sách đơn nghỉ"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"]] },
+    { id:"att-cancelleave", method:"PATCH", path:"/attendance/leave-requests/{id}/cancel", uc:"CancelOwn", auth:"Bearer",
+      desc:"Nhân viên tự huỷ đơn nghỉ của mình — chỉ khi đơn đang `pending`.",
+      params:[["id","objectId","Đơn nghỉ cần huỷ"]],
+      resp:{ code:"200", body:[["data","LeaveRequest","Đơn nghỉ sau khi huỷ (`status = cancelled`)"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"],["404","LV_001","Không tìm thấy đơn (hoặc đơn không thuộc về nhân viên này)"],["409","LV_002","Chỉ huỷ được đơn đang chờ duyệt"]] },
+    { id:"att-adminlistleave", method:"GET", path:"/attendance/admin/leave-requests", uc:"AdminList", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR liệt kê đơn nghỉ toàn công ty kèm thông tin nhân viên, lọc theo trạng thái.",
+      query:[["status","string?","Lọc theo `pending`/`approved`/`rejected`/`cancelled`"]],
+      resp:{ code:"200", body:[["data","LeaveRequest[]","Danh sách đơn nghỉ kèm thông tin nhân viên"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"att-approveleave", method:"POST", path:"/attendance/admin/leave-requests/{id}/approve", uc:"Approve", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR duyệt đơn (chỉ khi đang `pending`). Trong một transaction: cộng dồn `used` vào quỹ phép năm và đồng bộ bản ghi chấm công cho các ngày nghỉ (đè bản ghi công/chấm công thủ công của ngày nghỉ cả ngày). Phát sự kiện `leave.decided`.",
+      params:[["id","objectId","Đơn nghỉ cần duyệt"]],
+      resp:{ code:"200", body:[["data","LeaveRequest","Đơn nghỉ sau khi duyệt (`status = approved`)"]] },
+      errors:[["404","LV_001","Không tìm thấy đơn"],["409","LV_002","Đơn đã được xử lý"],["409","LV_007","Có đơn khác đã duyệt trùng ngày (chặn duyệt đua)"],["409","LV_005","Chưa cấu hình/không còn hạn mức phép phù hợp"],["409","LV_004","Vượt quỹ phép còn lại"]] },
+    { id:"att-rejectleave", method:"POST", path:"/attendance/admin/leave-requests/{id}/reject", uc:"Reject", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR từ chối đơn (chỉ khi đang `pending`), bắt buộc nêu lý do. Phát sự kiện `leave.decided`.",
+      params:[["id","objectId","Đơn nghỉ cần từ chối"]],
+      body:[["reason","string","Lý do từ chối (bắt buộc, ≤255)"]],
+      resp:{ code:"200", body:[["data","LeaveRequest","Đơn nghỉ sau khi từ chối (`status = rejected`)"]] },
+      errors:[["404","LV_001","Không tìm thấy đơn"],["409","LV_002","Đơn đã được xử lý"],["422","INVALID_REQUEST","Thiếu `reason`, hoặc body sai schema"]] },
+    { id:"att-revokeleave", method:"POST", path:"/attendance/admin/leave-requests/{id}/revoke", uc:"Revoke", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR thu hồi một đơn ĐÃ DUYỆT (chỉ khi đang `approved`). Trong một transaction: hoàn lại `used` vào quỹ phép, xoá bản ghi chấm công sinh từ đơn, chuyển `status = cancelled`. Phát sự kiện `leave.decided`.",
+      params:[["id","objectId","Đơn nghỉ cần thu hồi"]],
+      body:[["reason","string?","Lý do thu hồi (mặc định \"Thu hồi bởi HR\")"]],
+      resp:{ code:"200", body:[["data","LeaveRequest","Đơn nghỉ sau khi thu hồi (`status = cancelled`)"]] },
+      errors:[["404","LV_001","Không tìm thấy đơn"],["409","LV_002","Chỉ thu hồi được đơn đã duyệt"]] },
+  ]},
+  { name: "Leave Balance", eps: [
+    { id:"att-mybalances", method:"GET", path:"/attendance/leave-balances/me", uc:"MyBalances", auth:"Bearer",
+      desc:"Nhân viên xem quỹ phép của chính mình theo năm hiện tại.",
+      resp:{ code:"200", body:[["data","LeaveBalance[]","Quỹ phép theo từng loại trong năm hiện tại"]] },
+      errors:[["404","EMP_001","Tài khoản chưa gắn hồ sơ nhân viên"]] },
+    { id:"att-adminbalances", method:"GET", path:"/attendance/admin/leave-balances/{employeeId}", uc:"AdminBalances", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR xem quỹ phép của một nhân viên theo năm (`year` mặc định năm hiện tại).",
+      params:[["employeeId","objectId","Nhân viên cần xem"]],
+      query:[["year","number?","Năm cần xem; mặc định năm hiện tại"]],
+      resp:{ code:"200", body:[["data","LeaveBalance[]","Quỹ phép theo từng loại trong năm"]] },
+      errors:[["400","EMP_001","`employeeId` không hợp lệ"]] },
+    { id:"att-upsertbalance", method:"POST", path:"/attendance/admin/leave-balances", uc:"UpsertBalance", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR thiết lập/cập nhật hạn mức (`entitled`) phép cho một nhân viên/loại/năm; `used` được giữ nguyên.",
+      body:[["employeeId","string","Nhân viên (24 ký tự hex)"],["leaveType","string","`annual`/`sick`/`personal`/`unpaid`/`maternity`/`paternity`"],["year","number","Năm áp dụng (2000..2100)"],["entitled","number","Hạn mức mới (≥0)"]],
+      resp:{ code:"200", body:[["data","LeaveBalance","Quỹ phép sau khi thiết lập"]] },
+      errors:[["422","INVALID_REQUEST","Body sai schema"]] },
+  ]},
+]},
+{ name: "Payroll", accent: "#dc2626", subs: [
+  { name: "Payroll Period", eps: [
+    { id:"pay-listperiods", method:"GET", path:"/payroll/periods", uc:"ListPayrollPeriods", auth:"Bearer", access:"HR/Admin",
+      desc:"Liệt kê tất cả kỳ lương.",
+      resp:{ code:"200", body:[["data","PayrollPeriod[]","Danh sách kỳ lương"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-getperiod", method:"GET", path:"/payroll/periods/{id}", uc:"GetPayrollPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Lấy chi tiết một kỳ lương.",
+      params:[["id","string","Kỳ lương cần lấy"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Chi tiết kỳ lương"]] },
+      errors:[["404","—","Kỳ lương không tồn tại (`NotFoundError`)"]] },
+    { id:"pay-createperiod", method:"POST", path:"/payroll/periods", uc:"CreatePayrollPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Tạo kỳ lương mới (`name` dạng `YYYY-MM`, duy nhất). Không truyền `standardWorkDays` thì hệ thống tự tính số ngày công chuẩn thực tế (trừ cuối tuần + ngày lễ) trong khoảng `startDate`–`endDate`; nếu tính ra 0 thì lấy số ngày công chuẩn của công ty (mặc định 22).",
+      body:[["name","string","Tên kỳ, dạng `YYYY-MM`"],["startDate","date","Ngày bắt đầu kỳ"],["endDate","date","Ngày kết thúc kỳ"],["payDate","date","Ngày trả lương"],["standardWorkDays","number?","Số ngày công chuẩn (1–31, tuỳ chọn — tự tính nếu bỏ trống)"]],
+      resp:{ code:"201", body:[["data","PayrollPeriod","Kỳ lương vừa tạo"]] },
+      errors:[["409","PAY_PERIOD_DUP","Kỳ lương cùng `name` đã tồn tại"]] },
+    { id:"pay-updateperiod", method:"PATCH", path:"/payroll/periods/{id}", uc:"UpdatePayrollPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật ngày bắt đầu/kết thúc/trả lương hoặc số ngày công chuẩn; chỉ áp trường có mặt. Chặn khi kỳ đã `closed`/`paid`.",
+      params:[["id","string","Kỳ lương cần cập nhật"]],
+      body:[["startDate","date?","Ngày bắt đầu mới"],["endDate","date?","Ngày kết thúc mới"],["payDate","date?","Ngày trả lương mới"],["standardWorkDays","number?","Số ngày công chuẩn mới (1–31)"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau cập nhật"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã `closed`/`paid`, không thể sửa"]] },
+    { id:"pay-closeperiod", method:"POST", path:"/payroll/periods/{id}/close", uc:"ClosePayrollPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Chốt kỳ lương: không cho chạy lương/sửa nữa. Từ chối nếu còn bản lương `draft` chưa duyệt/hoàn tác.",
+      params:[["id","string","Kỳ lương cần chốt"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau khi chốt"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã thanh toán (`paid`)"],["409","PAY_DRAFT_REMAINING","Còn bản lương `draft` chưa duyệt/hoàn tác"]] },
+    { id:"pay-reopenperiod", method:"POST", path:"/payroll/periods/{id}/reopen", uc:"ReopenPayrollPeriod", auth:"Bearer", access:"Admin",
+      desc:"Mở lại kỳ lương đã `closed` để tính lại (đính chính). Mọi bản lương `approved` bị hoàn tác về `draft`. Kỳ `open` gọi lại thì không đổi gì; kỳ `paid` bị từ chối.",
+      params:[["id","string","Kỳ lương cần mở lại"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau khi mở lại"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_PAID","Kỳ đã thanh toán — không thể mở lại"]] },
+    { id:"pay-removeperiod", method:"DELETE", path:"/payroll/periods/{id}", uc:"DeletePayrollPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá kỳ lương tạo nhầm — chỉ khi kỳ chưa có bản lương nào.",
+      params:[["id","string","Kỳ lương cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","ID kỳ lương vừa xoá"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_HAS_DATA","Kỳ đã có bảng lương — phải hoàn tác bảng lương trước"]] },
+    { id:"pay-attendancereadiness", method:"GET", path:"/payroll/periods/{id}/attendance-readiness", uc:"AttendanceReadiness", auth:"Bearer", access:"HR/Admin",
+      desc:"Kiểm tra mức độ hoàn tất chấm công trước khi chốt: số nhân viên chưa có bản ghi, bản ghi còn thiếu check-out.",
+      params:[["id","string","Kỳ lương cần kiểm tra"]],
+      resp:{ code:"200", body:[["data.attendanceLocked","boolean","Chấm công đã chốt hay chưa"],["data.totalActiveEmployees","number","Tổng nhân viên đang hoạt động"],["data.employeesNoRecords","number","Số nhân viên chưa có bản ghi chấm công"],["data.incompleteRecords","number","Số bản ghi còn thiếu check-out"],["data.employeesWithIncomplete","number","Số nhân viên có bản ghi chưa hoàn tất"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"]] },
+    { id:"pay-lockattendance", method:"POST", path:"/payroll/periods/{id}/lock-attendance", uc:"LockAttendance", auth:"Bearer", access:"HR/Admin",
+      desc:"Chốt chấm công của kỳ — dữ liệu chấm công không đổi được nữa trước khi tính lương. Phát `payroll.attendance-locked`. Nếu đánh giá cũng đã chốt, tự động chạy tính lương toàn kỳ ở nền (không chặn response).",
+      params:[["id","string","Kỳ lương cần chốt chấm công"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau khi chốt"],["meta.autoRunning","boolean?","Có (chỉ khi `true`) nếu đã tự động kích hoạt chạy lương nền"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã thanh toán (`paid`)"]] },
+    { id:"pay-unlockattendance", method:"POST", path:"/payroll/periods/{id}/unlock-attendance", uc:"UnlockAttendance", auth:"Bearer", access:"HR/Admin",
+      desc:"Mở lại chấm công để sửa (chỉ khi kỳ chưa `closed`/`paid`). Mọi bản lương `approved` (chưa `paid`) bị hoàn tác về `draft` để tính lại khi chốt lại.",
+      params:[["id","string","Kỳ lương cần mở chốt chấm công"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau khi mở chốt"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã `closed`/`paid`, không thể mở chốt"]] },
+    { id:"pay-evaluationreadiness", method:"GET", path:"/payroll/periods/{id}/evaluation-readiness", uc:"EvaluationReadiness", auth:"Bearer", access:"HR/Admin",
+      desc:"Kiểm tra mức độ hoàn tất đánh giá tháng trước khi chốt: số nhân viên đang hoạt động còn thiếu đánh giá đã duyệt/ghi nhận cho kỳ này.",
+      params:[["id","string","Kỳ lương cần kiểm tra"]],
+      resp:{ code:"200", body:[["data.evaluationLocked","boolean","Đánh giá đã chốt hay chưa"],["data.totalActiveEmployees","number","Tổng nhân viên đang hoạt động"],["data.finalizedEvaluations","number","Số đánh giá đã hoàn tất"],["data.employeesNoEvaluation","number","Số nhân viên chưa có đánh giá hoàn tất"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"]] },
+    { id:"pay-lockevaluations", method:"POST", path:"/payroll/periods/{id}/lock-evaluations", uc:"LockEvaluations", auth:"Bearer", access:"HR/Admin",
+      desc:"Chốt đánh giá tháng của kỳ — điểm hiệu suất/mục tiêu bị đóng băng, sẵn sàng cho tính lương. Nếu chấm công cũng đã chốt, tự động chạy tính lương toàn kỳ ở nền.",
+      params:[["id","string","Kỳ lương cần chốt đánh giá"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau khi chốt"],["meta.autoRunning","boolean?","Có (chỉ khi `true`) nếu đã tự động kích hoạt chạy lương nền"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã thanh toán (`paid`)"]] },
+    { id:"pay-unlockevaluations", method:"POST", path:"/payroll/periods/{id}/unlock-evaluations", uc:"UnlockEvaluations", auth:"Bearer", access:"HR/Admin",
+      desc:"Mở lại đánh giá để sửa (chỉ khi kỳ chưa `closed`/`paid`). Mọi bản lương `approved` (chưa `paid`) bị hoàn tác về `draft`.",
+      params:[["id","string","Kỳ lương cần mở chốt đánh giá"]],
+      resp:{ code:"200", body:[["data","PayrollPeriod","Kỳ lương sau khi mở chốt"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã `closed`/`paid`, không thể mở chốt đánh giá"]] },
+    { id:"pay-runperiod", method:"POST", path:"/payroll/periods/{id}/run", uc:"RunPayrollForPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Chạy tính lương cho toàn bộ nhân viên đang hoạt động trong kỳ. Lỗi từng nhân viên được gom lại, không làm hỏng cả lượt chạy. Yêu cầu chấm công và đánh giá đã chốt.",
+      params:[["id","string","Kỳ lương cần chạy"]],
+      body:[["requireApprovedEvaluation","boolean?","`false` để bỏ qua yêu cầu đánh giá đã duyệt (mặc định bắt buộc)"]],
+      resp:{ code:"200", body:[["data.periodId","string","Kỳ lương vừa chạy"],["data.computed","number","Số nhân viên tính thành công"],["data.errors","{employeeId,reason}[]","Danh sách nhân viên tính lỗi kèm lý do"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã `closed`/`paid`, không thể chạy"]] },
+    { id:"pay-runemployee", method:"POST", path:"/payroll/periods/{id}/run/{employeeId}", uc:"RunPayrollForEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Chạy (hoặc chạy lại) tính lương cho một nhân viên trong kỳ. Nếu nhân viên có nhiều hợp đồng chồng kỳ (đổi hợp đồng giữa tháng) thì mỗi hợp đồng sinh một dòng lương riêng; trả về dòng của hợp đồng mới nhất.",
+      params:[["id","string","Kỳ lương"],["employeeId","string","Nhân viên cần chạy lương"]],
+      resp:{ code:"200", body:[["data","Payroll","Dòng lương (hợp đồng mới nhất) vừa tính"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["404","—","Nhân viên không có hợp đồng đang hiệu lực trong kỳ (`Active contract`)"],["409","PAY_PERIOD_LOCKED","Kỳ đã `closed`/`paid`, không thể chạy"],["409","PAY_ATT_NOT_LOCKED","Chấm công của kỳ chưa được chốt"],["409","PAY_EVAL_NOT_LOCKED","Đánh giá của kỳ chưa được chốt"],["409","PAY_EVAL_REQUIRED","Nhân viên chưa có đánh giá được duyệt cho kỳ (khi `requireApprovedEvaluation` không tắt)"],["409","PAY_ALREADY_FINALIZED","Dòng lương của hợp đồng này đã `approved`/`paid`, không cho tính lại"]] },
+  ]},
+  { name: "Payroll", eps: [
+    { id:"pay-listpayrolls", method:"GET", path:"/payroll/payrolls", uc:"ListPayrolls", auth:"Bearer", access:"HR/Admin",
+      desc:"Liệt kê bảng lương đã tính, phân trang, lọc theo kỳ/nhân viên/trạng thái.",
+      query:[["payrollPeriodId","string?","Lọc theo kỳ lương"],["employeeId","string?","Lọc theo nhân viên"],["status","string?","Lọc theo trạng thái (`draft`/`approved`/`paid`)"],["page","number?","Trang (mặc định 1)"],["limit","number?","Số dòng/trang"]],
+      resp:{ code:"200", body:[["data","Payroll[]","Danh sách bảng lương"],["meta","{page,limit,total,totalPages}","Thông tin phân trang"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-getpayroll", method:"GET", path:"/payroll/payrolls/{id}", uc:"GetPayroll", auth:"Bearer", access:"HR/Admin",
+      desc:"Lấy chi tiết một bảng lương. Người không phải HR/Admin chỉ xem được bảng lương của chính mình (phòng vệ hai lớp, dù route đã chặn ở tầng role).",
+      params:[["id","string","Bảng lương cần lấy"]],
+      resp:{ code:"200", body:[["data","Payroll","Chi tiết bảng lương"]] },
+      errors:[["404","—","Bảng lương không tồn tại"],["403","—","Không phải bảng lương của chính người gọi (`ForbiddenError`)"]] },
+    { id:"pay-mypayrolls", method:"GET", path:"/payroll/payrolls/me", uc:"ListMyPayrolls", auth:"Bearer",
+      desc:"Tự phục vụ: danh sách phiếu lương (`approved`/`paid`, ẩn `draft`) của nhân viên gắn với tài khoản đang đăng nhập, kèm tên kỳ lương.",
+      resp:{ code:"200", body:[["data","Payroll[]","Phiếu lương đã duyệt/đã chi của chính người gọi, kèm `periodName`"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù (trả mảng rỗng nếu tài khoản chưa gắn nhân viên)"]] },
+    { id:"pay-totals", method:"GET", path:"/payroll/periods/{periodId}/totals", uc:"PayrollTotals", auth:"Bearer", access:"HR/Admin",
+      desc:"Tổng hợp gross/net theo từng trạng thái cho một kỳ — phục vụ màn hình quỹ lương.",
+      params:[["periodId","string","Kỳ lương cần tổng hợp"]],
+      resp:{ code:"200", body:[["data","{status,count,gross,net}[]","Tổng hợp theo trạng thái"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-preflight", method:"GET", path:"/payroll/periods/{periodId}/preflight", uc:"PayrollPreflight", auth:"Bearer", access:"HR/Admin",
+      desc:"Kiểm tra trước khi chạy lương: liệt kê nhân viên đang hoạt động thiếu hợp đồng hiệu lực/đánh giá đã duyệt (chặn tính lương) hoặc thiếu hồ sơ thuế (dùng mặc định), cùng cảnh báo cấu hình chính sách lương.",
+      params:[["periodId","string","Kỳ lương cần kiểm tra"]],
+      resp:{ code:"200", body:[["data.total","number","Tổng nhân viên đang hoạt động"],["data.ready","number","Số nhân viên đủ điều kiện tính lương"],["data.blockedCount","number","Số nhân viên bị chặn tính lương"],["data.policyWarnings","string[]","Cảnh báo ở cấp chính sách lương"],["data.items","{employeeId,employeeCode,fullName,blockers,warnings}[]","Nhân viên có ít nhất một cảnh báo/chặn"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"]] },
+    { id:"pay-export", method:"GET", path:"/payroll/periods/{periodId}/export", uc:"ExportPayrollPeriod", auth:"Bearer", access:"HR/Admin",
+      desc:"Xuất bảng lương của một kỳ (toàn bộ nhân viên) ra file `.xlsx` định dạng sẵn cho kế toán.",
+      params:[["periodId","string","Kỳ lương cần xuất"]],
+      resp:{ code:"200", note:"Trả file nhị phân `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (`bang-luong.xlsx`), không bọc envelope `{ data }`." },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-grossup", method:"POST", path:"/payroll/gross-up", uc:"GrossUpCalculator", auth:"Bearer", access:"HR/Admin",
+      desc:"Tính NET → GROSS theo chính sách lương hiệu lực tại `payDate` (mặc định hôm nay), dùng lại cùng cỗ máy bảo hiểm/thuế với tính lương thật để kết quả nhất quán. Quy đổi CHỈ dựa trên BHXH + thuế TNCN, không gồm đoàn phí.",
+      body:[["net","number","Lương NET mong muốn (VND)"],["payDate","date?","Ngày trả lương để xác định chính sách hiệu lực (mặc định hôm nay)"],["dependentsCount","number?","Số người phụ thuộc (mặc định 0)"],["isResident","boolean?","Có phải cá nhân cư trú hay không (mặc định `true`)"],["salaryZone","string?","Vùng lương tối thiểu vùng (`zone1`–`zone4`, mặc định `zone1`)"]],
+      resp:{ code:"200", body:[["data","GrossUpResult","Kết quả quy đổi GROSS kèm bảo hiểm/thuế"]] },
+      errors:[["404","—","Chưa có chính sách lương hiệu lực tại `payDate` (`Salary policy config`)"]] },
+    { id:"pay-approve", method:"POST", path:"/payroll/periods/{id}/approve", uc:"ApprovePayroll", auth:"Bearer", access:"HR/Admin",
+      desc:"Duyệt các dòng lương `draft` của kỳ — toàn bộ, hoặc một nhân viên nếu truyền `employeeId`. Duyệt toàn kỳ (không truyền `employeeId`) khi kỳ đang `open` sẽ chuyển kỳ sang `processing`. Phát `payroll.approved`.",
+      params:[["id","string","Kỳ lương cần duyệt"]],
+      body:[["employeeId","string?","Chỉ duyệt dòng lương của nhân viên này (bỏ trống = duyệt cả kỳ)"]],
+      resp:{ code:"200", body:[["data.periodId","string","Kỳ lương vừa duyệt"],["data.affected","number","Số dòng lương được duyệt"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã thanh toán"],["409","PAY_NOTHING_TO_APPROVE","Không có dòng lương `draft` nào để duyệt"]] },
+    { id:"pay-revert", method:"POST", path:"/payroll/payrolls/{id}/revert", uc:"RevertPayrollToDraft", auth:"Bearer", access:"HR/Admin",
+      desc:"Hoàn tác một dòng lương đã duyệt về `draft` để tính lại.",
+      params:[["id","string","Bảng lương cần hoàn tác"]],
+      resp:{ code:"200", body:[["data","{ id }","ID bảng lương vừa hoàn tác"]] },
+      errors:[["404","—","Bảng lương không tồn tại"],["409","PAY_NOT_APPROVED","Chỉ hoàn tác được dòng lương đang ở trạng thái `approved`"]] },
+    { id:"pay-markpaid", method:"POST", path:"/payroll/periods/{id}/mark-paid", uc:"MarkPeriodPaid", auth:"Bearer", access:"Admin",
+      desc:"Đánh dấu toàn bộ dòng lương `approved` của kỳ là đã thanh toán và khoá kỳ (`paid`). Phát `payroll.paid`.",
+      params:[["id","string","Kỳ lương cần đánh dấu đã thanh toán"]],
+      resp:{ code:"200", body:[["data.periodId","string","Kỳ lương vừa thanh toán"],["data.affected","number","Số dòng lương được đánh dấu đã chi"]] },
+      errors:[["404","—","Kỳ lương không tồn tại"],["409","PAY_PERIOD_LOCKED","Kỳ đã thanh toán"],["409","PAY_DRAFT_REMAINING","Còn dòng lương `draft` chưa duyệt — phải duyệt hết trước"],["409","PAY_NOTHING_TO_PAY","Không có dòng lương `approved` nào để thanh toán"]] },
+  ]},
+  { name: "Compensation", eps: [
+    { id:"pay-listallowances", method:"GET", path:"/payroll/employees/{employeeId}/allowances", uc:"ListAllowancesByEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Liệt kê phụ cấp định kỳ của một nhân viên.",
+      params:[["employeeId","string","Nhân viên cần xem phụ cấp"]],
+      resp:{ code:"200", body:[["data","Allowance[]","Danh sách phụ cấp"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-createallowance", method:"POST", path:"/payroll/allowances", uc:"CreateAllowance", auth:"Bearer", access:"HR/Admin",
+      desc:"Tạo phụ cấp định kỳ cho nhân viên (`type=fixed` là số tiền VND, `type=percentage` là % lương cơ bản).",
+      body:[["employeeId","string","Nhân viên hưởng phụ cấp"],["name","string","Tên phụ cấp (≤120)"],["category","string?","Nhóm phụ cấp (`position`/`responsibility`/`transport`/`meal`/`housing`/`phone`/`other`)"],["type","string","`fixed` hoặc `percentage`"],["amount","number","Số tiền VND hoặc % lương cơ bản"],["isTaxable","boolean","Có tính vào thu nhập chịu thuế không"],["isInsuranceBase","boolean?","Có tính vào nền đóng BHXH không"],["effectiveDate","date","Ngày bắt đầu hiệu lực"],["endDate","date?","Ngày hết hiệu lực (tuỳ chọn)"],["note","string?","Ghi chú (≤255)"]],
+      resp:{ code:"201", body:[["data","Allowance","Phụ cấp vừa tạo"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-updateallowance", method:"PATCH", path:"/payroll/allowances/{id}", uc:"UpdateAllowance", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật phụ cấp; chỉ áp trường có mặt.",
+      params:[["id","string","Phụ cấp cần cập nhật"]],
+      body:[["name","string?","Tên mới"],["category","string?","Nhóm phụ cấp mới"],["type","string?","`fixed` hoặc `percentage`"],["amount","number?","Số tiền/% mới"],["isTaxable","boolean?","Có tính thuế không"],["isInsuranceBase","boolean?","Có tính vào nền BHXH không"],["effectiveDate","date?","Ngày hiệu lực mới"],["endDate","date?","Ngày hết hiệu lực mới"],["note","string?","Ghi chú mới"]],
+      resp:{ code:"200", body:[["data","Allowance","Phụ cấp sau cập nhật"]] },
+      errors:[["404","—","Phụ cấp không tồn tại"]] },
+    { id:"pay-removeallowance", method:"DELETE", path:"/payroll/allowances/{id}", uc:"RemoveAllowance", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá một phụ cấp.",
+      params:[["id","string","Phụ cấp cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","ID phụ cấp vừa xoá"]] },
+      errors:[["404","—","Phụ cấp không tồn tại"]] },
+    { id:"pay-listbonuses", method:"GET", path:"/payroll/employees/{employeeId}/bonuses", uc:"ListBonusesByEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Liệt kê thưởng của một nhân viên.",
+      params:[["employeeId","string","Nhân viên cần xem thưởng"]],
+      resp:{ code:"200", body:[["data","Bonus[]","Danh sách thưởng"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-createbonus", method:"POST", path:"/payroll/bonuses", uc:"CreateBonus", auth:"Bearer", access:"HR/Admin",
+      desc:"Tạo khoản thưởng một lần cho nhân viên, gắn với một kỳ lương cụ thể.",
+      body:[["employeeId","string","Nhân viên nhận thưởng"],["payrollPeriodId","string","Kỳ lương áp dụng thưởng"],["name","string","Tên khoản thưởng (≤120)"],["amount","number","Số tiền thưởng (VND)"],["isTaxable","boolean?","Có tính vào thu nhập chịu thuế không (mặc định có)"],["reason","string?","Lý do thưởng (≤255)"]],
+      resp:{ code:"201", body:[["data","Bonus","Khoản thưởng vừa tạo"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-updatebonus", method:"PATCH", path:"/payroll/bonuses/{id}", uc:"UpdateBonus", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật khoản thưởng; chỉ áp trường có mặt.",
+      params:[["id","string","Khoản thưởng cần cập nhật"]],
+      body:[["name","string?","Tên mới"],["amount","number?","Số tiền mới"],["isTaxable","boolean?","Có tính thuế không"],["reason","string?","Lý do mới"]],
+      resp:{ code:"200", body:[["data","Bonus","Khoản thưởng sau cập nhật"]] },
+      errors:[["404","—","Khoản thưởng không tồn tại"]] },
+    { id:"pay-removebonus", method:"DELETE", path:"/payroll/bonuses/{id}", uc:"RemoveBonus", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá một khoản thưởng.",
+      params:[["id","string","Khoản thưởng cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","ID khoản thưởng vừa xoá"]] },
+      errors:[["404","—","Khoản thưởng không tồn tại"]] },
+    { id:"pay-listdeductions", method:"GET", path:"/payroll/employees/{employeeId}/deductions", uc:"ListDeductionsByEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Liệt kê khoản khấu trừ sau thuế của một nhân viên.",
+      params:[["employeeId","string","Nhân viên cần xem khấu trừ"]],
+      resp:{ code:"200", body:[["data","Deduction[]","Danh sách khấu trừ"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-creatededuction", method:"POST", path:"/payroll/deductions", uc:"CreateDeduction", auth:"Bearer", access:"HR/Admin",
+      desc:"Tạo khoản khấu trừ sau thuế (tạm ứng, kỷ luật, …). Bỏ trống `payrollPeriodId` để khấu trừ lặp lại mỗi kỳ trong thời gian hiệu lực; truyền vào để khấu trừ một lần cho đúng kỳ đó.",
+      body:[["employeeId","string","Nhân viên bị khấu trừ"],["payrollPeriodId","string?","Kỳ lương áp dụng một lần (bỏ trống = lặp lại)"],["name","string","Tên khoản khấu trừ (≤120)"],["type","string","`fixed` (VND) hoặc `percentage` (% lương gộp)"],["amount","number","Số tiền hoặc %"],["reason","string?","Lý do (≤255)"],["effectiveDate","date","Ngày bắt đầu hiệu lực"],["endDate","date?","Ngày hết hiệu lực"]],
+      resp:{ code:"201", body:[["data","Deduction","Khoản khấu trừ vừa tạo"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-updatededuction", method:"PATCH", path:"/payroll/deductions/{id}", uc:"UpdateDeduction", auth:"Bearer", access:"HR/Admin",
+      desc:"Cập nhật khoản khấu trừ; chỉ áp trường có mặt.",
+      params:[["id","string","Khoản khấu trừ cần cập nhật"]],
+      body:[["payrollPeriodId","string?","Kỳ áp dụng mới"],["name","string?","Tên mới"],["type","string?","`fixed` hoặc `percentage`"],["amount","number?","Số tiền/% mới"],["reason","string?","Lý do mới"],["effectiveDate","date?","Ngày hiệu lực mới"],["endDate","date?","Ngày hết hiệu lực mới"]],
+      resp:{ code:"200", body:[["data","Deduction","Khoản khấu trừ sau cập nhật"]] },
+      errors:[["404","—","Khoản khấu trừ không tồn tại"]] },
+    { id:"pay-removededuction", method:"DELETE", path:"/payroll/deductions/{id}", uc:"RemoveDeduction", auth:"Bearer", access:"HR/Admin",
+      desc:"Xoá một khoản khấu trừ.",
+      params:[["id","string","Khoản khấu trừ cần xoá"]],
+      resp:{ code:"200", body:[["data","{ id }","ID khoản khấu trừ vừa xoá"]] },
+      errors:[["404","—","Khoản khấu trừ không tồn tại"]] },
+    { id:"pay-listtaxprofiles", method:"GET", path:"/payroll/employees/{employeeId}/tax-profiles", uc:"ListTaxProfilesByEmployee", auth:"Bearer", access:"HR/Admin",
+      desc:"Liệt kê lịch sử hồ sơ thuế (mã số thuế, số người phụ thuộc, cư trú, …) của một nhân viên, theo hiệu lực.",
+      params:[["employeeId","string","Nhân viên cần xem hồ sơ thuế"]],
+      resp:{ code:"200", body:[["data","EmployeeTaxProfile[]","Danh sách hồ sơ thuế theo thời gian"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"pay-upserttaxprofile", method:"POST", path:"/payroll/tax-profiles", uc:"UpsertTaxProfile", auth:"Bearer", access:"HR/Admin",
+      desc:"Thêm một phiên bản hồ sơ thuế mới (theo `effectiveDate`) cho nhân viên — không ghi đè bản cũ, cho phép truy vết thay đổi số người phụ thuộc/cư trú theo thời gian.",
+      body:[["employeeId","string","Nhân viên áp dụng hồ sơ thuế"],["taxCode","string?","Mã số thuế cá nhân (≤20)"],["isResident","boolean?","Có phải cá nhân cư trú không (mặc định `true`)"],["dependentsCount","number","Số người phụ thuộc"],["insuranceAmount","number?","Mức đóng BHXH cố định (VND), do HR nhập"],["effectiveDate","date","Ngày bắt đầu hiệu lực"],["endDate","date?","Ngày hết hiệu lực"],["note","string?","Ghi chú (≤255)"]],
+      resp:{ code:"201", body:[["data","EmployeeTaxProfile","Hồ sơ thuế vừa tạo"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+  ]},
+]},
+{ name: "Performance", accent: "#4f46e5", subs: [
+  { name: "Evaluation", eps: [
+    { id:"perf-listevaluations", method:"GET", path:"/performance/evaluations", uc:"ListEvaluations", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Liệt kê đánh giá tháng, tuỳ chọn lọc theo kỳ lương, mới nhất trước.",
+      query:[["payrollPeriodId","string?","Lọc theo kỳ lương (id không hợp lệ → bỏ lọc)"]],
+      resp:{ code:"200", body:[["data","MonthlyEvaluation[]","Danh sách đánh giá"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"perf-exportevaluations", method:"GET", path:"/performance/evaluations/export", uc:"ExportEvaluationsXlsx", auth:"Bearer", access:"admin, hr_manager",
+      desc:"Xuất danh sách đánh giá (tuỳ chọn theo kỳ lương) ra file `.xlsx` (mã NV, họ tên, phòng ban, kỳ, % hiệu suất, % mục tiêu, trạng thái, điểm mạnh, cần cải thiện, kế hoạch phát triển).",
+      query:[["payrollPeriodId","string?","Lọc theo kỳ lương (tuỳ chọn)"]],
+      resp:{ code:"200", note:"File nhị phân `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (`danh-gia.xlsx`)." },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"perf-listmyevaluations", method:"GET", path:"/performance/evaluations/me", uc:"ListMyEvaluations", auth:"Bearer",
+      desc:"Nhân viên tự xem toàn bộ đánh giá của chính mình qua các kỳ. Không tra được tài khoản nhân viên tương ứng → trả danh sách rỗng.",
+      resp:{ code:"200", body:[["data","MonthlyEvaluation[]","Đánh giá của người dùng đang đăng nhập"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"perf-listevaluationsbyemployee", method:"GET", path:"/performance/evaluations/employee/{employeeId}", uc:"ListEvaluationsByEmployee", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR xem toàn bộ đánh giá của một nhân viên qua các kỳ (lịch sử/xu hướng).",
+      params:[["employeeId","string","Nhân viên cần xem lịch sử đánh giá"]],
+      resp:{ code:"200", body:[["data","MonthlyEvaluation[]","Đánh giá của nhân viên qua các kỳ"]] },
+      errors:[["—","—","Không có lỗi nghiệp vụ đặc thù"]] },
+    { id:"perf-getevaluation", method:"GET", path:"/performance/evaluations/{id}", uc:"GetEvaluation", auth:"Bearer",
+      desc:"Lấy chi tiết một đánh giá. Người xem không phải HR/admin chỉ được xem đánh giá của chính mình — đoán id của người khác sẽ bị chặn.",
+      params:[["id","string","Đánh giá cần lấy"]],
+      resp:{ code:"200", body:[["data","MonthlyEvaluation","Chi tiết đánh giá"]] },
+      errors:[["404","SYS_404","Đánh giá không tồn tại"],["403","IAM_004","Người xem không phải HR/admin và không phải chủ đánh giá"]] },
+    { id:"perf-directevaluate", method:"POST", path:"/performance/evaluations", uc:"DirectEvaluate", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR/quản lý chấm điểm trực tiếp cho một nhân viên trong một kỳ lương — upsert theo `employeeId` + `payrollPeriodId`, lưu nháp hoặc duyệt (`finalize=true`) trong cùng một lần gọi. Khi duyệt, mỗi nhóm chỉ tiêu (Hiệu suất/Mục tiêu) phải được chấm đủ; `performanceRatio`/`goalRatio` = trung bình cộng đơn giản điểm các chỉ tiêu đang hoạt động của nhóm tương ứng.",
+      body:[["employeeId","string","Nhân viên được chấm"],["payrollPeriodId","string","Kỳ lương áp dụng"],["criteriaScores","{criterionId:string,score:number}[]","Điểm từng chỉ tiêu (0–100)"],["strengths","string?","Điểm mạnh (≤2000, tuỳ chọn)"],["improvements","string?","Cần cải thiện (≤2000, tuỳ chọn)"],["developmentPlan","string?","Kế hoạch phát triển (≤2000, tuỳ chọn)"],["finalize","boolean?","`true` để duyệt ngay; mặc định lưu nháp"]],
+      resp:{ code:"201", body:[["data","MonthlyEvaluation","Đánh giá vừa tạo/cập nhật"]] },
+      errors:[["409","EVAL_LOCKED","Kỳ đánh giá đã chốt — không thể chấm/sửa"],["404","SYS_404","Nhân viên không tồn tại"],["409","EVAL_ACKED","Nhân viên đã xác nhận, không thể sửa"],["409","EVAL_NO_SCORES","Duyệt (`finalize`) nhưng chưa có điểm nào"],["409","EVAL_INCOMPLETE_PERFORMANCE","Duyệt nhưng chưa chấm đủ chỉ tiêu nhóm Hiệu suất"],["409","EVAL_INCOMPLETE_GOAL","Duyệt nhưng chưa chấm đủ chỉ tiêu nhóm Mục tiêu"]] },
+    { id:"perf-acknowledgeevaluation", method:"POST", path:"/performance/evaluations/{id}/acknowledge", uc:"AcknowledgeEvaluation", auth:"Bearer",
+      desc:"Nhân viên xác nhận kết quả đánh giá đã duyệt (`approved` → `acknowledged`); có thể kèm ghi chú khiếu nại. Chỉ chủ đánh giá được xác nhận.",
+      params:[["id","string","Đánh giá cần xác nhận"]],
+      body:[["disputeNote","string?","Ghi chú khiếu nại (≤1000, tuỳ chọn)"]],
+      resp:{ code:"200", body:[["data","MonthlyEvaluation","Đánh giá sau khi xác nhận"]] },
+      errors:[["409","EVAL_NOT_APPROVED","Đánh giá chưa ở trạng thái đã duyệt"],["403","IAM_004","Người xác nhận không phải chủ đánh giá"]] },
+    { id:"perf-reopenevaluation", method:"POST", path:"/performance/evaluations/{id}/reopen", uc:"ReopenEvaluation", auth:"Bearer", access:"admin, hr_manager",
+      desc:"HR mở lại một đánh giá đã duyệt về nháp (`approved` → `draft`) để sửa điểm trước khi payroll dùng tới; có thể kèm lý do.",
+      params:[["id","string","Đánh giá cần mở lại"]],
+      body:[["reason","string?","Lý do mở lại (≤500, tuỳ chọn)"]],
+      resp:{ code:"200", body:[["data","MonthlyEvaluation","Đánh giá sau khi mở lại"]] },
+      errors:[["409","EVAL_NOT_APPROVED","Chỉ mở lại được đánh giá đã duyệt"],["409","EVAL_LOCKED","Kỳ đánh giá đã chốt — không thể mở lại"],["409","EVAL_PAYROLL_LOCKED","Bảng lương của kỳ này đã duyệt/thanh toán — không thể mở lại đánh giá"]] },
+  ]},
+]},
+
+];
+
+const MC = { GET:"#059669", POST:"#2563eb", PATCH:"#d97706", PUT:"#4f46e5", DELETE:"#dc2626" };
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const fmt = s => esc(s)
+    .replace(/`([^`]+)`/g, '<code class="chip">$1</code>')
+    .replace(/\((\d{3}(?:\/\d{3})?)\)/g, '<span class="status">$1</span>');
+const fmtPath = p => esc(p).replace(/\{([^}]+)\}/g, '<span class="pp">{$1}</span>');
+
+function tableHtml(rows) {
+    let h = '<table><tr><th>Trường</th><th>Kiểu</th><th>Mô tả</th></tr>';
+    for (const [f,t,d] of rows) h += `<tr><td class="f">${esc(f)}</td><td class="t">${esc(t)}</td><td>${fmt(d)}</td></tr>`;
+    return h + '</table>';
+}
+function errsHtml(rows) {
+    let h = '<div class="label">Lỗi</div><table class="errs"><tr><th>HTTP</th><th>Mã lỗi</th><th>Khi nào</th></tr>';
+    for (const [s,c,d] of rows) {
+        const st = s === "—" ? '<span class="void">—</span>' : `<span class="status">${esc(s)}</span>`;
+        const cd = c === "—" ? '<span class="void">—</span>' : `<span class="chip">${esc(c)}</span>`;
+        h += `<tr><td>${st}</td><td>${cd}</td><td>${fmt(d)}</td></tr>`;
+    }
+    return h + '</table>';
+}
+function epHtml(ep, accent) {
+    let h = `<section class="ep" id="${ep.id}" style="--accent:${accent}">`;
+    h += `<div class="ep-head"><span class="method m-${ep.method}">${ep.method}</span><span class="path">${fmtPath(ep.path)}</span></div>`;
+    h += `<div class="ep-meta">`;
+    h += ep.auth === "Public" ? `<span class="badge public">Public</span>` : `<span class="badge bearer">Bearer</span>`;
+    if (ep.access) h += `<span class="badge access">${esc(ep.access)}</span>`;
+    h += `<span class="badge uc">${esc(ep.uc)}</span></div>`;
+    h += `<p class="uc-desc">${fmt(ep.desc)}</p>`;
+    if (ep.params) h += `<div class="label">Path params</div>${tableHtml(ep.params)}`;
+    if (ep.query)  h += `<div class="label">Query</div>${tableHtml(ep.query)}`;
+    if (ep.body)   h += `<div class="label">Request body</div>${tableHtml(ep.body)}`;
+    h += `<div class="label">Response <span class="status">${esc(ep.resp.code)}</span></div>`;
+    h += ep.resp.body ? tableHtml(ep.resp.body) : `<p class="void">${fmt(ep.resp.note || "Không có nội dung.")}</p>`;
+    h += errsHtml(ep.errors);
+    return h + `</section>`;
+}
+
+let nav = '<div class="sb-title">HRM · API Reference</div>';
+let main = '<h1>API Reference</h1><p class="lead">HTTP API của Soosky HRM, tổ chức theo module hexagonal (giống dự án soosky-workspace-api). Path/tên trường tiếng Anh, mô tả tiếng Việt. Module đầu tiên đã chuẩn hoá: <b>Organization</b>.</p>';
+main += '<div class="callout"><div class="label">Quy ước chung</div><ul>'
+    + '<li>Body & response là <code class="chip">application/json</code>; timestamp theo ISO-8601 (UTC); ID là UUID v7.</li>'
+    + '<li>Endpoint gắn nhãn <span class="badge bearer">Bearer</span> yêu cầu header <code class="chip">Authorization: Bearer &lt;accessToken&gt;</code>. Danh tính actor (<code class="chip">actorUserId</code>) lấy <b>từ token</b>, không truyền trong path/body.</li>'
+    + '<li>Phân quyền pilot: <b>chỉ cần đã đăng nhập</b> (authenticated-only). RBAC (vai trò HR/admin) để dành cho bản sau.</li>'
+    + '<li>Lỗi chung (không lặp ở từng endpoint): <span class="status">401</span> thiếu/không hợp lệ token, <span class="status">400</span> body sai schema (<code class="chip">INVALID_REQUEST</code>), <span class="status">500</span> lỗi máy chủ.</li>'
+    + '<li>Thân lỗi: <code class="chip">{ code, message }</code> — cột "Mã lỗi" bên dưới là giá trị <code class="chip">code</code>. Response thành công KHÔNG bọc envelope (trả thẳng DTO / <code class="chip">{ resource: [...] }</code>).</li>'
+    + '</ul>'
+    + '<div class="label" style="margin-top:14px">Lộ trình module</div>'
+    + '<div class="roadmap"><span class="done">organization ✓</span><span class="todo">iam</span><span class="todo">employee</span><span class="todo">attendance</span><span class="todo">payroll</span><span class="todo">performance</span></div>'
+    + '<p class="uc-desc" style="margin-top:8px">Các module còn lại sẽ được port theo cùng khuôn và bổ sung vào tài liệu này.</p>'
+    + '</div>';
+
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+for (const mod of data) {
+    const modId = "mod-" + slug(mod.name);
+    nav += `<a class="nav-mod" data-target="${modId}"><span class="dot" style="background:${mod.accent}"></span>${esc(mod.name)}</a>`;
+    main += `<div class="module" id="${modId}"><span class="mod-title" style="background:${mod.accent}">${esc(mod.name)}</span>`;
+    for (const sub of mod.subs) {
+        const subId = "sub-" + slug(sub.name);
+        nav += `<a class="nav-sub" data-target="${subId}">${esc(sub.name)}</a>`;
+        main += `<div class="sub-title" id="${subId}">${esc(sub.name)}</div>`;
+        for (const ep of sub.eps) {
+            nav += `<a class="nav-uc" data-target="${ep.id}" style="--accent:${mod.accent}"><span class="nav-m" style="color:${MC[ep.method]}">${ep.method}</span>${esc(ep.uc)}</a>`;
+            main += epHtml(ep, mod.accent);
+        }
+    }
+    main += `</div>`;
+}
+
+document.getElementById("app").innerHTML =
+    `<div class="layout"><aside class="sidebar">${nav}</aside><main class="content">${main}</main></div>`;
+
+document.querySelectorAll("[data-target]").forEach(a => {
+    a.addEventListener("click", () => {
+        const el = document.getElementById(a.dataset.target);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+});
+const links = new Map([...document.querySelectorAll(".nav-uc")].map(a => [a.dataset.target, a]));
+const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+        if (e.isIntersecting) {
+            document.querySelectorAll(".nav-uc.active").forEach(x => x.classList.remove("active"));
+            const link = links.get(e.target.id);
+            if (link) link.classList.add("active");
+        }
+    });
+}, { rootMargin: "0px 0px -75% 0px", threshold: 0 });
+document.querySelectorAll(".ep[id]").forEach(s => obs.observe(s));
+</script>
