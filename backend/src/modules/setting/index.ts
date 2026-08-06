@@ -3,3 +3,6 @@
 
 export { createSettingHttpRouter } from "@modules/setting/adapters/driver/http";
 export type { SettingHttpUseCases } from "@modules/setting/adapters/driver/http";
+export { createCompanyCalendar, createBankTransferProfileDirectory } from "@modules/setting/composition";
+export type { BankTransferProfileDirectory, BankTransferProfileView } from "@modules/setting/composition";
+export type { CompanyCalendar } from "@modules/setting/composition";

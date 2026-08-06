@@ -1,8 +1,11 @@
-/// <reference types="jest" />
 import NoApplicableShiftError from "@modules/attendance/core/app/errors/NoApplicableShiftError";
 import AttendanceRepo from "@modules/attendance/core/app/ports/AttendanceRepo";
 import EmployeeDirectory from "@modules/attendance/core/app/ports/EmployeeDirectory";
+import AttendancePeriodLockDirectory from "@modules/attendance/core/app/ports/AttendancePeriodLockDirectory";
+import CompanyCalendarDirectory from "@modules/attendance/core/app/ports/CompanyCalendarDirectory";
+import HolidayRepo from "@modules/attendance/core/app/ports/HolidayRepo";
 import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChecker";
+import AttendanceDayWriter from "@modules/attendance/core/app/services/AttendanceDayWriter";
 import ShiftRepo from "@modules/attendance/core/app/ports/ShiftRepo";
 import UpsertAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/UpsertAttendanceUseCase";
 import Shift from "@modules/attendance/core/domain/entities/Shift";
@@ -35,7 +38,14 @@ describe("UpsertAttendanceUseCase", () => {
         attendanceRepo    = mock<AttendanceRepo>();
         shiftRepo         = mock<ShiftRepo>();
         employeeDirectory = mock<EmployeeDirectory>();
-        useCase = new UpsertAttendanceUseCase(permissions, attendanceRepo, shiftRepo, employeeDirectory);
+        // Kỳ công mở, timezone VN — hai cổng này có test riêng cho trường hợp khoá.
+        const openPeriods: AttendancePeriodLockDirectory = { async findLockedPeriodCovering() { return undefined; } };
+        const vnCalendar: CompanyCalendarDirectory = { async timezone() { return "Asia/Ho_Chi_Minh"; } };
+        const holidayRepo = mock<HolidayRepo>();
+        holidayRepo.listOverlapping.mockResolvedValue([]);
+
+        const dayWriter = new AttendanceDayWriter(attendanceRepo, shiftRepo, holidayRepo, vnCalendar, openPeriods);
+        useCase = new UpsertAttendanceUseCase(permissions, employeeDirectory, dayWriter);
 
         employeeDirectory.employeeExists.mockResolvedValue(true);
         shiftRepo.listActive.mockResolvedValue([fullDayShift()]);

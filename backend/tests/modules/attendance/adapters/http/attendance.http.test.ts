@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { AttendanceHttpUseCases, createAttendanceHttpRouter } from "@modules/attendance";
 import AttendanceRepo from "@modules/attendance/core/app/ports/AttendanceRepo";
 import AttendanceSymbolRepo from "@modules/attendance/core/app/ports/AttendanceSymbolRepo";
@@ -7,6 +6,19 @@ import HolidayRepo from "@modules/attendance/core/app/ports/HolidayRepo";
 import LeaveBalanceRepo from "@modules/attendance/core/app/ports/LeaveBalanceRepo";
 import LeaveRequestRepo from "@modules/attendance/core/app/ports/LeaveRequestRepo";
 import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChecker";
+import AttendanceCorrectionRequestRepo, { CorrectionListFilter } from "@modules/attendance/core/app/ports/AttendanceCorrectionRequestRepo";
+import AttendancePeriodLockDirectory from "@modules/attendance/core/app/ports/AttendancePeriodLockDirectory";
+import AuditTrail from "@modules/attendance/core/app/ports/AuditTrail";
+import CompanyCalendarDirectory from "@modules/attendance/core/app/ports/CompanyCalendarDirectory";
+import AttendanceAccessScope from "@modules/attendance/core/app/services/AttendanceAccessScope";
+import AttendanceDayWriter from "@modules/attendance/core/app/services/AttendanceDayWriter";
+import LeaveAccessScope from "@modules/attendance/core/app/services/LeaveAccessScope";
+import AttendanceCorrectionRequest from "@modules/attendance/core/domain/entities/AttendanceCorrectionRequest";
+import ApproveAttendanceCorrectionUseCase from "@modules/attendance/core/app/use-cases/correction/ApproveAttendanceCorrectionUseCase";
+import ListAttendanceCorrectionsUseCase from "@modules/attendance/core/app/use-cases/correction/ListAttendanceCorrectionsUseCase";
+import RejectAttendanceCorrectionUseCase from "@modules/attendance/core/app/use-cases/correction/RejectAttendanceCorrectionUseCase";
+import SubmitAttendanceCorrectionUseCase from "@modules/attendance/core/app/use-cases/correction/SubmitAttendanceCorrectionUseCase";
+import LeaveDecisionAuthorizer from "@modules/attendance/core/app/services/LeaveDecisionAuthorizer";
 import ShiftRepo from "@modules/attendance/core/app/ports/ShiftRepo";
 import LeaveEntitlementService from "@modules/attendance/core/app/services/LeaveEntitlementService";
 import ArchiveShiftUseCase from "@modules/attendance/core/app/use-cases/shift/ArchiveShiftUseCase";
@@ -28,6 +40,7 @@ import UpdateAttendanceSymbolUseCase from "@modules/attendance/core/app/use-case
 import DeleteAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/DeleteAttendanceUseCase";
 import GetAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/GetAttendanceUseCase";
 import ListAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/ListAttendanceUseCase";
+import ListVisibleAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/ListVisibleAttendanceUseCase";
 import UpsertAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/UpsertAttendanceUseCase";
 import ApproveLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/leave/ApproveLeaveRequestUseCase";
 import CancelLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/leave/CancelLeaveRequestUseCase";
@@ -87,6 +100,10 @@ class InMemoryAttendanceRepo implements AttendanceRepo {
     async listByEmployeeAndRange(employeeId: string, start: Date, end: Date) {
         return [...this._store.values()].filter(a => a.employeeId === employeeId && a.date >= start && a.date <= end);
     }
+    async listByRange(start: Date, end: Date, employeeIds?: string[] | undefined) {
+        return [...this._store.values()].filter(a =>
+            a.date >= start && a.date <= end && (employeeIds == undefined || employeeIds.includes(a.employeeId)));
+    }
     async findFullDayLeave(employeeId: string, date: Date) {
         return [...this._store.values()].find(a => a.employeeId === employeeId && a.date.getTime() === date.getTime() && a.source === "leave" && a.session.value === "full_day");
     }
@@ -100,6 +117,12 @@ class InMemoryAttendanceRepo implements AttendanceRepo {
 class InMemoryLeaveRequestRepo implements LeaveRequestRepo {
     private readonly _store = new Map<string, LeaveRequest>();
     async getById(id: string) { return this._store.get(id); }
+    async list(filter: { employeeIds?: readonly string[] | undefined; status?: string | undefined; startFrom?: Date | undefined }) {
+        return [...this._store.values()].filter(r =>
+            (filter.employeeIds == undefined || filter.employeeIds.includes(r.employeeId))
+            && (filter.status == undefined || r.status.value === filter.status)
+            && (filter.startFrom == undefined || r.startDate >= filter.startFrom));
+    }
     async listByEmployee(employeeId: string) { return [...this._store.values()].filter(r => r.employeeId === employeeId); }
     async listAll() { return [...this._store.values()]; }
     async listOverlapping(employeeId: string, start: Date, end: Date, statuses: string[]) {
@@ -127,11 +150,40 @@ class InMemoryLeaveBalanceRepo implements LeaveBalanceRepo {
 
 const allowAllPermissions: PermissionChecker = {
     async assertPermission() { /* allow all in test */ },
+    async resolveScope() { return "all"; },
 };
 
 const allowAllEmployeeDirectory: EmployeeDirectory = {
     async employeeExists() { return true; },
+    async isManagedBy() { return true; },
+    async findEmployeeIdByUserId() { return "emp-1"; },
+    async listTeamEmployeeIds() { return ["emp-1"]; },
 };
+
+/** Actor trong test co pham vi `all` -> duyet duoc moi don. */
+const allowAllLeaveDecisions = new LeaveDecisionAuthorizer(allowAllPermissions, allowAllEmployeeDirectory);
+
+/** Actor trong test co pham vi `all` -> nop/xem duoc don cua moi nguoi. */
+const allowAllLeaveScope = new LeaveAccessScope(allowAllPermissions, allowAllEmployeeDirectory);
+const allowAllAttendanceScope = new AttendanceAccessScope(allowAllPermissions, allowAllEmployeeDirectory);
+
+/** Audit không phải đối tượng kiểm thử ở đây — chỉ cần không nổ. */
+const noopAuditTrail: AuditTrail = { async record() { /* no-op in test */ } };
+
+class InMemoryCorrectionRepo implements AttendanceCorrectionRequestRepo {
+    private readonly _store = new Map<string, AttendanceCorrectionRequest>();
+    async getById(id: string) { return this._store.get(id); }
+    async list(filter: CorrectionListFilter) {
+        return [...this._store.values()].filter(r =>
+            (filter.employeeIds == undefined || filter.employeeIds.includes(r.employeeId))
+            && (filter.status == undefined || r.status === filter.status));
+    }
+    async findPendingByEmployeeAndDate(employeeId: string, date: Date) {
+        return [...this._store.values()].find(r =>
+            r.employeeId === employeeId && r.date.getTime() === date.getTime() && r.isPending);
+    }
+    async save(r: AttendanceCorrectionRequest) { this._store.set(r.id, r); }
+}
 
 const noopEventBus: EventBus = {
     async publish() { /* no-op in test */ },
@@ -146,6 +198,12 @@ function buildUseCases(): { useCases: AttendanceHttpUseCases; leaveBalanceRepo: 
     const leaveRequestRepo  = new InMemoryLeaveRequestRepo();
     const leaveBalanceRepo  = new InMemoryLeaveBalanceRepo();
     const entitlement       = new LeaveEntitlementService(leaveBalanceRepo);
+    const correctionRepo    = new InMemoryCorrectionRepo();
+
+    // Kỳ công luôn MỞ trong test HTTP này; khoá kỳ có test riêng.
+    const openPeriods: AttendancePeriodLockDirectory = { async findLockedPeriodCovering() { return undefined; } };
+    const vnCalendar: CompanyCalendarDirectory = { async timezone() { return "Asia/Ho_Chi_Minh"; } };
+    const dayWriter = new AttendanceDayWriter(attendanceRepo, shiftRepo, holidayRepo, vnCalendar, openPeriods);
 
     const useCases: AttendanceHttpUseCases = {
         createShift:  new CreateShiftUseCase(allowAllPermissions, shiftRepo),
@@ -167,21 +225,27 @@ function buildUseCases(): { useCases: AttendanceHttpUseCases; leaveBalanceRepo: 
         listAttendanceSymbols:  new ListAttendanceSymbolsUseCase(symbolRepo),
         deleteAttendanceSymbol: new DeleteAttendanceSymbolUseCase(allowAllPermissions, symbolRepo),
 
-        upsertAttendance: new UpsertAttendanceUseCase(allowAllPermissions, attendanceRepo, shiftRepo, allowAllEmployeeDirectory),
-        getAttendance:    new GetAttendanceUseCase(attendanceRepo),
-        listAttendance:   new ListAttendanceUseCase(attendanceRepo),
-        deleteAttendance: new DeleteAttendanceUseCase(allowAllPermissions, attendanceRepo),
+        upsertAttendance: new UpsertAttendanceUseCase(allowAllPermissions, allowAllEmployeeDirectory, dayWriter),
+        getAttendance:    new GetAttendanceUseCase(allowAllAttendanceScope, attendanceRepo),
+        listAttendance:   new ListAttendanceUseCase(allowAllAttendanceScope, attendanceRepo),
+        listVisibleAttendance: new ListVisibleAttendanceUseCase(allowAllAttendanceScope, attendanceRepo),
+        deleteAttendance: new DeleteAttendanceUseCase(allowAllPermissions, attendanceRepo, openPeriods),
 
-        submitLeaveRequest:  new SubmitLeaveRequestUseCase(allowAllPermissions, leaveRequestRepo, holidayRepo, allowAllEmployeeDirectory, entitlement, noopEventBus),
-        approveLeaveRequest: new ApproveLeaveRequestUseCase(allowAllPermissions, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, holidayRepo, entitlement, noopEventBus),
-        rejectLeaveRequest:  new RejectLeaveRequestUseCase(allowAllPermissions, leaveRequestRepo, noopEventBus),
-        cancelLeaveRequest:  new CancelLeaveRequestUseCase(allowAllPermissions, leaveRequestRepo, leaveBalanceRepo, attendanceRepo),
-        getLeaveRequest:     new GetLeaveRequestUseCase(leaveRequestRepo),
-        listLeaveRequests:   new ListLeaveRequestsUseCase(leaveRequestRepo),
+        submitLeaveRequest:  new SubmitLeaveRequestUseCase(allowAllLeaveScope, leaveRequestRepo, holidayRepo, allowAllEmployeeDirectory, entitlement, noopEventBus),
+        approveLeaveRequest: new ApproveLeaveRequestUseCase(allowAllLeaveDecisions, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, holidayRepo, entitlement, noopEventBus, openPeriods),
+        rejectLeaveRequest:  new RejectLeaveRequestUseCase(allowAllLeaveDecisions, leaveRequestRepo, noopEventBus),
+        cancelLeaveRequest:  new CancelLeaveRequestUseCase(allowAllLeaveScope, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, openPeriods),
+        getLeaveRequest:     new GetLeaveRequestUseCase(allowAllLeaveScope, leaveRequestRepo),
+        listLeaveRequests:   new ListLeaveRequestsUseCase(allowAllLeaveScope, leaveRequestRepo),
 
         adjustLeaveBalance: new AdjustLeaveBalanceUseCase(allowAllPermissions, leaveBalanceRepo, allowAllEmployeeDirectory),
         getLeaveBalance:    new GetLeaveBalanceUseCase(leaveBalanceRepo, entitlement),
-        listLeaveBalances:  new ListLeaveBalancesUseCase(leaveBalanceRepo),
+        listLeaveBalances:  new ListLeaveBalancesUseCase(allowAllLeaveScope, leaveBalanceRepo, entitlement),
+
+        submitAttendanceCorrection:  new SubmitAttendanceCorrectionUseCase(allowAllAttendanceScope, correctionRepo, allowAllEmployeeDirectory, vnCalendar, openPeriods, noopAuditTrail),
+        listAttendanceCorrections:   new ListAttendanceCorrectionsUseCase(allowAllAttendanceScope, correctionRepo),
+        approveAttendanceCorrection: new ApproveAttendanceCorrectionUseCase(allowAllAttendanceScope, correctionRepo, dayWriter, noopAuditTrail),
+        rejectAttendanceCorrection:  new RejectAttendanceCorrectionUseCase(allowAllAttendanceScope, correctionRepo, noopAuditTrail),
     };
 
     return { useCases, leaveBalanceRepo };

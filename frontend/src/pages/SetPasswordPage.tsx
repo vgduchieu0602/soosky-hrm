@@ -37,8 +37,8 @@ export default function SetPasswordPage() {
   // Derive the initial phase from the token's presence so we never call
   // setState synchronously inside the effect (only async, in promise callbacks).
   const [phase, setPhase] = useState<Phase>(token ? "checking" : "invalid");
-  const [isReset, setIsReset] = useState(false);
-  const [username, setUsername] = useState("");
+  const [isReset] = useState(false);
+  const [username] = useState("");
   const [checkError, setCheckError] = useState<string | null>(
     token ? null : "Liên kết không hợp lệ. Thiếu mã xác thực.",
   );
@@ -49,17 +49,16 @@ export default function SetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validate the token once on mount (promise-chain, no async effect).
+  // The backend verifies this one-time token and sends the temporary password
+  // in the invitation email. Password changes happen after the first login.
   useEffect(() => {
     if (!token) return;
     let active = true;
     authService
-      .checkSetupToken(token)
-      .then((res) => {
+      .verifyAccount(token)
+      .then(() => {
         if (!active) return;
-        setIsReset(res.purpose === "reset");
-        setUsername(res.username);
-        setPhase("ready");
+        setPhase("done");
       })
       .catch((err) => {
         if (!active) return;
@@ -83,7 +82,7 @@ export default function SetPasswordPage() {
     setSubmitting(true);
     setError(null);
     authService
-      .setPassword({ token, password })
+      .verifyAccount(token)
       .then(() => setPhase("done"))
       .catch((err) =>
         setError(extractErrorMessage(err, "Không thể thiết lập mật khẩu. Vui lòng thử lại.")),

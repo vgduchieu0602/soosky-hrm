@@ -149,7 +149,7 @@ function RejectModal({ request, onClose, onDone }: { request: LeaveRequestRecord
   function submit() {
     if (!reason.trim()) { setError("Nhập lý do từ chối."); return; }
     setBusy(true);
-    attendanceService.rejectLeave(request._id, reason.trim()).then(() => onDone()).catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể từ chối.")).finally(() => setBusy(false));
+    attendanceService.rejectLeave(request._id, reason.trim()).then(() => onDone()).catch((e) => setError(e?.response?.data?.message ?? "Không thể từ chối.")).finally(() => setBusy(false));
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -261,7 +261,7 @@ function SubmitLeaveModal({ onClose, onDone }: { onClose: () => void; onDone: ()
         reason: reason || undefined,
       })
       .then(() => onDone())
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể gửi đơn."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Không thể gửi đơn."))
       .finally(() => setBusy(false));
   }
 

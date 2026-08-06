@@ -5,3 +5,5 @@ export { createDepartmentHttpRouter } from "@modules/department/adapters/driver/
 export type { DepartmentHttpUseCases } from "@modules/department/adapters/driver/http";
 export { createDepartmentDirectory } from "@modules/department/composition";
 export type { DepartmentDirectory } from "@modules/department/composition";
+export { createDepartmentNameDirectory } from "@modules/department/composition";
+export type { DepartmentNameDirectory } from "@modules/department/composition";

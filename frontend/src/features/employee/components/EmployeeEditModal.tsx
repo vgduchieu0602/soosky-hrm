@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const {
-    register, handleSubmit, watch, setValue, formState: { errors, isSubmitting },
+    register, handleSubmit, control, setValue, formState: { errors, isSubmitting },
   } = useForm<EditEmployeeForm>({
     resolver: zodResolver(editEmployeeSchema),
     defaultValues: {
@@ -66,7 +66,11 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
     },
   });
 
-  const departmentId = watch("departmentId");
+  // `useWatch` thay `watch()`: `watch` trả về một hàm mới mỗi lần render nên React
+  // Compiler bỏ memo cả component (cảnh báo react-hooks/incompatible-library).
+  // `useWatch` là hook subscribe, trả thẳng giá trị — cùng hành vi, không cảnh báo.
+  const departmentId = useWatch({ control, name: "departmentId" });
+  const dateOfBirth = useWatch({ control, name: "dateOfBirth" });
 
   useEffect(() => {
     let cancelled = false;
@@ -120,8 +124,8 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
       });
       onSaved();
     } catch (e) {
-      const err = e as { response?: { data?: { error?: { message?: string } } } };
-      setError(err?.response?.data?.error?.message ?? "Không thể lưu thay đổi. Kiểm tra lại thông tin.");
+      const err = e as { response?: { data?: { message?: string } } };
+      setError(err?.response?.data?.message ?? "Không thể lưu thay đổi. Kiểm tra lại thông tin.");
     }
   }
 
@@ -156,7 +160,7 @@ export function EmployeeEditModal({ view, profile, onClose, onSaved }: Props) {
             <Field label="Ngày sinh">
               <DateField
                 className={inputCls}
-                value={watch("dateOfBirth")}
+                value={dateOfBirth}
                 onChange={(iso) => setValue("dateOfBirth", iso, { shouldValidate: true })}
               />
             </Field>

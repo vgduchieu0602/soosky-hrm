@@ -32,222 +32,312 @@ import type {
   UpdateWorkInput,
 } from "@features/employee/types/employee.types";
 
-interface ApiEnvelope<T> {
-  data: T;
-  message?: string;
-  meta?: ListMeta;
+interface EmployeeDto {
+  id: string;
+  code: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  dob: string | null;
+  gender: string | null;
+  departmentId: string;
+  positionId: string;
+  managerId: string | null;
+  hireDate: string;
+  terminationDate: string | null;
+  employeeType: string;
+  status: string;
+  accountId: string | null;
+  createdAt: string;
 }
 
-function buildQuery(params: ListEmployeesParams): string {
-  const sp = new URLSearchParams();
-  if (params.page) sp.set("page", String(params.page));
-  if (params.limit) sp.set("limit", String(params.limit));
-  if (params.departmentId) sp.set("departmentId", params.departmentId);
-  if (params.status) sp.set("status", params.status);
-  if (params.employeeType) sp.set("employeeType", params.employeeType);
-  if (params.q) sp.set("q", params.q);
-  if (params.sort) sp.set("sort", params.sort);
-  const qs = sp.toString();
-  return qs ? `?${qs}` : "";
+interface EmployeeProfileDto {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  middleName: string | null;
+  dateOfBirth: string | null;
+  gender: EmployeeProfile["gender"] | null;
+  nationality: string | null;
+  maritalStatus: EmployeeProfile["maritalStatus"] | null;
+  avatarUrl: string | null;
+  personalEmail: string | null;
+  workEmail: string | null;
+  phone: string | null;
+  address: string | null;
+  socialInsuranceNo: string | null;
+  taxCode: string | null;
+  vehiclePlate: string | null;
+}
+
+function toEmployeeRecord(employee: EmployeeDto): EmployeeRecord {
+  return {
+    _id: employee.id,
+    employeeCode: employee.code,
+    departmentId: employee.departmentId,
+    positionId: employee.positionId,
+    managerId: employee.managerId,
+    hireDate: employee.hireDate,
+    terminationDate: employee.terminationDate,
+    employeeType: employee.employeeType as EmployeeRecord["employeeType"],
+    status: employee.status as EmployeeRecord["status"],
+    userId: employee.accountId,
+    profile: null,
+    created_at: employee.createdAt,
+  };
+}
+
+function toEmployeeProfile(profile: EmployeeProfileDto): EmployeeProfile {
+  return {
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    middleName: profile.middleName ?? undefined,
+    dateOfBirth: profile.dateOfBirth ?? undefined,
+    gender: profile.gender ?? undefined,
+    nationality: profile.nationality ?? undefined,
+    maritalStatus: profile.maritalStatus ?? undefined,
+    avatarUrl: profile.avatarUrl ?? undefined,
+    email: profile.personalEmail ?? undefined,
+    workEmail: profile.workEmail ?? undefined,
+    phone: profile.phone ?? undefined,
+    address: profile.address ?? undefined,
+    socialInsuranceNo: profile.socialInsuranceNo ?? undefined,
+    taxCode: profile.taxCode ?? undefined,
+    vehiclePlate: profile.vehiclePlate ?? undefined,
+  };
+}
+
+function toCreatePayload(input: CreateEmployeeInput) {
+  const profile = input.profile;
+  return {
+    code: input.employeeCode,
+    name: [profile.firstName, profile.middleName, profile.lastName].filter(Boolean).join(" "),
+    ...(profile.email ? { email: profile.email } : {}),
+    ...(profile.phone ? { phone: profile.phone } : {}),
+    ...(profile.dateOfBirth ? { dob: profile.dateOfBirth } : {}),
+    ...(profile.gender ? { gender: profile.gender } : {}),
+    departmentId: input.departmentId,
+    positionId: input.positionId,
+    ...(input.managerId ? { managerId: input.managerId } : {}),
+    hireDate: input.hireDate,
+    employeeType: input.employeeType,
+  };
+}
+
+function withLegacyId<T extends { id: string }>(value: T): T & { _id: string } {
+  return { ...value, _id: value.id };
+}
+
+function findResource<T extends { _id: string }>(items: T[], id: string, resource: string): T {
+  const item = items.find((candidate) => candidate._id === id);
+  if (!item) throw new Error(`${resource} ${id} was not returned by the backend`);
+  return item;
+}
+
+function unavailable(capability: string): never {
+  throw new Error(`${capability} is not available in backend v1 contract`);
 }
 
 export const employeeService = {
   async list(
     params: ListEmployeesParams = {},
   ): Promise<{ items: EmployeeRecord[]; meta: ListMeta }> {
-    const { data } = await api.get<ApiEnvelope<EmployeeRecord[]>>(
-      `/employees${buildQuery(params)}`,
-    );
+    const query = {
+      ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+      ...(params.status ? { status: params.status } : {}),
+    };
+    const { data } = await api.get<{ employees: EmployeeDto[] }>("/employee/employees", { params: query });
     return {
-      items: data.data ?? [],
-      meta: data.meta ?? { page: 1, limit: params.limit ?? 20, total: 0, totalPages: 1 },
+      items: data.employees.map(toEmployeeRecord),
+      meta: { page: 1, limit: params.limit ?? data.employees.length, total: data.employees.length, totalPages: 1 },
     };
   },
 
   async stats(): Promise<EmployeeStats> {
-    const { data } = await api.get<ApiEnvelope<EmployeeStats>>("/employees/stats");
-    return data.data;
+    return unavailable("Employee statistics");
   },
 
-  async reminders(withinDays = 30): Promise<ExpiryReminders> {
-    const { data } = await api.get<ApiEnvelope<ExpiryReminders>>(
-      `/employees/reminders?withinDays=${withinDays}`,
-    );
-    return data.data ?? { probation: [], contract: [] };
+  async reminders(_withinDays = 30): Promise<ExpiryReminders> {
+    return unavailable("Employee reminders");
   },
 
   async getById(id: string): Promise<EmployeeRecord> {
-    const { data } = await api.get<ApiEnvelope<EmployeeRecord>>(`/employees/${id}`);
-    return data.data;
+    const { data } = await api.get<EmployeeDto>(`/employee/employees/${id}`);
+    return toEmployeeRecord(data);
   },
 
-  async completeness(id: string): Promise<ProfileCompleteness> {
-    const { data } = await api.get<ApiEnvelope<ProfileCompleteness>>(`/employees/${id}/completeness`);
-    return data.data;
+  async completeness(_id: string): Promise<ProfileCompleteness> {
+    return unavailable("Employee profile completeness");
   },
 
-  async importEmployees(rows: ImportEmployeeRow[]): Promise<ImportResult> {
-    const { data } = await api.post<ApiEnvelope<ImportResult>>("/admin/employees/import", { rows });
-    return data.data;
+  async importEmployees(_rows: ImportEmployeeRow[]): Promise<ImportResult> {
+    return unavailable("Employee import");
   },
 
   async create(input: CreateEmployeeInput): Promise<EmployeeRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(
-      "/admin/employees",
-      input,
-    );
-    return data.data;
+    const { data: created } = await api.post<{ employeeId: string }>("/employee/employees", toCreatePayload(input));
+    return this.getById(created.employeeId);
   },
 
-  async updateStatus(id: string, status: string): Promise<EmployeeRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeRecord>>(
-      `/admin/employees/${id}`,
-      { status },
-    );
-    return data.data;
+  async updateStatus(_id: string, _status: string): Promise<EmployeeRecord> {
+    return unavailable("Direct employee status updates");
   },
 
   // Update core work info (department, position, manager, type, status, salary zone).
   async update(id: string, input: UpdateWorkInput): Promise<EmployeeRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeRecord>>(
-      `/admin/employees/${id}`,
-      input,
-    );
-    return data.data;
+    await api.patch(`/employee/employees/${id}`, {
+      ...(input.employeeCode ? { code: input.employeeCode } : {}),
+      ...(input.departmentId ? { departmentId: input.departmentId } : {}),
+      ...(input.positionId ? { positionId: input.positionId } : {}),
+      ...(input.managerId !== undefined ? { managerId: input.managerId } : {}),
+      ...(input.employeeType ? { employeeType: input.employeeType } : {}),
+    });
+    return this.getById(id);
   },
 
   // Update PII profile fields.
   async updateProfile(id: string, input: UpdateProfileInput): Promise<EmployeeProfile> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeProfile>>(
-      `/employees/${id}/profile`,
-      input,
-    );
-    return data.data;
+    await api.put(`/employee/employees/${id}/profile`, {
+      ...(input.firstName !== undefined ? { firstName: input.firstName } : {}),
+      ...(input.lastName !== undefined ? { lastName: input.lastName } : {}),
+      ...(input.middleName !== undefined ? { middleName: input.middleName } : {}),
+      ...(input.dateOfBirth !== undefined ? { dateOfBirth: input.dateOfBirth } : {}),
+      ...(input.gender !== undefined ? { gender: input.gender } : {}),
+      ...(input.nationality !== undefined ? { nationality: input.nationality } : {}),
+      ...(input.maritalStatus !== undefined ? { maritalStatus: input.maritalStatus } : {}),
+      ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+      ...(input.email !== undefined ? { personalEmail: input.email } : {}),
+      ...(input.workEmail !== undefined ? { workEmail: input.workEmail } : {}),
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.address !== undefined ? { address: input.address } : {}),
+      ...(input.socialInsuranceNo !== undefined ? { socialInsuranceNo: input.socialInsuranceNo } : {}),
+      ...(input.taxCode !== undefined ? { taxCode: input.taxCode } : {}),
+      ...(input.vehiclePlate !== undefined ? { vehiclePlate: input.vehiclePlate } : {}),
+    });
+    const { data } = await api.get<EmployeeProfileDto>(`/employee/employees/${id}/profile`);
+    return toEmployeeProfile(data);
   },
 
   async terminate(id: string, input: TerminateInput = {}): Promise<EmployeeRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(
-      `/admin/employees/${id}/terminate`,
-      input,
-    );
-    return data.data;
+    if (!input.terminationDate) throw new Error("terminationDate is required by the backend contract");
+    await api.post(`/employee/employees/${id}/terminate`, {
+      terminationDate: input.terminationDate,
+      ...(input.reason !== undefined ? { note: input.reason } : {}),
+    });
+    return this.getById(id);
   },
 
   async terminateMany(
-    employeeIds: string[],
-    input: TerminateInput = {},
+    _employeeIds: string[],
+    _input: TerminateInput = {},
   ): Promise<{ terminated: number; skipped: { id: string; reason: string }[] }> {
-    const { data } = await api.post<ApiEnvelope<{ terminated: number; skipped: { id: string; reason: string }[] }>>(
-      `/admin/employees/bulk/terminate`,
-      { employeeIds, ...input },
-    );
-    return data.data;
+    return unavailable("Bulk employee termination");
   },
 
   // Hard delete (cascade) — admin & HR only.
-  async remove(id: string): Promise<void> {
-    await api.delete(`/admin/employees/${id}`);
+  async remove(_id: string): Promise<void> {
+    return unavailable("Employee deletion");
   },
 
-  async grantLogin(id: string, input: GrantLoginInput): Promise<GrantLoginResult> {
-    const { data } = await api.post<ApiEnvelope<GrantLoginResult>>(
-      `/admin/employees/${id}/grant-login`,
-      input,
-    );
-    return data.data;
+  async grantLogin(_id: string, _input: GrantLoginInput): Promise<GrantLoginResult> {
+    return unavailable("Employee account provisioning");
   },
 
   // ---- sub-resources (read) ----
   async contacts(id: string): Promise<EmployeeContactRecord[]> {
-    const { data } = await api.get<ApiEnvelope<EmployeeContactRecord[]>>(
-      `/employees/${id}/contacts`,
-    );
-    return data.data ?? [];
+    const { data } = await api.get<{ contacts: Array<EmployeeContactRecord & { id: string }> }>(`/employee/employees/${id}/contacts`);
+    return data.contacts.map(withLegacyId);
   },
 
   async bankAccounts(id: string): Promise<EmployeeBankAccountRecord[]> {
-    const { data } = await api.get<ApiEnvelope<EmployeeBankAccountRecord[]>>(
-      `/employees/${id}/bank-accounts`,
-    );
-    return data.data ?? [];
+    const { data } = await api.get<{ bankAccounts: Array<EmployeeBankAccountRecord & { id: string }> }>(`/employee/employees/${id}/bank-accounts`);
+    return data.bankAccounts.map(withLegacyId);
   },
   async addBankAccount(id: string, input: NewBankAccountInput): Promise<EmployeeBankAccountRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeBankAccountRecord>>(
-      `/employees/${id}/bank-accounts`,
-      input,
+    const payload = {
+      bankName: input.bankName,
+      ...(input.branch !== undefined ? { branch: input.branch } : {}),
+      accountNumber: input.accountNumber,
+      accountHolder: input.accountHolder,
+    };
+    const { data: created } = await api.post<{ bankAccountId: string }>(
+      `/employee/employees/${id}/bank-accounts`,
+      payload,
     );
-    return data.data;
+    return findResource(await this.bankAccounts(id), created.bankAccountId, "Bank account");
   },
   async updateBankAccount(id: string, accountId: string, input: Partial<NewBankAccountInput>): Promise<EmployeeBankAccountRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeBankAccountRecord>>(
-      `/employees/${id}/bank-accounts/${accountId}`,
-      input,
-    );
-    return data.data;
+    const payload = {
+      ...(input.bankName !== undefined ? { bankName: input.bankName } : {}),
+      ...(input.branch !== undefined ? { branch: input.branch } : {}),
+      ...(input.accountNumber !== undefined ? { accountNumber: input.accountNumber } : {}),
+      ...(input.accountHolder !== undefined ? { accountHolder: input.accountHolder } : {}),
+    };
+    await api.patch(`/employee/bank-accounts/${accountId}`, payload);
+    return findResource(await this.bankAccounts(id), accountId, "Bank account");
   },
-  async deleteBankAccount(id: string, accountId: string): Promise<void> {
-    await api.delete(`/employees/${id}/bank-accounts/${accountId}`);
+  async deleteBankAccount(_id: string, accountId: string): Promise<void> {
+    await api.delete(`/employee/bank-accounts/${accountId}`);
   },
 
   async documents(id: string): Promise<EmployeeDocumentRecord[]> {
-    const { data } = await api.get<ApiEnvelope<EmployeeDocumentRecord[]>>(
-      `/employees/${id}/documents`,
-    );
-    return data.data ?? [];
+    const { data } = await api.get<{ documents: Array<EmployeeDocumentRecord & { id: string }> }>(`/employee/employees/${id}/documents`);
+    return data.documents.map(withLegacyId);
   },
 
   async contracts(id: string): Promise<EmployeeContractRecord[]> {
-    const { data } = await api.get<ApiEnvelope<EmployeeContractRecord[]>>(
-      `/employees/${id}/contracts`,
-    );
-    return data.data ?? [];
+    const { data } = await api.get<{ contracts: Array<EmployeeContractRecord & { id: string }> }>(`/employee/employees/${id}/contracts`);
+    return data.contracts.map(withLegacyId);
   },
 
   async assets(id: string): Promise<EmployeeAssetRecord[]> {
-    const { data } = await api.get<ApiEnvelope<EmployeeAssetRecord[]>>(
-      `/employees/${id}/assets`,
-    );
-    return data.data ?? [];
+    const { data } = await api.get<{ assets: Array<EmployeeAssetRecord & { id: string }> }>(`/employee/employees/${id}/assets`);
+    return data.assets.map(withLegacyId);
   },
 
   async history(id: string): Promise<EmployeeHistoryRecord[]> {
-    const { data } = await api.get<ApiEnvelope<EmployeeHistoryRecord[]>>(
-      `/employees/${id}/history`,
-    );
-    return data.data ?? [];
+    const { data } = await api.get<{ history: Array<EmployeeHistoryRecord & { id: string }> }>(`/employee/employees/${id}/history`);
+    return data.history.map(withLegacyId);
   },
 
   // ---- sub-resources (create) ----
   async addContact(id: string, input: NewContactInput): Promise<EmployeeContactRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeContactRecord>>(
-      `/employees/${id}/contacts`,
-      input,
+    const payload = {
+      name: input.name,
+      relationship: input.relationship,
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.email !== undefined ? { email: input.email } : {}),
+    };
+    const { data: created } = await api.post<{ contactId: string }>(
+      `/employee/employees/${id}/contacts`,
+      payload,
     );
-    return data.data;
+    return findResource(await this.contacts(id), created.contactId, "Contact");
   },
 
   async addDocument(id: string, input: NewDocumentInput): Promise<EmployeeDocumentRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeDocumentRecord>>(
-      `/employees/${id}/documents`,
+    const { data: created } = await api.post<{ documentId: string }>(
+      `/employee/employees/${id}/documents`,
       input,
     );
-    return data.data;
+    return findResource(await this.documents(id), created.documentId, "Document");
   },
 
   async addContract(id: string, input: NewContractInput): Promise<EmployeeContractRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeContractRecord>>(
-      `/admin/employees/${id}/contracts`,
+    const { data: created } = await api.post<{ contractId: string }>(
+      `/employee/employees/${id}/contracts`,
       input,
     );
-    return data.data;
+    return findResource(await this.contracts(id), created.contractId, "Contract");
   },
 
   async addAsset(id: string, input: NewAssetInput): Promise<EmployeeAssetRecord> {
-    const { data } = await api.post<ApiEnvelope<EmployeeAssetRecord>>(
-      `/admin/employees/${id}/assets`,
+    const { data: created } = await api.post<{ assetId: string }>(
+      `/employee/employees/${id}/assets`,
       input,
     );
-    return data.data;
+    return findResource(await this.assets(id), created.assetId, "Asset");
   },
 
   // ---- sub-resources (edit / delete / return) ----
@@ -256,15 +346,18 @@ export const employeeService = {
     contactId: string,
     input: Partial<NewContactInput>,
   ): Promise<EmployeeContactRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeContactRecord>>(
-      `/employees/${id}/contacts/${contactId}`,
-      input,
-    );
-    return data.data;
+    const payload = {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.relationship !== undefined ? { relationship: input.relationship } : {}),
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.email !== undefined ? { email: input.email } : {}),
+    };
+    await api.patch(`/employee/contacts/${contactId}`, payload);
+    return findResource(await this.contacts(id), contactId, "Contact");
   },
 
-  async deleteContact(id: string, contactId: string): Promise<void> {
-    await api.delete(`/employees/${id}/contacts/${contactId}`);
+  async deleteContact(_id: string, contactId: string): Promise<void> {
+    await api.delete(`/employee/contacts/${contactId}`);
   },
 
   async updateDocument(
@@ -272,15 +365,12 @@ export const employeeService = {
     docId: string,
     input: Partial<NewDocumentInput>,
   ): Promise<EmployeeDocumentRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeDocumentRecord>>(
-      `/admin/employees/${id}/documents/${docId}`,
-      input,
-    );
-    return data.data;
+    await api.patch(`/employee/documents/${docId}`, input);
+    return findResource(await this.documents(id), docId, "Document");
   },
 
-  async deleteDocument(id: string, docId: string): Promise<void> {
-    await api.delete(`/admin/employees/${id}/documents/${docId}`);
+  async deleteDocument(_id: string, docId: string): Promise<void> {
+    await api.delete(`/employee/documents/${docId}`);
   },
 
   async updateContract(
@@ -288,11 +378,19 @@ export const employeeService = {
     contractId: string,
     input: Partial<NewContractInput>,
   ): Promise<EmployeeContractRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeContractRecord>>(
-      `/admin/employees/${id}/contracts/${contractId}`,
-      input,
-    );
-    return data.data;
+    const { employmentStatus, endDate, baseSalary, fileUrl, status } = input;
+    await api.patch(`/employee/contracts/${contractId}`, {
+      ...(employmentStatus !== undefined ? { employmentStatus } : {}),
+      ...(endDate !== undefined ? { endDate } : {}),
+      ...(baseSalary !== undefined ? { baseSalary } : {}),
+      ...(fileUrl !== undefined ? { fileUrl } : {}),
+      ...(status !== undefined ? { status } : {}),
+    });
+    return findResource(await this.contracts(id), contractId, "Contract");
+  },
+
+  async deleteContract(_id: string, contractId: string): Promise<void> {
+    await api.delete(`/employee/contracts/${contractId}`);
   },
 
   async returnAsset(
@@ -300,11 +398,8 @@ export const employeeService = {
     assetId: string,
     input: ReturnAssetInput = {},
   ): Promise<EmployeeAssetRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeAssetRecord>>(
-      `/admin/employees/${id}/assets/${assetId}/return`,
-      input,
-    );
-    return data.data;
+    await api.patch(`/employee/assets/${assetId}`, input);
+    return findResource(await this.assets(id), assetId, "Asset");
   },
 
   async updateAsset(
@@ -312,48 +407,38 @@ export const employeeService = {
     assetId: string,
     input: UpdateAssetInput,
   ): Promise<EmployeeAssetRecord> {
-    const { data } = await api.patch<ApiEnvelope<EmployeeAssetRecord>>(
-      `/admin/employees/${id}/assets/${assetId}`,
-      input,
-    );
-    return data.data;
+    const { returnedDate, condition, note } = input;
+    await api.patch(`/employee/assets/${assetId}`, {
+      ...(returnedDate !== undefined ? { returnedDate } : {}),
+      ...(condition !== undefined ? { condition } : {}),
+      ...(note !== undefined ? { note } : {}),
+    });
+    return findResource(await this.assets(id), assetId, "Asset");
   },
 
-  async deleteAsset(id: string, assetId: string): Promise<void> {
-    await api.delete(`/admin/employees/${id}/assets/${assetId}`);
+  async deleteAsset(_id: string, assetId: string): Promise<void> {
+    await api.delete(`/employee/assets/${assetId}`);
   },
 
   // ---- account (linked user) ----
-  async account(id: string): Promise<AccountView> {
-    const { data } = await api.get<ApiEnvelope<AccountView>>(`/employees/${id}/account`);
-    return data.data;
+  async account(_id: string): Promise<AccountView> {
+    return unavailable("Linked employee accounts");
   },
 
-  async resetPassword(id: string): Promise<{ linkSentTo: string }> {
-    const { data } = await api.post<ApiEnvelope<{ linkSentTo: string }>>(
-      `/admin/employees/${id}/reset-password`,
-    );
-    return data.data;
+  async resetPassword(_id: string): Promise<{ linkSentTo: string }> {
+    return unavailable("Employee password reset");
   },
 
-  async resendInvite(id: string): Promise<{ linkSentTo: string }> {
-    const { data } = await api.post<ApiEnvelope<{ linkSentTo: string }>>(
-      `/admin/employees/${id}/resend-invite`,
-    );
-    return data.data;
+  async resendInvite(_id: string): Promise<{ linkSentTo: string }> {
+    return unavailable("Employee invitation resend");
   },
 
-  async updateAccount(id: string, input: UpdateAccountInput): Promise<AccountView> {
-    const { data } = await api.patch<ApiEnvelope<AccountView>>(
-      `/admin/employees/${id}/account`,
-      input,
-    );
-    return data.data;
+  async updateAccount(_id: string, _input: UpdateAccountInput): Promise<AccountView> {
+    return unavailable("Linked employee account updates");
   },
 
   // ---- export ----
-  async exportCsv(params: ListEmployeesParams = {}): Promise<Blob> {
-    const res = await api.get(`/employees/export${buildQuery(params)}`, { responseType: "blob" });
-    return res.data as Blob;
+  async exportCsv(_params: ListEmployeesParams = {}): Promise<Blob> {
+    return unavailable("Employee export");
   },
 };

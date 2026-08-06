@@ -4,12 +4,12 @@ import PayrollPeriodRepo from "@modules/payroll/core/app/ports/PayrollPeriodRepo
 import PayslipRepo from "@modules/payroll/core/app/ports/PayslipRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 /**
  * Xoá một kỳ lương tạo nhầm — chỉ khi kỳ CHƯA có phiếu lương nào.
  *
- * @throws {AccessDeniedError}           Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}           Actor không có quyền `payroll:prepare`.
  * @throws {PayrollPeriodNotFoundError}  Không tìm thấy kỳ lương.
  * @throws {PayrollPeriodHasDataError}   Kỳ đã có phiếu lương.
  */

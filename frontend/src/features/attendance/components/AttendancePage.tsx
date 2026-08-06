@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X, Layers, Lock, LockOpen, Plus, Loader2, Trash2 } from "lucide-react";
+import { Search, ChevronDown, Check, Users, Clock, CalendarDays, X, Lock, LockOpen, Plus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,9 @@ import { TopBar } from "@features/dashboard/components/TopBar";
 import type { ChipColor } from "@features/dashboard/data";
 import { attendanceService } from "@features/attendance/services/attendance.service";
 import { payrollService } from "@features/payroll/services/payroll.service";
+import { apiErrorMessage } from "@shared/utils/apiError";
 import { CreatePeriodDialog } from "@features/payroll/components/CreatePeriodDialog";
 import type { CreatePeriodInput, PayrollPeriod } from "@features/payroll/types/payroll.types";
-import { settingsService } from "@features/settings/services/settings.service";
-import type { AttendanceSymbol } from "@features/settings/types/settings.types";
 import type {
   AdminGrid,
   AttendanceRecord,
@@ -106,7 +105,11 @@ function PeriodWorkflowBar({ month }: { month: string }) {
 
   useEffect(() => {
     let active = true;
-    payrollService.listPeriods().then((ps) => { if (active) setPeriods(ps); }).catch(() => {});
+    payrollService.listPeriods()
+      .then((ps) => { if (active) setPeriods(ps); })
+      // Thanh quy trình kỳ lương không tải được thì HR không biết kỳ đã chốt hay
+      // chưa — báo ra thay vì để thanh trống như thể chưa có kỳ nào.
+      .catch((error) => { if (active) fail(error, "Không tải được kỳ lương."); });
     return () => { active = false; };
   }, [rk]);
 
@@ -116,8 +119,7 @@ function PeriodWorkflowBar({ month }: { month: string }) {
   const finalized = period?.status === "closed" || period?.status === "paid";
 
   function fail(e: unknown, fallback: string) {
-    const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
-    toast.error(d?.error?.message ?? d?.message ?? fallback);
+    toast.error(apiErrorMessage(e, fallback));
   }
 
   async function handleCreate(input: CreatePeriodInput) {
@@ -170,8 +172,12 @@ function PeriodWorkflowBar({ month }: { month: string }) {
 
   function unlockAttendance() {
     if (!period) return;
+    // Backend đòi lý do và ghi audit kèm lý do đó — hỏi thẳng người dùng.
+    const reason = window.prompt("Lý do mở chốt chấm công? (bắt buộc, sẽ ghi vào nhật ký)")?.trim();
+    if (reason == null || reason === "") return;
+
     setBusy(true);
-    payrollService.unlockAttendance(period._id)
+    payrollService.unlockAttendance(period._id, reason)
       .then(() => { toast.success("Đã mở chốt chấm công"); setRk((k) => k + 1); })
       .catch((e) => fail(e, "Không mở chốt được."))
       .finally(() => setBusy(false));
@@ -239,7 +245,6 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [edit, setEdit] = useState<EditTarget | null>(null);
-  const [bulkOpen, setBulkOpen] = useState(false);
   const [display, setDisplay] = useState<"dot" | "text">(
     () => (localStorage.getItem("att-display") as "dot" | "text") || "dot",
   );
@@ -254,21 +259,10 @@ export default function AttendancePage() {
     return () => { active = false; };
   }, [month, reloadKey]);
 
-  // Attendance symbols configured in Settings, mapped by the status they apply
-  // to — overrides the built-in label/code/color for the legend + grid.
-  const [symbols, setSymbols] = useState<AttendanceSymbol[]>([]);
-  useEffect(() => { settingsService.listSymbols().then(setSymbols).catch(() => {}); }, []);
-  const symMap = useMemo(() => {
-    const m: Partial<Record<AttendanceStatus, { code: string; label: string; color: ChipColor }>> = {};
-    for (const s of symbols) {
-      if (s.appliesTo && s.appliesTo in STATUS_META) {
-        const st = s.appliesTo as AttendanceStatus;
-        m[st] = { code: s.code, label: s.label, color: (s.color as ChipColor) || STATUS_META[st].color };
-      }
-    }
-    return m;
-  }, [symbols]);
-  const meta = (st: AttendanceStatus) => symMap[st] ?? STATUS_META[st];
+  // Ký hiệu chấm công trong Cài đặt là danh mục MÔ TẢ (mã + tên): backend không
+  // gắn nó vào trạng thái nào, nên nhãn/màu trên lưới lấy từ `STATUS_META` cố
+  // định, còn danh mục chỉ hiển thị để đối chiếu.
+  const meta = (st: AttendanceStatus) => STATUS_META[st];
 
   const days = useMemo(() => monthDays(month), [month]);
   const shifts = useMemo(() => grid?.shifts ?? [], [grid]);
@@ -343,9 +337,6 @@ export default function AttendancePage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Select label="Tháng" value={month} options={MONTH_OPTIONS} onChange={setMonth} />
                 <Select label="Phòng ban" value={dept} options={deptOptions.map((d) => ({ value: d, label: d }))} onChange={setDept} />
-                <Button size="sm" onClick={() => setBulkOpen(true)} disabled={shifts.length === 0 || rows.length === 0} className="h-9 gap-2 rounded-full text-[13px]">
-                  <Layers className="size-3.5" /> Chấm hàng loạt
-                </Button>
               </div>
             </div>
 
@@ -419,7 +410,7 @@ export default function AttendancePage() {
                             <Avatar className="size-8 text-[11px]"><AvatarFallback>{e.fullName.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
                             <div className="min-w-0">
                               <div className="truncate text-[13px] font-medium text-foreground">{e.fullName || e.employeeCode}</div>
-                              <div className="truncate text-[11px] text-muted-foreground/80"><span className="font-mono">{e.employeeCode}</span> · {e.departmentName}{typeof e.tenureMonths === "number" ? ` · ${e.tenureMonths} tháng` : ""}</div>
+                              <div className="truncate text-[11px] text-muted-foreground/80"><span className="font-mono">{e.employeeCode}</span> · {e.departmentName}</div>
                             </div>
                           </div>
                         </td>
@@ -466,9 +457,9 @@ export default function AttendancePage() {
                         {(() => {
                           const s = summaryMap.get(e._id) ?? { work: 0, leave: 0, holiday: 0, regime: 0 };
                           const total = round1(s.work + s.leave + s.holiday);
-                          const cells = [round1(s.work), round1(s.leave), round1(s.holiday), round1(s.regime), total, round1(e.annualLeaveRemaining ?? 0)];
+                          const cells = [round1(s.work), round1(s.leave), round1(s.holiday), round1(s.regime), total];
                           return cells.map((v, i) => (
-                            <td key={i} className={cn("px-2 py-2 text-center text-[12px] tabular-nums", i === 0 && "border-l-2 border-border", i === 4 ? "font-bold text-foreground" : i === 5 ? "font-semibold text-primary-600" : "text-muted-foreground")}>
+                            <td key={i} className={cn("px-2 py-2 text-center text-[12px] tabular-nums", i === 0 && "border-l-2 border-border", i === 4 ? "font-bold text-foreground" : "text-muted-foreground")}>
                               {v || "·"}
                             </td>
                           ));
@@ -503,15 +494,6 @@ export default function AttendancePage() {
         />
       )}
 
-      {bulkOpen && (
-        <BulkEditor
-          month={month}
-          employees={rows}
-          shifts={shifts}
-          onClose={() => setBulkOpen(false)}
-          onSaved={() => { setBulkOpen(false); setReloadKey((k) => k + 1); }}
-        />
-      )}
     </div>
   );
 }
@@ -523,113 +505,7 @@ const SUMMARY_COLS = [
   { key: "holiday", label: "Nghỉ lễ" },
   { key: "regime", label: "Nghỉ chế độ" },
   { key: "total", label: "Tổng công" },
-  { key: "remaining", label: "Phép dư" },
 ] as const;
-
-const MANUAL_OPTIONS = [
-  { value: "", label: "— Theo giờ vào/ra —" },
-  { value: "leave_paid", label: "Nghỉ phép" },
-  { value: "leave_unpaid", label: "Nghỉ không lương" },
-  { value: "holiday", label: "Nghỉ lễ" },
-  { value: "absent", label: "Vắng" },
-] as const;
-
-const BULK_STATUS = MANUAL_OPTIONS.filter((o) => o.value);
-const MAX_BULK_ROWS = 500;
-
-function BulkEditor({ month, employees, shifts, onClose, onSaved }: {
-  month: string; employees: RosterEmployee[]; shifts: ShiftOption[]; onClose: () => void; onSaved: () => void;
-}) {
-  const allDays = useMemo(() => monthDays(month), [month]);
-  const [fromKey, setFromKey] = useState(allDays[0]?.key ?? "");
-  const [toKey, setToKey] = useState(allDays[allDays.length - 1]?.key ?? "");
-  const [shiftId, setShiftId] = useState("");
-  const [status, setStatus] = useState<string>("holiday");
-  const [skipWeekend, setSkipWeekend] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const selectedDays = useMemo(
-    () => allDays.filter((d) => d.key >= fromKey && d.key <= toKey && (!skipWeekend || !d.weekend)),
-    [allDays, fromKey, toKey, skipWeekend],
-  );
-  const targetShifts = shiftId ? shifts.filter((s) => s._id === shiftId) : shifts;
-  const total = employees.length * selectedDays.length * targetShifts.length;
-  const tooMany = total > MAX_BULK_ROWS;
-
-  function save() {
-    if (tooMany || total === 0) return;
-    setSaving(true);
-    setError(null);
-    const rows = employees.flatMap((e) =>
-      selectedDays.flatMap((d) =>
-        targetShifts.map((s) => ({
-          employeeId: e._id, date: d.key, shiftId: s._id,
-          status: status as "leave_paid" | "leave_unpaid" | "holiday" | "absent",
-        })),
-      ),
-    );
-    attendanceService.bulkUpsert(rows)
-      .then(() => onSaved())
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể chấm hàng loạt."))
-      .finally(() => setSaving(false));
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="animate-fade-in absolute inset-0 bg-secondary-900/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="animate-pop-in relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-2xl bg-background p-6 shadow-2xl">
-        <button onClick={onClose} className="press absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"><X className="size-4" /></button>
-        <h3 className="text-[16px] font-bold text-foreground">Chấm công hàng loạt</h3>
-        <p className="mt-0.5 text-[12.5px] text-muted-foreground">Áp 1 trạng thái cho <b className="text-foreground">{employees.length}</b> nhân viên đang lọc, theo khoảng ngày &amp; ca.</p>
-
-        <div className="mt-4 flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[12px] font-medium text-foreground">Từ ngày</label>
-              <input type="date" min={allDays[0]?.key} max={allDays[allDays.length - 1]?.key} value={fromKey} onChange={(e) => setFromKey(e.target.value)} className={cn(inputCls, "mt-1.5")} />
-            </div>
-            <div>
-              <label className="text-[12px] font-medium text-foreground">Đến ngày</label>
-              <input type="date" min={allDays[0]?.key} max={allDays[allDays.length - 1]?.key} value={toKey} onChange={(e) => setToKey(e.target.value)} className={cn(inputCls, "mt-1.5")} />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[12px] font-medium text-foreground">Ca</label>
-            <select className={cn(inputCls, "mt-1.5")} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-              <option value="">Tất cả ca ({shifts.length})</option>
-              {shifts.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[12px] font-medium text-foreground">Trạng thái</label>
-            <select className={cn(inputCls, "mt-1.5")} value={status} onChange={(e) => setStatus(e.target.value)}>
-              {BULK_STATUS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          <label className="flex items-center gap-2 text-[13px] text-foreground">
-            <input type="checkbox" checked={skipWeekend} onChange={(e) => setSkipWeekend(e.target.checked)} className="size-4 accent-primary" />
-            Bỏ qua thứ Bảy &amp; Chủ nhật
-          </label>
-
-          <div className={cn("rounded-xl border px-3.5 py-2.5 text-[12.5px]", tooMany ? "border-rose-200 bg-rose-50 text-rose-700" : "border-border bg-muted/40 text-muted-foreground")}>
-            Sẽ ghi <b className="tabular-nums">{total}</b> bản ghi ({employees.length} NV × {selectedDays.length} ngày × {targetShifts.length} ca).
-            {tooMany && <> Vượt giới hạn {MAX_BULK_ROWS} — hãy thu hẹp khoảng ngày, ca hoặc lọc bớt nhân viên.</>}
-          </div>
-          {error && <p className="text-[12.5px] text-destructive">{error}</p>}
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} className="rounded-xl">Huỷ</Button>
-          <Button onClick={save} disabled={saving || tooMany || total === 0} className="rounded-xl">{saving ? "Đang ghi…" : "Chấm hàng loạt"}</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const inputCls = "h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20";
 
@@ -670,7 +546,7 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
         checkOut: vnInstant(dateKey, day.checkOut),
       })
       .then(() => onSaved())
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể lưu chấm công."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Không thể lưu chấm công."))
       .finally(() => setSaving(false));
   }
 
@@ -680,7 +556,7 @@ function CellEditor({ target, shifts, onClose, onSaved }: { target: EditTarget; 
     setError(null);
     Promise.all(Object.values(records).map((r) => attendanceService.remove(r._id)))
       .then(() => onSaved())
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể xoá chấm công."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Không thể xoá chấm công."))
       .finally(() => setSaving(false));
   }
 

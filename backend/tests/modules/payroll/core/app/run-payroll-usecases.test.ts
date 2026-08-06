@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import AllowanceRepo from "@modules/payroll/core/app/ports/AllowanceRepo";
 import AttendanceDirectory, { WorkdaySummary } from "@modules/payroll/core/app/ports/AttendanceDirectory";
 import BonusRepo from "@modules/payroll/core/app/ports/BonusRepo";
@@ -21,6 +20,7 @@ import SalaryPolicy from "@modules/payroll/core/domain/entities/SalaryPolicy";
 import TaxProfile from "@modules/payroll/core/domain/entities/TaxProfile";
 import PeriodName from "@modules/payroll/core/domain/value-objects/PeriodName";
 import AccessDeniedError from "@shared/core/app/errors/AccessDeniedError";
+import InMemoryRetroAdjustmentRepo from "@tests/modules/payroll/support/InMemoryRetroAdjustmentRepo";
 import { beforeEach, describe, expect, it } from "vitest";
 
 class InMemoryPeriodRepo implements PayrollPeriodRepo {
@@ -155,6 +155,12 @@ function buildPeriod(): PayrollPeriod {
         standardWorkDays: 22,
         createdBy: "hr-1",
     });
+    period.upsertEvaluation({
+        employeeId:       "emp-1",
+        performanceScore: 100,
+        goalScore:        100,
+        updatedBy:        "manager-1",
+    });
     period.lockAttendance("hr-1");
     period.lockEvaluations("hr-1");
     return period;
@@ -171,7 +177,6 @@ describe("RunPayrollForEmployeeUseCase", () => {
     let uow: InMemoryUnitOfWork;
 
     const fullAttendance: AttendanceDirectory = {
-        async shiftExists() { return true; },
         async getWorkdaySummary(): Promise<WorkdaySummary> { return { actualWorkDays: 22, unpaidDays: 0 }; },
     };
 
@@ -190,14 +195,34 @@ describe("RunPayrollForEmployeeUseCase", () => {
     });
 
     function buildUseCase(permissions: PermissionChecker, employeeDirectory: EmployeeDirectory, attendanceDirectory: AttendanceDirectory = fullAttendance) {
-        return new RunPayrollForEmployeeUseCase(permissions, uow, employeeDirectory, attendanceDirectory, policies, allowances, bonuses, deductions, taxProfiles);
+        return new RunPayrollForEmployeeUseCase(permissions, uow, employeeDirectory, attendanceDirectory, policies, allowances, bonuses, deductions, taxProfiles, new InMemoryRetroAdjustmentRepo());
     }
 
     const officialEmployeeDirectory: EmployeeDirectory = {
-        async employeeExists() { return true; },
         async listActiveEmployeeIds() { return ["emp-1"]; },
         async contractBasis(): Promise<EmployeeContractBasis | undefined> {
             return { contractId: "contract-1", employeeId: "emp-1", baseSalary: 20_000_000, employmentStatus: "official" };
+        },
+        // Cả kỳ một hợp đồng: một đoạn duy nhất phủ toàn kỳ. Trường hợp đổi hợp
+        // đồng giữa kỳ có test riêng.
+        async contractSegments(employeeId: string, from: Date, to: Date) {
+            const basis = await this.contractBasis(employeeId, to);
+            return basis == undefined ? [] : [{
+                contractId:       basis.contractId,
+                contractNumber:   "HD-TEST",
+                baseSalary:       basis.baseSalary,
+                employmentStatus: basis.employmentStatus,
+                from,
+                to,
+            }];
+        },
+
+        async payoutInfo(employeeId: string) {
+            return {
+                employeeId, employeeCode: "EMP-001", fullName: "Nhan Vien Mot",
+                bankAccountNumber: "0123456789", bankAccountHolder: "NHAN VIEN MOT",
+                bankName: "Vietcombank", bankBranch: null,
+            };
         },
         async findEmployeeIdByUserId() { return undefined; },
     };
@@ -219,6 +244,24 @@ describe("RunPayrollForEmployeeUseCase", () => {
         expect(payslip.breakdown.insurance).toBe(0);
         expect(payslip.breakdown.unionFee).toBe(Math.round(5_500_000 * 0.01));
         expect(payslip.netSalary).toBe(20_000_000 - Math.round(5_500_000 * 0.01));
+    });
+
+    it("uses the locked performance and goal scores instead of paying both components at 100%", async () => {
+        const period = await periods.getById("period-1");
+        if (period == undefined) throw new Error("test period missing");
+        period.upsertEvaluation({
+            employeeId:       "emp-1",
+            performanceScore: 50,
+            goalScore:        0,
+            updatedBy:        "manager-1",
+        });
+        await periods.save(period);
+
+        const payslip = await buildUseCase(allowAllPermissions, officialEmployeeDirectory)
+            .execute({ periodId: "period-1", employeeId: "emp-1", actorUserId: "hr-1" });
+
+        // 20% chuyên cần (đủ công) + 60% × 50% hiệu suất + 20% × 0% mục tiêu.
+        expect(payslip.breakdown.proRatedBaseSalary).toBe(10_000_000);
     });
 
     it("dùng đúng BHXH cố định khi có hồ sơ thuế (577.500 theo ví dụ NV A)", async () => {
@@ -265,6 +308,41 @@ describe("RunPayrollForEmployeeUseCase", () => {
             .rejects.toMatchObject({ code: "PAY_ATT_NOT_LOCKED" });
     });
 
+    it("kỳ chưa có bản ghi đánh giá nào → dùng điểm mặc định 100/100, vẫn tính được lương", async () => {
+        // Module Đánh giá chưa tồn tại nên KHÔNG có đường nào ghi điểm vào kỳ.
+        // Nếu thiếu bản ghi bị coi là lỗi thì payroll không bao giờ chạy được ở
+        // production — khớp với `EvaluationReadinessUseCase` (mọi nhân viên sẵn sàng).
+        const period = PayrollPeriod.create({
+            id: "period-no-evaluation", name: PeriodName.create("2026-08"), startDate: new Date("2026-08-01"),
+            endDate: new Date("2026-08-31"), payDate: new Date("2026-09-05"), standardWorkDays: 22, createdBy: "hr-1",
+        });
+        period.lockAttendance("hr-1");
+        period.lockEvaluations("hr-1");
+        await periods.save(period);
+
+        const payslip = await buildUseCase(allowAllPermissions, officialEmployeeDirectory)
+            .execute({ periodId: period.id, employeeId: "emp-1", actorUserId: "hr-1" });
+
+        expect(payslip.performanceRatio).toBe(100);
+        expect(payslip.goalRatio).toBe(100);
+        expect(payslip.netSalary).toBeGreaterThan(0);
+    });
+
+    it("bản ghi đánh giá tồn tại nhưng dở dang → từ chối tính lương", async () => {
+        const period = PayrollPeriod.create({
+            id: "period-partial-evaluation", name: PeriodName.create("2026-09"), startDate: new Date("2026-09-01"),
+            endDate: new Date("2026-09-30"), payDate: new Date("2026-10-05"), standardWorkDays: 22, createdBy: "hr-1",
+            evaluations: [{ employeeId: "emp-1", performanceScore: 90, goalScore: null, updatedAt: new Date(), updatedBy: "hr-1" }],
+        });
+        period.lockAttendance("hr-1");
+        period.lockEvaluations("hr-1");
+        await periods.save(period);
+
+        await expect(buildUseCase(allowAllPermissions, officialEmployeeDirectory)
+            .execute({ periodId: period.id, employeeId: "emp-1", actorUserId: "hr-1" }))
+            .rejects.toMatchObject({ code: "PAY_EVALUATION_INCOMPLETE" });
+    });
+
     it("idempotent: chạy lại chỉ ghi đè phiếu draft, từ chối phiếu đã approved", async () => {
         const useCase = buildUseCase(allowAllPermissions, officialEmployeeDirectory);
         const first = await useCase.execute({ periodId: "period-1", employeeId: "emp-1", actorUserId: "hr-1" });
@@ -291,20 +369,39 @@ describe("RunPayrollForPeriodUseCase", () => {
         await policies.save(buildPolicy());
 
         const employeeDirectory: EmployeeDirectory = {
-            async employeeExists() { return true; },
             async listActiveEmployeeIds() { return ["emp-ok", "emp-no-contract"]; },
             async contractBasis(employeeId: string) {
                 if (employeeId === "emp-ok") return { contractId: "c1", employeeId, baseSalary: 15_000_000, employmentStatus: "official" };
                 return undefined;
             },
-            async findEmployeeIdByUserId() { return undefined; },
+        // Cả kỳ một hợp đồng: một đoạn duy nhất phủ toàn kỳ. Trường hợp đổi hợp
+        // đồng giữa kỳ có test riêng.
+        async contractSegments(employeeId: string, from: Date, to: Date) {
+            const basis = await this.contractBasis(employeeId, to);
+            return basis == undefined ? [] : [{
+                contractId:       basis.contractId,
+                contractNumber:   "HD-TEST",
+                baseSalary:       basis.baseSalary,
+                employmentStatus: basis.employmentStatus,
+                from,
+                to,
+            }];
+        },
+
+            async payoutInfo(employeeId: string) {
+            return {
+                employeeId, employeeCode: "EMP-001", fullName: "Nhan Vien Mot",
+                bankAccountNumber: "0123456789", bankAccountHolder: "NHAN VIEN MOT",
+                bankName: "Vietcombank", bankBranch: null,
+            };
+        },
+        async findEmployeeIdByUserId() { return undefined; },
         };
         const attendanceDirectory: AttendanceDirectory = {
-            async shiftExists() { return true; },
             async getWorkdaySummary() { return { actualWorkDays: 22, unpaidDays: 0 }; },
         };
 
-        const runForEmployee = new RunPayrollForEmployeeUseCase(allowAllPermissions, uow, employeeDirectory, attendanceDirectory, policies, allowances, bonuses, deductions, taxProfiles);
+        const runForEmployee = new RunPayrollForEmployeeUseCase(allowAllPermissions, uow, employeeDirectory, attendanceDirectory, policies, allowances, bonuses, deductions, taxProfiles, new InMemoryRetroAdjustmentRepo());
         const runForPeriod = new RunPayrollForPeriodUseCase(allowAllPermissions, employeeDirectory, runForEmployee);
 
         const result = await runForPeriod.execute({ periodId: "period-1", actorUserId: "hr-1" });

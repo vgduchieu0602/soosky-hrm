@@ -3,6 +3,8 @@ import BonusController, { BonusControllerUseCases } from "@modules/payroll/adapt
 import DeductionController, { DeductionControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/DeductionController";
 import PayrollController, { PayrollControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/PayrollController";
 import PayrollPeriodController, { PayrollPeriodControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/PayrollPeriodController";
+import ReconciliationController, { ReconciliationControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/ReconciliationController";
+import RetroAdjustmentController, { RetroAdjustmentControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/RetroAdjustmentController";
 import SalaryPolicyController, { SalaryPolicyControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/SalaryPolicyController";
 import TaxProfileController, { TaxProfileControllerUseCases } from "@modules/payroll/adapters/driver/http/controllers/TaxProfileController";
 import authenticate from "@shared/adapters/driver/http/middlewares/authenticate";
@@ -17,6 +19,8 @@ export type PayrollHttpUseCases =
     & AllowanceControllerUseCases
     & BonusControllerUseCases
     & DeductionControllerUseCases
+    & RetroAdjustmentControllerUseCases
+    & ReconciliationControllerUseCases
     & TaxProfileControllerUseCases
     & SalaryPolicyControllerUseCases;
 
@@ -36,6 +40,8 @@ export function createPayrollHttpRouter(
     const deductionController     = new DeductionController(useCases);
     const taxProfileController    = new TaxProfileController(useCases);
     const salaryPolicyController  = new SalaryPolicyController(useCases);
+    const retroController         = new RetroAdjustmentController(useCases);
+    const reconcileController     = new ReconciliationController(useCases);
 
     const router = Router();
 
@@ -56,6 +62,7 @@ export function createPayrollHttpRouter(
     router.get   ("/periods/:periodId/evaluation-readiness",     periodController.evaluationReadiness);
     router.post  ("/periods/:periodId/lock-evaluations",         periodController.lockEvaluations);
     router.post  ("/periods/:periodId/unlock-evaluations",       periodController.unlockEvaluations);
+    router.post  ("/periods/:periodId/hr-review",                periodController.markHrReviewed);
     router.post  ("/periods/:periodId/run",                      periodController.runForPeriod);
     router.post  ("/periods/:periodId/run/:employeeId",          periodController.runForEmployee);
 
@@ -66,6 +73,7 @@ export function createPayrollHttpRouter(
     router.get   ("/periods/:periodId/totals",    payrollController.payrollTotals);
     router.get   ("/periods/:periodId/preflight", payrollController.payrollPreflight);
     router.get   ("/periods/:periodId/export",    payrollController.exportPayrollPeriod);
+    router.get   ("/periods/:periodId/bank-file", payrollController.exportBankTransferFile);
     router.post  ("/gross-up",              payrollController.grossUp);
     router.post  ("/periods/:periodId/approve",   payrollController.approvePayroll);
     router.post  ("/payrolls/:payrollId/revert",  payrollController.revertPayroll);
@@ -88,6 +96,16 @@ export function createPayrollHttpRouter(
     router.post  ("/deductions",             deductionController.createDeduction);
     router.patch ("/deductions/:deductionId", deductionController.updateDeduction);
     router.delete("/deductions/:deductionId", deductionController.deleteDeduction);
+
+    // Đối soát song song hai phiên bản công thức
+    router.post  ("/periods/:periodId/reconciliation",                  reconcileController.runReconciliation);
+    router.get   ("/periods/:periodId/reconciliation",                  reconcileController.listReconciliation);
+    router.post  ("/periods/:periodId/reconciliation/:employeeId/sign", reconcileController.signVariance);
+
+    // RetroAdjustment (truy lĩnh/truy thu kỳ trước)
+    router.get   ("/retro-adjustments",                     retroController.listRetroAdjustments);
+    router.post  ("/retro-adjustments",                     retroController.createRetroAdjustment);
+    router.post  ("/retro-adjustments/:adjustmentId/cancel", retroController.cancelRetroAdjustment);
 
     // TaxProfile
     router.get   ("/employees/:employeeId/tax-profiles", taxProfileController.listTaxProfilesByEmployee);

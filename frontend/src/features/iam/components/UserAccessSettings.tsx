@@ -215,7 +215,7 @@ function RoleEditor({ role, perms, onClose, onSaved }: { role: Role | null; perm
       ? iamService.updateRole(role._id, { description, permissionIds })
       : iamService.createRole({ name: name.trim(), description, permissionIds });
     p.then(() => onSaved())
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể lưu vai trò."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Không thể lưu vai trò."))
       .finally(() => setSaving(false));
   }
 

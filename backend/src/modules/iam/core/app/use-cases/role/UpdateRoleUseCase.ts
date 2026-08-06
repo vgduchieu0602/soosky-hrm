@@ -6,7 +6,7 @@ import AccessControl from "@modules/iam/core/app/services/AccessControl";
 import AuditLog from "@modules/iam/core/domain/entities/AuditLog";
 import Role from "@modules/iam/core/domain/entities/Role";
 import RoleName from "@modules/iam/core/domain/value-objects/RoleName";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_IAM_MANAGE = "iam:manage";
 const AUDIT_RESOURCE_ROLE   = "role";
@@ -69,7 +69,7 @@ export default class UpdateRoleUseCase {
 
         await this._roleRepo.save(role);
         await this._auditRepo.save(AuditLog.create({
-            id:          UUIDv7(),
+            id:          createUuidV7(),
             actorUserId: input.actorUserId,
             resource:    AUDIT_RESOURCE_ROLE,
             action:      AUDIT_ACTION_UPDATE,

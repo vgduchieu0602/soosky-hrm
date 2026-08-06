@@ -1,10 +1,11 @@
 import { MongoAccountRepo, MongoRefreshTokenStore, MongoVerificationTokenStore } from "@modules/auth/adapters/driven/persistence/mongodb";
-import { MongoAttendanceRepo, MongoAttendanceSymbolRepo, MongoHolidayRepo, MongoLeaveBalanceRepo, MongoLeaveRequestRepo, MongoShiftRepo } from "@modules/attendance/adapters/driven/persistence/mongodb";
+import { MongoAttendanceCorrectionRequestRepo, MongoAttendanceRepo, MongoAttendanceSymbolRepo, MongoHolidayRepo, MongoLeaveBalanceRepo, MongoLeaveRequestRepo, MongoShiftRepo } from "@modules/attendance/adapters/driven/persistence/mongodb";
 import { MongoDepartmentRepo, MongoPositionRepo } from "@modules/department/adapters/driven/persistence/mongodb";
 import { MongoEmployeeAssetRepo, MongoEmployeeBankAccountRepo, MongoEmployeeContactRepo, MongoEmployeeContractRepo, MongoEmployeeDocumentRepo, MongoEmployeeHistoryRepo, MongoEmployeeProfileRepo, MongoEmployeeRepo } from "@modules/employee/adapters/driven/persistence/mongodb";
 import { MongoAuditRepo, MongoPermissionRepo, MongoRolePermissionRepo, MongoRoleRepo, MongoUserRepo, MongoUserRoleRepo } from "@modules/iam/adapters/driven/persistence/mongodb";
-import { MongoAllowanceRepo, MongoBonusRepo, MongoDeductionRepo, MongoPayrollPeriodRepo, MongoPayslipRepo, MongoSalaryPolicyRepo, MongoTaxProfileRepo } from "@modules/payroll/adapters/driven/persistence/mongodb";
-import { MongoCompanyProfileRepo, MongoSystemSettingRepo } from "@modules/setting/adapters/driven/persistence/mongodb";
+import { MongoAllowanceRepo, MongoBonusRepo, MongoDeductionRepo, MongoPayrollPeriodRepo, MongoPayrollVarianceRepo, MongoPayslipRepo, MongoRetroAdjustmentRepo, MongoSalaryPolicyRepo, MongoTaxProfileRepo } from "@modules/payroll/adapters/driven/persistence/mongodb";
+import { MongoAppraisalCycleRepo, MongoCriteriaSetRepo, MongoPerformanceReviewRepo } from "@modules/performance/adapters/driven/persistence/mongodb";
+import { MongoBankTransferProfileRepo, MongoCompanyProfileRepo, MongoSystemSettingRepo } from "@modules/setting/adapters/driven/persistence/mongodb";
 import { Db as MongoDb } from "mongodb";
 
 /**
@@ -50,10 +51,18 @@ export default async function ensureMongoIndexes(mongoDb: MongoDb): Promise<void
     await MongoAttendanceRepo.ensureIndexes(mongoDb);
     await MongoLeaveRequestRepo.ensureIndexes(mongoDb);
     await MongoLeaveBalanceRepo.ensureIndexes(mongoDb);
+    await MongoAttendanceCorrectionRequestRepo.ensureIndexes(mongoDb);
+
+    // Performance
+    await MongoCriteriaSetRepo.ensureIndexes(mongoDb);
+    await MongoAppraisalCycleRepo.ensureIndexes(mongoDb);
+    await MongoPerformanceReviewRepo.ensureIndexes(mongoDb);
 
     // Payroll
     await MongoPayrollPeriodRepo.ensureIndexes(mongoDb);
     await MongoPayslipRepo.ensureIndexes(mongoDb);
+    await MongoRetroAdjustmentRepo.ensureIndexes(mongoDb);
+    await MongoPayrollVarianceRepo.ensureIndexes(mongoDb);
     await MongoAllowanceRepo.ensureIndexes(mongoDb);
     await MongoBonusRepo.ensureIndexes(mongoDb);
     await MongoDeductionRepo.ensureIndexes(mongoDb);
@@ -63,4 +72,5 @@ export default async function ensureMongoIndexes(mongoDb: MongoDb): Promise<void
     // Setting
     await MongoCompanyProfileRepo.ensureIndexes(mongoDb);
     await MongoSystemSettingRepo.ensureIndexes(mongoDb);
+    await MongoBankTransferProfileRepo.ensureIndexes(mongoDb);
 }

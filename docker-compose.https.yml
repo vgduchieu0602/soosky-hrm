@@ -1,0 +1,34 @@
+# =============================================================================
+# docker-compose.https.yml — overlay "có tên miền + HTTPS"
+# -----------------------------------------------------------------------------
+# Không mở cổng nào trên VPS. Thay vào đó frontend tham gia mạng chung "web" và
+# tự khai báo domain bằng nhãn; Caddy (infra/docker-compose.yml, chạy một lần
+# cho cả VPS) đọc nhãn, định tuyến vào container và tự xin/gia hạn chứng chỉ
+# Let's Encrypt.
+#
+# ĐIỀU KIỆN TRƯỚC KHI DÙNG:
+#   1. docker network create web            (một lần cho cả VPS)
+#   2. cd ~/infra && docker compose up -d   (Caddy dùng chung)
+#   3. Bản ghi DNS A của ${PUBLIC_DOMAIN} trỏ về IP VPS — Let's Encrypt xác minh
+#      qua HTTP nên DNS phải đúng TRƯỚC, nếu không việc xin chứng chỉ sẽ hỏng.
+#   4. Cổng 80 và 443 của VPS mở cho Internet (Caddy giữ, không phải stack này).
+#
+# Caddy tự chuyển hướng http:// sang https:// nên không cần cấu hình thêm.
+# =============================================================================
+services:
+  frontend:
+    networks:
+      - hrm-net
+      - web
+    labels:
+      caddy: "${PUBLIC_DOMAIN:?PUBLIC_DOMAIN la bat buoc o che do HTTPS}"
+      caddy.reverse_proxy: "{{upstreams 80}}"
+      # HSTS: trình duyệt ghi nhớ chỉ nói chuyện qua HTTPS với domain này.
+      caddy.header.Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+      caddy.header.X-Content-Type-Options: "nosniff"
+      caddy.header.X-Frame-Options: "SAMEORIGIN"
+      caddy.header.Referrer-Policy: "strict-origin-when-cross-origin"
+
+networks:
+  web:
+    external: true

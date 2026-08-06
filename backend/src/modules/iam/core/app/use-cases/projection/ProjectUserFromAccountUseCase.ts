@@ -4,9 +4,19 @@ import UserRoleRepo from "@modules/iam/core/app/ports/UserRoleRepo";
 import User from "@modules/iam/core/domain/entities/User";
 import UserRole from "@modules/iam/core/domain/entities/UserRole";
 import RoleKey from "@modules/iam/core/domain/value-objects/RoleKey";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const SYSTEM_ADMIN_ROLE_KEY = "admin";
+
+/**
+ * Role mặc định của user mới. Không để user nào "không có role": role rỗng =
+ * không có quyền nào = đăng nhập được nhưng mọi API trả 403, người dùng không
+ * hiểu vì sao. `employee` là mức thấp nhất, chỉ xem được hồ sơ của chính mình.
+ *
+ * Trùng giá trị với `DEFAULT_USER_ROLE_KEY` trong `infra/db/seedIam.ts` nhưng
+ * khai lại ở đây: module core KHÔNG được import từ tầng infra.
+ */
+const DEFAULT_USER_ROLE_KEY = "employee";
 
 export interface ProjectUserFromAccountInput {
     accountId:   string;
@@ -51,9 +61,17 @@ export default class ProjectUserFromAccountUseCase {
         const adminRole = await this._roleRepo.getByKey(RoleKey.create(SYSTEM_ADMIN_ROLE_KEY));
         if (adminRole == undefined) return; // seed chưa chạy — bỏ qua, không chặn projection
 
+        // User đầu tiên của hệ thống → admin (bootstrap). Từ user thứ hai trở đi
+        // → role mặc định `employee`; HR/Admin nâng quyền sau qua IAM.
         const hasAdmin = await this._userRoleRepo.existsByRoleId(adminRole.id);
-        if (hasAdmin) return;
+        if (!hasAdmin) {
+            await this._userRoleRepo.save(UserRole.create(createUuidV7(), user.id, adminRole.id));
+            return;
+        }
 
-        await this._userRoleRepo.save(UserRole.create(UUIDv7(), user.id, adminRole.id));
+        const defaultRole = await this._roleRepo.getByKey(RoleKey.create(DEFAULT_USER_ROLE_KEY));
+        if (defaultRole == undefined) return;
+
+        await this._userRoleRepo.save(UserRole.create(createUuidV7(), user.id, defaultRole.id));
     }
 }

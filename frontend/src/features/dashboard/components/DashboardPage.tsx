@@ -66,7 +66,7 @@ function DashboardContent({ onReload }: { onReload: () => void }) {
     attendanceService
       .approveLeave(id)
       .then(() => { toast.success("Đã phê duyệt đơn nghỉ"); onReload(); })
-      .catch((e) => toast.error(e?.response?.data?.error?.message ?? "Không thể phê duyệt"))
+      .catch((e) => toast.error(e?.response?.data?.message ?? "Không thể phê duyệt"))
       .finally(() => setBusyLeave(null));
   }
 
@@ -77,7 +77,7 @@ function DashboardContent({ onReload }: { onReload: () => void }) {
     attendanceService
       .rejectLeave(id, reason.trim())
       .then(() => { toast.success("Đã từ chối đơn nghỉ"); onReload(); })
-      .catch((e) => toast.error(e?.response?.data?.error?.message ?? "Không thể từ chối"))
+      .catch((e) => toast.error(e?.response?.data?.message ?? "Không thể từ chối"))
       .finally(() => setBusyLeave(null));
   }
 

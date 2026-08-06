@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { testPayslipInputs } from "@tests/modules/payroll/support/payslip-fixtures";
 import PayrollPeriodRepo from "@modules/payroll/core/app/ports/PayrollPeriodRepo";
 import PayslipRepo, { PayslipListFilter, PayslipTotalsRow } from "@modules/payroll/core/app/ports/PayslipRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
@@ -79,7 +79,7 @@ const emptyBreakdown: ComputePayrollResult = {
     insuranceBase: 0, unemploymentInsuranceBase: 0, socialInsurance: 0, healthInsurance: 0, unemploymentInsurance: 0,
     insurance: 0, employerSocialInsurance: 0, employerHealthInsurance: 0, employerUnemploymentInsurance: 0, employerOccupationalInsurance: 0,
     baseSalary: 20_000_000, totalTaxableAllowances: 0, totalNonTaxableAllowances: 0, totalAllowances: 0,
-    overtimePay: 0, overtimeNonTaxablePay: 0, totalBonuses: 0, grossSalary: 20_000_000, insurableSalary: 20_000_000,
+    overtimePay: 0, overtimeNonTaxablePay: 0, totalBonuses: 0, totalRetroClaims: 0, totalRetroClawbacks: 0, grossSalary: 20_000_000, insurableSalary: 20_000_000,
     taxableIncome: 20_000_000, personalDeduction: 0, dependentDeduction: 0, dependentsCount: 0,
     taxableIncomeAfterDeduction: 0, tax: 0, unionFee: 0, otherDeductions: 0, totalDeductions: 0, netSalary: 20_000_000,
 };
@@ -90,6 +90,7 @@ function buildDraftPayslip(id: string, periodId: string, employeeId: string): Pa
         workdays: { standardWorkDays: 22, actualWorkDays: 22, unpaidDays: 0 },
         attendanceRatio: 1, performanceRatio: 100, goalRatio: 100,
         breakdown: emptyBreakdown,
+        segments: [], inputs: testPayslipInputs(),
     });
 }
 
@@ -98,6 +99,21 @@ function buildOpenPeriod(id = "period-1"): PayrollPeriod {
         id, name: PeriodName.create("2026-06"), startDate: new Date("2026-06-01"), endDate: new Date("2026-06-30"),
         payDate: new Date("2026-07-05"), standardWorkDays: 22, createdBy: "hr-1",
     });
+}
+
+/**
+ * Kỳ đã tính thử và HR đã soát — điều kiện tối thiểu để được duyệt.
+ *
+ * Duyệt đòi bước `hr_reviewed`, nên test về duyệt/chi trả phải dựng kỳ tới đúng
+ * bước đó thay vì kỳ vừa tạo.
+ */
+function buildReviewedPeriod(id = "period-1", preparedBy = "preparer-1"): PayrollPeriod {
+    const period = buildOpenPeriod(id);
+    period.lockAttendance("hr-1");
+    period.lockEvaluations("hr-1");
+    period.markPrepared(preparedBy);
+    period.markHrReviewed(preparedBy);
+    return period;
 }
 
 describe("ApprovePayrollUseCase", () => {
@@ -119,7 +135,7 @@ describe("ApprovePayrollUseCase", () => {
     });
 
     it("duyệt toàn kỳ: draft -> approved, kỳ open -> processing, phát payroll.approved", async () => {
-        await periods.save(buildOpenPeriod());
+        await periods.save(buildReviewedPeriod());
         await payslips.save(buildDraftPayslip("payslip-1", "period-1", "emp-1"));
         await payslips.save(buildDraftPayslip("payslip-2", "period-1", "emp-2"));
 
@@ -194,7 +210,9 @@ describe("MarkPayrollPaidUseCase", () => {
         const uow = new InMemoryUnitOfWork(periods, payslips);
         const eventBus = new RecordingEventBus();
 
-        await periods.save(buildOpenPeriod());
+        const period = buildReviewedPeriod();
+        period.markApproved();
+        await periods.save(period);
         const payslip = buildDraftPayslip("payslip-1", "period-1", "emp-1");
         payslip.approve("hr-1");
         await payslips.save(payslip);

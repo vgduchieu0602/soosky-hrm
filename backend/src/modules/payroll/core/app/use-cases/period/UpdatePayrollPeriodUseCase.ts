@@ -3,7 +3,7 @@ import PayrollPeriodNotFoundError from "@modules/payroll/core/app/errors/Payroll
 import PayrollPeriodRepo from "@modules/payroll/core/app/ports/PayrollPeriodRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface UpdatePayrollPeriodInput {
     periodId:          string;
@@ -16,7 +16,7 @@ export interface UpdatePayrollPeriodInput {
 /**
  * Cập nhật một kỳ lương đang mở (chưa `closed`/`paid`).
  *
- * @throws {AccessDeniedError}          Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}          Actor không có quyền `payroll:prepare`.
  * @throws {PayrollPeriodNotFoundError} Không tìm thấy kỳ lương.
  * @throws {PayrollPeriodLockedError}   Kỳ đã `closed`/`paid`.
  */

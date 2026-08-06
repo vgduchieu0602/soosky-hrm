@@ -3,7 +3,7 @@ import DeductionRepo from "@modules/payroll/core/app/ports/DeductionRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import { DeductionType } from "@modules/payroll/core/domain/entities/Deduction";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface UpdateDeductionInput {
     deductionId:      string;

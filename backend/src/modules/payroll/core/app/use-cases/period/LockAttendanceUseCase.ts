@@ -7,7 +7,7 @@ import PayrollPeriod from "@modules/payroll/core/domain/entities/PayrollPeriod";
 import { PayrollAttendanceLockedEvent } from "@modules/payroll/core/domain/events/PayrollAttendanceLockedEvent";
 import EventBus from "@shared/core/domain/EventBus";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface LockAttendanceOutput {
     period:      PayrollPeriod;
@@ -21,7 +21,7 @@ export interface LockAttendanceOutput {
  * nền qua `setImmediate`; giản lược ở đây để hành vi tất định trong test, xem
  * payroll-report.md).
  *
- * @throws {AccessDeniedError}          Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}          Actor không có quyền `payroll:prepare`.
  * @throws {PayrollPeriodNotFoundError} Không tìm thấy kỳ lương.
  * @throws {PayrollPeriodLockedError}   Kỳ đã thanh toán.
  */

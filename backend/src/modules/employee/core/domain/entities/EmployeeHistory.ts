@@ -7,6 +7,7 @@ export const HISTORY_EVENTS = [
     "salary_change",
     "contract_renew",
     "info_update",
+    "account_granted",
     "terminated",
 ] as const;
 export type HistoryEvent = (typeof HISTORY_EVENTS)[number];

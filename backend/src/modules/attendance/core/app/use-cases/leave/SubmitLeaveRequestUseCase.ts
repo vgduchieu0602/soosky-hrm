@@ -3,20 +3,24 @@ import LeaveOverlapError from "@modules/attendance/core/app/errors/LeaveOverlapE
 import EmployeeDirectory from "@modules/attendance/core/app/ports/EmployeeDirectory";
 import HolidayRepo from "@modules/attendance/core/app/ports/HolidayRepo";
 import LeaveRequestRepo from "@modules/attendance/core/app/ports/LeaveRequestRepo";
-import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChecker";
+import LeaveAccessScope from "@modules/attendance/core/app/services/LeaveAccessScope";
 import LeaveEntitlementService from "@modules/attendance/core/app/services/LeaveEntitlementService";
 import { LeaveRequestSubmittedEvent } from "@modules/attendance/core/domain/events/LeaveRequestSubmittedEvent";
 import { buildHolidayChecker, countWorkingDays } from "@modules/attendance/core/domain/services/leave-calc";
 import LeaveType from "@modules/attendance/core/domain/value-objects/LeaveType";
 import LeaveRequest from "@modules/attendance/core/domain/entities/LeaveRequest";
 import EventBus from "@shared/core/domain/EventBus";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "attendance:manage";
 const OVERLAP_STATUSES = ["pending", "approved"];
 
 export interface SubmitLeaveRequestInput {
-    employeeId:      string;
+    /**
+     * Nhân viên xin nghỉ. BỎ TRỐNG = "tôi nộp cho chính tôi" — suy ra từ tài
+     * khoản đang đăng nhập, để giao diện tự phục vụ không phải tự đi tìm
+     * employeeId của mình (và không thể gửi sai id người khác).
+     */
+    employeeId?:     string | undefined;
     leaveType:       string;
     startDate:       Date;
     endDate:         Date;
@@ -36,7 +40,10 @@ export interface SubmitLeaveRequestOutput {
  * trùng với đơn khác (pending/approved) trong cùng khoảng, và phải còn hạn
  * mức phép khả dụng.
  *
- * @throws {AccessDeniedError}          Actor không có quyền `attendance:manage`.
+ * Ai nộp được cho ai: HR/Admin nộp thay MỌI nhân viên, Manager nộp cho chính
+ * mình và cấp dưới, Employee chỉ nộp cho chính mình (xem {@link LeaveAccessScope}).
+ *
+ * @throws {AccessDeniedError}          Actor không được nộp đơn cho nhân viên này.
  * @throws {EmployeeNotFoundError}      Nhân viên không tồn tại.
  * @throws {LeaveDateRangeInvalidError} Khoảng ngày không hợp lệ / không có ngày làm việc.
  * @throws {LeaveOverlapError}          Trùng đơn khác.
@@ -44,7 +51,7 @@ export interface SubmitLeaveRequestOutput {
  */
 export default class SubmitLeaveRequestUseCase {
     public constructor(
-        private readonly _permissions: PermissionChecker,
+        private readonly _accessScope: LeaveAccessScope,
         private readonly _leaveRequestRepo: LeaveRequestRepo,
         private readonly _holidayRepo: HolidayRepo,
         private readonly _employeeDirectory: EmployeeDirectory,
@@ -53,9 +60,11 @@ export default class SubmitLeaveRequestUseCase {
     ) {}
 
     public async execute(input: SubmitLeaveRequestInput): Promise<SubmitLeaveRequestOutput> {
-        await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
+        // Phân giải "đơn này của ai" TRƯỚC mọi thứ khác: mọi bước sau đều dựa
+        // vào employeeId, và đây cũng là chốt kiểm quyền.
+        const employeeId = await this._accessScope.resolveSubjectEmployeeId(input.actorUserId, input.employeeId);
 
-        const exists = await this._employeeDirectory.employeeExists(input.employeeId);
+        const exists = await this._employeeDirectory.employeeExists(employeeId);
         if (!exists) throw new EmployeeNotFoundError();
 
         const holidays = await this._holidayRepo.listOverlapping(input.startDate, input.endDate);
@@ -66,15 +75,15 @@ export default class SubmitLeaveRequestUseCase {
         const leaveType = LeaveType.create(input.leaveType);
 
         const overlapping = await this._leaveRequestRepo.listOverlapping(
-            input.employeeId, input.startDate, input.endDate, OVERLAP_STATUSES,
+            employeeId, input.startDate, input.endDate, OVERLAP_STATUSES,
         );
         this._assertNoOverlap(overlapping, input.halfDaySession);
 
-        await this._entitlement.assertAvailable(input.employeeId, leaveType, input.startDate.getUTCFullYear(), days);
+        await this._entitlement.assertAvailable(employeeId, leaveType, input.startDate.getUTCFullYear(), days);
 
         const leaveRequest = LeaveRequest.create({
-            id:             UUIDv7(),
-            employeeId:     input.employeeId,
+            id:             createUuidV7(),
+            employeeId,
             leaveType,
             startDate:      input.startDate,
             endDate:        input.endDate,

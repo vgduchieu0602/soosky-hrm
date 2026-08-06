@@ -3,7 +3,7 @@ import EmployeeContactRepo from "@modules/employee/core/app/ports/EmployeeContac
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import EmployeeContact, { Relationship } from "@modules/employee/core/domain/entities/EmployeeContact";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -42,7 +42,7 @@ export default class CreateEmployeeContactUseCase {
         if (employee == undefined) throw new EmployeeNotFoundError();
 
         const contact = EmployeeContact.create({
-            id:           UUIDv7(),
+            id:           createUuidV7(),
             employeeId:   input.employeeId,
             name:         input.name,
             relationship: input.relationship,

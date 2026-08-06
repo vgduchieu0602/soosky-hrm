@@ -42,9 +42,19 @@ export default class LeaveBalanceController {
     };
 
     public listLeaveBalances = async (req: Request, res: Response): Promise<void> => {
-        const employeeId = requiredQueryString(req.query.employeeId, "employeeId");
+        // `employeeId` tuỳ chọn: bỏ trống = số dư của chính người đang đăng nhập.
+        const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
         const year       = Number(requiredQueryString(req.query.year, "year"));
-        const balances = await this._useCases.listLeaveBalances.execute({ employeeId, year });
-        res.status(200).json({ balances: balances.map(LeaveBalancePresenter.toDTO) });
+        const output = await this._useCases.listLeaveBalances.execute({
+            ...(employeeId != undefined ? { employeeId } : {}),
+            year,
+            actorUserId: ActorContext.get(res),
+        });
+        res.status(200).json({
+            employeeId:      output.employeeId,
+            balances:        output.balances.map(LeaveBalancePresenter.toDTO),
+            annualRemaining: output.annualRemaining,
+            carryoverYears:  output.carryoverYears,
+        });
     };
 }

@@ -2,7 +2,7 @@ import CompensationEntryNotFoundError from "@modules/payroll/core/app/errors/Com
 import AllowanceRepo from "@modules/payroll/core/app/ports/AllowanceRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export default class DeleteAllowanceUseCase {
     public constructor(

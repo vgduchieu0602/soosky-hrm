@@ -10,6 +10,7 @@ import LockAttendanceUseCase from "@modules/payroll/core/app/use-cases/period/Lo
 import LockEvaluationsUseCase from "@modules/payroll/core/app/use-cases/period/LockEvaluationsUseCase";
 import ReopenPayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/period/ReopenPayrollPeriodUseCase";
 import UnlockAttendanceUseCase from "@modules/payroll/core/app/use-cases/period/UnlockAttendanceUseCase";
+import MarkPayrollHrReviewedUseCase from "@modules/payroll/core/app/use-cases/period/MarkPayrollHrReviewedUseCase";
 import UnlockEvaluationsUseCase from "@modules/payroll/core/app/use-cases/period/UnlockEvaluationsUseCase";
 import UpdatePayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/period/UpdatePayrollPeriodUseCase";
 import RunPayrollForEmployeeUseCase from "@modules/payroll/core/app/use-cases/payroll/RunPayrollForEmployeeUseCase";
@@ -32,6 +33,7 @@ export interface PayrollPeriodControllerUseCases {
     evaluationReadiness:  EvaluationReadinessUseCase;
     lockEvaluations:      LockEvaluationsUseCase;
     unlockEvaluations:    UnlockEvaluationsUseCase;
+    markPayrollHrReviewed: MarkPayrollHrReviewedUseCase;
     runPayrollForPeriod:   RunPayrollForPeriodUseCase;
     runPayrollForEmployee: RunPayrollForEmployeeUseCase;
 }
@@ -41,6 +43,11 @@ const bodySchemaCreatePeriod = bodySchema({
     startDate: field.date,
     endDate:   field.date,
     payDate:   field.date,
+});
+
+// Mở khoá chấm công BẮT BUỘC nêu lý do — giá trị này đi vào nhật ký audit.
+const bodySchemaUnlockAttendance = bodySchema({
+    reason: field.string,
 });
 
 const bodySchemaUpdatePeriod = bodySchema({
@@ -115,7 +122,12 @@ export default class PayrollPeriodController {
     };
 
     public unlockAttendance = async (req: Request<{ periodId: string }>, res: Response): Promise<void> => {
-        const period = await this._useCases.unlockAttendance.execute({ periodId: req.params.periodId, actorUserId: ActorContext.get(res) });
+        const body   = bodySchemaUnlockAttendance.parse(req.body);
+        const period = await this._useCases.unlockAttendance.execute({
+            periodId:    req.params.periodId,
+            reason:      body.reason,
+            actorUserId: ActorContext.get(res),
+        });
         res.status(200).json(PayrollPeriodPresenter.toDTO(period));
     };
 
@@ -131,6 +143,13 @@ export default class PayrollPeriodController {
 
     public unlockEvaluations = async (req: Request<{ periodId: string }>, res: Response): Promise<void> => {
         const period = await this._useCases.unlockEvaluations.execute({ periodId: req.params.periodId, actorUserId: ActorContext.get(res) });
+        res.status(200).json(PayrollPeriodPresenter.toDTO(period));
+    };
+
+    public markHrReviewed = async (req: Request<{ periodId: string }>, res: Response): Promise<void> => {
+        const period = await this._useCases.markPayrollHrReviewed.execute({
+            periodId: req.params.periodId, actorUserId: ActorContext.get(res),
+        });
         res.status(200).json(PayrollPeriodPresenter.toDTO(period));
     };
 

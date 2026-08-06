@@ -3,7 +3,7 @@ import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChec
 import AttendanceSymbolRepo from "@modules/attendance/core/app/ports/AttendanceSymbolRepo";
 import AttendanceSymbol from "@modules/attendance/core/domain/entities/AttendanceSymbol";
 import SymbolCode from "@modules/attendance/core/domain/value-objects/SymbolCode";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "attendance:manage";
 
@@ -40,7 +40,7 @@ export default class CreateAttendanceSymbolUseCase {
         if (existing != undefined) throw new SymbolCodeConflictError();
 
         const symbol = AttendanceSymbol.create({
-            id:          UUIDv7(),
+            id:          createUuidV7(),
             code,
             name:        input.name,
             description: input.description ?? "",

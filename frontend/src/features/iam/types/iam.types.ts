@@ -15,9 +15,12 @@ export interface AdminUser {
 
 export interface Role {
   _id: string;
+  /** Mã bất biến của role (`admin`/`hr`/`manager`/`employee`, ...). */
+  key: string;
   name: string;
   description?: string;
   isSystem?: boolean;
+  /** Chỉ có khi đọc chi tiết role — danh sách role KHÔNG nhúng quyền. */
   permissionIds?: string[];
 }
 
@@ -31,7 +34,8 @@ export interface Permission {
 
 export interface AuditLogEntry {
   _id: string;
-  userId?: { _id: string; username: string; email: string } | string | null;
+  /** Id người thực hiện; `null` = do hệ thống (job/event handler). */
+  userId?: string | null;
   resource: string;
   action: string;
   resourceId?: string;

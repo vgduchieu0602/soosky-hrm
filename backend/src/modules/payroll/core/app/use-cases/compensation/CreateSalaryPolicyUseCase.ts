@@ -2,9 +2,9 @@ import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker
 import SalaryPolicyRepo from "@modules/payroll/core/app/ports/SalaryPolicyRepo";
 import { InsuranceRates, SalaryComponentWeights, TaxBracket } from "@modules/payroll/core/domain/services/salary-calc";
 import SalaryPolicy from "@modules/payroll/core/domain/entities/SalaryPolicy";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface CreateSalaryPolicyInput {
     effectiveFrom:               Date;
@@ -42,7 +42,7 @@ export default class CreateSalaryPolicyUseCase {
         await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
 
         const policy = SalaryPolicy.create({
-            id: UUIDv7(),
+            id: createUuidV7(),
             effectiveFrom: input.effectiveFrom,
             baseSalaryReference: input.baseSalaryReference,
             regionalMinWage: input.regionalMinWage,

@@ -106,7 +106,7 @@ export interface MatchedShift {
     /** Công ca này đóng góp khi được tính = 1 / (số ca cấu hình trong ngày), để cả ngày làm hết các ca = 1.0 công. */
     congWeight:   number;
     counted:      boolean; // true → được tính công
-    status:       string;  // present | late | early_leave | absent
+    status:       string;  // present | late | early_leave | incomplete | absent
     workHours:    number;
     lateMinutes:  number;
     earlyMinutes: number;
@@ -127,7 +127,10 @@ export interface MatchDayResult {
  *   - rời sau khi ca bắt đầu    (checkOut > caStart)
  *   - về sớm ≤ policy.earlyLeaveToleranceMin
  * Đi trễ không bao giờ làm mất công (chỉ ghi nhận). Ca không được tính trả về
- * status 'absent' và trọng số công 0.
+ * trọng số công 0 với status:
+ *   - `absent`     không có giờ vào lẫn giờ ra;
+ *   - `incomplete` có giờ vào nhưng thiếu giờ ra (hoặc ngược lại);
+ *   - `early_leave` về sớm quá ngưỡng.
  */
 export function matchShifts(
     shiftDefs: ShiftDef[],
@@ -155,7 +158,13 @@ export function matchShifts(
             ...extra,
         });
 
-        if (!checkIn || !checkOut) return base();
+        // Không có dữ liệu gì → vắng. Có giờ vào nhưng THIẾU giờ ra → `incomplete`:
+        // khác hẳn vắng mặt về ý nghĩa (người đó CÓ đi làm, chỉ là dữ liệu dở
+        // dang), và payroll coi `incomplete` là trung tính — không vào tử số lẫn
+        // mẫu số của tỉ lệ chuyên cần thay vì trừ công oan. Sửa bằng luồng chỉnh
+        // công (nhân viên yêu cầu → quản lý/HR duyệt).
+        if (!checkIn && !checkOut) return base();
+        if (!checkIn || !checkOut) return base({ status: "incomplete" });
 
         const inMin  = minutesOfDayVN(checkIn, policy.timezone);
         const outMin = minutesOfDayVN(checkOut, policy.timezone);

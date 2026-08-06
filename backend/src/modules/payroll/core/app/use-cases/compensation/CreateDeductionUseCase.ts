@@ -1,9 +1,9 @@
 import DeductionRepo from "@modules/payroll/core/app/ports/DeductionRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import Deduction, { DeductionType } from "@modules/payroll/core/domain/entities/Deduction";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface CreateDeductionInput {
     employeeId:       string;
@@ -28,7 +28,7 @@ export default class CreateDeductionUseCase {
         await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
 
         const deduction = Deduction.create({
-            id: UUIDv7(),
+            id: createUuidV7(),
             employeeId: input.employeeId,
             payrollPeriodId: input.payrollPeriodId ?? null,
             name: input.name,

@@ -2,6 +2,7 @@ import PayslipPresenter from "@modules/payroll/adapters/driver/http/presenters/P
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import { PayslipStatus } from "@modules/payroll/core/domain/entities/Payslip";
 import ApprovePayrollUseCase from "@modules/payroll/core/app/use-cases/payroll/ApprovePayrollUseCase";
+import ExportBankTransferFileUseCase from "@modules/payroll/core/app/use-cases/payroll/ExportBankTransferFileUseCase";
 import ExportPayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/payroll/ExportPayrollPeriodUseCase";
 import GetPayrollUseCase from "@modules/payroll/core/app/use-cases/payroll/GetPayrollUseCase";
 import GrossUpUseCase from "@modules/payroll/core/app/use-cases/payroll/GrossUpUseCase";
@@ -15,7 +16,9 @@ import ActorContext from "@shared/adapters/driver/http/ActorContext";
 import { bodySchema, field } from "@shared/adapters/driver/http/validation";
 import { Request, Response } from "express";
 
-const PERMISSION_KEY = "payroll:manage";
+// Ai lập được lương thì xem được phiếu của mọi người; nhân viên thường chỉ
+// xem phiếu của chính mình (phòng thủ theo chiều sâu, use-case vẫn tự kiểm).
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface PayrollControllerUseCases {
     listPayrolls:         ListPayrollsUseCase;
@@ -24,6 +27,7 @@ export interface PayrollControllerUseCases {
     payrollTotals:        PayrollTotalsUseCase;
     payrollPreflight:     PayrollPreflightUseCase;
     exportPayrollPeriod:  ExportPayrollPeriodUseCase;
+    exportBankTransferFile: ExportBankTransferFileUseCase;
     grossUp:              GrossUpUseCase;
     approvePayroll:       ApprovePayrollUseCase;
     revertPayroll:        RevertPayrollUseCase;
@@ -99,6 +103,19 @@ export default class PayrollController {
     public exportPayrollPeriod = async (req: Request<{ periodId: string }>, res: Response): Promise<void> => {
         const csv = await this._useCases.exportPayrollPeriod.execute({ periodId: req.params.periodId });
         res.status(200).header("Content-Type", "text/csv").send(csv);
+    };
+
+    /**
+     * File chuyển lương theo mẫu ngân hàng đang bật.
+     *
+     * Trả JSON (không phải `text/csv` thuần) vì client PHẢI thấy `skipped` — ai bị
+     * loại khỏi lệnh chi và vì sao. Tải file thẳng thì thông tin đó biến mất.
+     */
+    public exportBankTransferFile = async (req: Request<{ periodId: string }>, res: Response): Promise<void> => {
+        const result = await this._useCases.exportBankTransferFile.execute({
+            periodId: req.params.periodId, actorUserId: ActorContext.get(res),
+        });
+        res.status(200).json(result);
     };
 
     public grossUp = async (req: Request, res: Response): Promise<void> => {

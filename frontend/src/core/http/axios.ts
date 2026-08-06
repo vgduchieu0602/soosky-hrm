@@ -31,14 +31,14 @@ let refreshing: Promise<string> | null = null;
 function refreshToken(): Promise<string> {
   if (!refreshing) {
     refreshing = axios
-      .post<{ data: { accessToken: string } }>(
-        "/auth/refresh",
-        undefined,
+      .post<{ accessToken: string; refreshToken: string }>(
+        "/auth/sessions/refresh",
+        { refreshToken: useAuthStore.getState().refreshToken },
         { baseURL: api.defaults.baseURL, withCredentials: true },
       )
       .then((res) => {
-        const token = res.data.data.accessToken;
-        useAuthStore.getState().setToken(token);
+        const token = res.data.accessToken;
+        useAuthStore.getState().setSessionTokens(token, res.data.refreshToken);
         return token;
       })
       .finally(() => {
@@ -60,7 +60,7 @@ api.interceptors.response.use(
     // Don't try to refresh the refresh/login calls themselves, or when we've
     // already retried this request once.
     const isAuthCall =
-      url.includes("/auth/refresh") || url.includes("/auth/login");
+      url.includes("/auth/sessions/refresh") || url.includes("/auth/sessions");
 
     if (status === 401 && original && !original._retry && !isAuthCall) {
       original._retry = true;
@@ -79,10 +79,12 @@ api.interceptors.response.use(
       forceLogout();
     }
 
-    // Server enforces a forced password change (IAM_013) — route the user to
-    // the change-password page instead of surfacing a generic error.
-    const code = (err.response?.data as { error?: { code?: string } } | undefined)?.error?.code;
-    if (status === 403 && code === "IAM_013") {
+    // Server enforces a forced password change — route the user to the
+    // change-password page instead of surfacing a generic error.
+    // Envelope loi cua backend la `{ code, message }` o cap cao nhat.
+    const body = err.response?.data as { code?: string; error?: { code?: string } } | undefined;
+    const code = body?.code ?? body?.error?.code;
+    if (status === 403 && code === "PASSWORD_CHANGE_REQUIRED") {
       if (!window.location.pathname.startsWith("/auth/")) {
         window.location.href = "/auth/change-password";
       }

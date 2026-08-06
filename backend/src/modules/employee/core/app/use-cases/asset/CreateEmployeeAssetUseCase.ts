@@ -3,7 +3,7 @@ import EmployeeAssetRepo from "@modules/employee/core/app/ports/EmployeeAssetRep
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import EmployeeAsset, { AssetCondition } from "@modules/employee/core/domain/entities/EmployeeAsset";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -41,7 +41,7 @@ export default class CreateEmployeeAssetUseCase {
         if (employee == undefined) throw new EmployeeNotFoundError();
 
         const asset = EmployeeAsset.create({
-            id:           UUIDv7(),
+            id:           createUuidV7(),
             employeeId:   input.employeeId,
             assetName:    input.assetName,
             assetCode:    input.assetCode,

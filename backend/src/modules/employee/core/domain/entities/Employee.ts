@@ -2,6 +2,7 @@ import EmployeeCode from "@modules/employee/core/domain/value-objects/EmployeeCo
 import EmployeeStatus from "@modules/employee/core/domain/value-objects/EmployeeStatus";
 import EmployeeType from "@modules/employee/core/domain/value-objects/EmployeeType";
 import PersonName from "@modules/employee/core/domain/value-objects/PersonName";
+import EmployeeAlreadyHasAccountError from "@modules/employee/core/domain/errors/EmployeeAlreadyHasAccountError";
 import AggregateRoot from "@shared/core/domain/AggregateRoot";
 
 export interface EmployeeCreationInput {
@@ -152,6 +153,19 @@ export default class Employee extends AggregateRoot<string> {
 
     changeEmployeeType(employeeType: EmployeeType): void {
         this._employeeType = employeeType;
+    }
+
+    /**
+     * Gắn nhân viên với một tài khoản đăng nhập. Một chiều và một lần: đổi
+     * account của nhân viên đang có account nghĩa là người cũ mất quyền truy
+     * cập một cách âm thầm — nếu thật sự cần thì phải là một thao tác riêng, có
+     * ý định rõ ràng.
+     *
+     * @throws {EmployeeAlreadyHasAccountError} Nhân viên đã có tài khoản.
+     */
+    linkAccount(accountId: string): void {
+        if (this._accountId != null) throw new EmployeeAlreadyHasAccountError();
+        this._accountId = accountId;
     }
 
     activate(): void {

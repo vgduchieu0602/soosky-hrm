@@ -46,6 +46,6 @@ export default class RefreshSessionUseCase {
 
         account.ensureCanLogin();
 
-        return issueAuthTokens(account.id, this._accessTokenIssuer, this._refreshTokenStore);
+        return issueAuthTokens(account, this._accessTokenIssuer, this._refreshTokenStore);
     }
 }

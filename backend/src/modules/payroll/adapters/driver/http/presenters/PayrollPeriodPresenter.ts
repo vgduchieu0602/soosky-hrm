@@ -8,6 +8,10 @@ export interface PayrollPeriodDTO {
     payDate:             string;
     standardWorkDays:    number;
     status:              string;
+    /** Bước trong quy trình 7 bước — chi tiết hơn `status`. */
+    stage:               string;
+    hrReviewedBy:        string | null;
+    hrReviewedAt:        string | null;
     closedAt:            string | null;
     closedBy:            string | null;
     attendanceLockedAt:  string | null;
@@ -28,6 +32,9 @@ const PayrollPeriodPresenter = {
             payDate:            period.payDate.toISOString(),
             standardWorkDays:   period.standardWorkDays,
             status:             period.status,
+            stage:              period.stage,
+            hrReviewedBy:       period.hrReviewedBy,
+            hrReviewedAt:       period.hrReviewedAt?.toISOString() ?? null,
             closedAt:           period.closedAt?.toISOString() ?? null,
             closedBy:           period.closedBy,
             attendanceLockedAt: period.attendanceLockedAt?.toISOString() ?? null,

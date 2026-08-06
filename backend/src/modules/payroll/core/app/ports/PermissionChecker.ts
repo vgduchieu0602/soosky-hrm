@@ -7,7 +7,7 @@
 export default interface PermissionChecker {
     /**
      * @param actorUserId   Id user thực hiện thao tác.
-     * @param permissionKey Quyền hạn cần có (vd: "payroll:manage").
+     * @param permissionKey Quyền hạn cần có (vd: "payroll:prepare").
      *
      * @throws {AccessDeniedError} User không giữ quyền hạn này.
      */

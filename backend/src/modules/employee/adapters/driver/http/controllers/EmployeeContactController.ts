@@ -49,7 +49,7 @@ export default class EmployeeContactController {
     };
 
     public listEmployeeContacts = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const contacts = await this._useCases.listEmployeeContacts.execute({ employeeId: req.params.employeeId });
+        const contacts = await this._useCases.listEmployeeContacts.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json({ contacts: contacts.map(EmployeeContactPresenter.toDTO) });
     };
 

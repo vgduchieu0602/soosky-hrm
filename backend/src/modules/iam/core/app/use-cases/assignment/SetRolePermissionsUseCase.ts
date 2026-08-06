@@ -5,7 +5,7 @@ import UnitOfWork from "@modules/iam/core/app/ports/UnitOfWork";
 import AccessControl from "@modules/iam/core/app/services/AccessControl";
 import AuditLog from "@modules/iam/core/domain/entities/AuditLog";
 import RolePermission from "@modules/iam/core/domain/entities/RolePermission";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_IAM_MANAGE       = "iam:manage";
 const AUDIT_RESOURCE_ROLE         = "role";
@@ -57,11 +57,11 @@ export default class SetRolePermissionsUseCase {
                 throw new PermissionNotFoundError();
             }
 
-            const rolePermissions = uniqueIds.map(permissionId => RolePermission.create(UUIDv7(), role.id, permissionId));
+            const rolePermissions = uniqueIds.map(permissionId => RolePermission.create(createUuidV7(), role.id, permissionId));
             await ctx.rolePermissionRepo.replaceForRole(role.id, rolePermissions);
 
             await ctx.auditRepo.save(AuditLog.create({
-                id:          UUIDv7(),
+                id:          createUuidV7(),
                 actorUserId: input.actorUserId,
                 resource:    AUDIT_RESOURCE_ROLE,
                 action:      AUDIT_ACTION_SET_PERMISSIONS,

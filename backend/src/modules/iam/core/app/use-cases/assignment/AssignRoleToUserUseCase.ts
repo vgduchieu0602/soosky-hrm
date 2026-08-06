@@ -8,7 +8,7 @@ import UserRoleRepo from "@modules/iam/core/app/ports/UserRoleRepo";
 import AccessControl from "@modules/iam/core/app/services/AccessControl";
 import AuditLog from "@modules/iam/core/domain/entities/AuditLog";
 import UserRole from "@modules/iam/core/domain/entities/UserRole";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_IAM_MANAGE      = "iam:manage";
 const AUDIT_RESOURCE_ASSIGNMENT  = "user-role";
@@ -58,11 +58,11 @@ export default class AssignRoleToUserUseCase {
             throw new RoleAssignmentExistsError();
         }
 
-        const userRole = UserRole.create(UUIDv7(), input.userId, input.roleId);
+        const userRole = UserRole.create(createUuidV7(), input.userId, input.roleId);
         await this._userRoleRepo.save(userRole);
 
         await this._auditRepo.save(AuditLog.create({
-            id:          UUIDv7(),
+            id:          createUuidV7(),
             actorUserId: input.actorUserId,
             resource:    AUDIT_RESOURCE_ASSIGNMENT,
             action:      AUDIT_ACTION_ASSIGN,

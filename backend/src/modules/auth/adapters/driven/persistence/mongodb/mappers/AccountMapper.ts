@@ -15,6 +15,7 @@ const AccountMapper = {
             status:       account.status,
             verifiedAt:   account.verifiedAt,
             createdAt:    account.createdAt,
+            mustChangePassword: account.mustChangePassword,
         };
     },
 
@@ -28,6 +29,7 @@ const AccountMapper = {
             status:       document.status as AccountStatus,
             verifiedAt:   document.verifiedAt,
             createdAt:    document.createdAt,
+            mustChangePassword: document.mustChangePassword ?? false,
         });
     },
 };

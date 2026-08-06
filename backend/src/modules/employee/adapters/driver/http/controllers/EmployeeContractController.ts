@@ -55,7 +55,7 @@ export default class EmployeeContractController {
     };
 
     public listEmployeeContracts = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const contracts = await this._useCases.listEmployeeContracts.execute({ employeeId: req.params.employeeId });
+        const contracts = await this._useCases.listEmployeeContracts.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json({ contracts: contracts.map(EmployeeContractPresenter.toDTO) });
     };
 

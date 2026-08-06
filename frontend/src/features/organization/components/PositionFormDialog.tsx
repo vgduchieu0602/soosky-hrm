@@ -86,8 +86,8 @@ export function PositionFormDialog({
       onOpenChange(false);
     } catch (err) {
       const message =
-        (err as { response?: { data?: { error?: { message?: string } } } })
-          ?.response?.data?.error?.message ?? "Đã có lỗi xảy ra. Vui lòng thử lại.";
+        (err as { response?: { data?: { message?: string } } })
+          ?.response?.data?.message ?? "Đã có lỗi xảy ra. Vui lòng thử lại.";
       setError(message);
     } finally {
       setSubmitting(false);

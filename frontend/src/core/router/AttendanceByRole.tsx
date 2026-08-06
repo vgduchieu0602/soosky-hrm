@@ -1,10 +1,13 @@
 import { Navigate } from "react-router-dom";
-import AttendancePage from "@pages/AttendancePage";
 import { useAuthStore } from "@core/store/auth.store";
+import { LazyRoute } from "./LazyRoute";
+import { AttendancePage } from "./lazyPages";
 
-/** Attendance grid is HR/admin-only; employees see their own view. */
+/** Lưới chấm công là của HR/admin; nhân viên xem bảng công của chính mình. */
 export default function AttendanceByRole() {
   const user = useAuthStore((s) => s.user);
   const isManager = (user?.roles ?? []).some((r) => r === "admin" || r === "hr_manager");
-  return isManager ? <AttendancePage /> : <Navigate to="/me/attendance" replace />;
+
+  if (!isManager) return <Navigate to="/me/attendance" replace />;
+  return <LazyRoute><AttendancePage /></LazyRoute>;
 }

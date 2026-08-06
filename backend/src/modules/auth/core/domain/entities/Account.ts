@@ -13,6 +13,12 @@ export interface AccountRegistrationInput {
     passwordHash: string;
     fullName:     FullName;
     role:         AccountRole;
+    /**
+     * Mật khẩu ban đầu là mật khẩu TẠM do hệ thống sinh và gửi qua mail →
+     * buộc đổi ở lần đăng nhập đầu. Người tự đặt mật khẩu (bootstrap super
+     * admin) thì `false`.
+     */
+    mustChangePassword: boolean;
 }
 
 export interface AccountProfileUpdateInput {
@@ -29,6 +35,7 @@ export interface AccountProps {
     status:       AccountStatus;
     verifiedAt:   Date | null;
     createdAt:    Date;
+    mustChangePassword: boolean;
 }
 
 export enum AccountStatus {
@@ -47,6 +54,7 @@ export default class Account extends AggregateRoot<string> {
         private _role: AccountRole,
         private _status: AccountStatus,
         private _verifiedAt: Date | null,
+        private _mustChangePassword: boolean,
     ) {
         super();
     }
@@ -68,6 +76,13 @@ export default class Account extends AggregateRoot<string> {
     }
     get verifiedAt(): Date | null {
         return this._verifiedAt;
+    }
+    /**
+     * Còn đang dùng mật khẩu tạm → mọi API khác bị chặn tới khi đổi mật khẩu
+     * (xem `authenticate` + `ForcedPasswordChangeError`).
+     */
+    get mustChangePassword(): boolean {
+        return this._mustChangePassword;
     }
 
     get isPending(): boolean {
@@ -93,6 +108,7 @@ export default class Account extends AggregateRoot<string> {
             input.role,
             AccountStatus.PENDING,
             null,
+            input.mustChangePassword,
         );
     }
 
@@ -106,6 +122,7 @@ export default class Account extends AggregateRoot<string> {
             props.role,
             props.status,
             props.verifiedAt,
+            props.mustChangePassword,
         );
     }
 
@@ -114,6 +131,9 @@ export default class Account extends AggregateRoot<string> {
             throw new AccountDeactivatedError();
         }
         this._passwordHash = newHash;
+        // Đổi mật khẩu thành công là điều kiện duy nhất gỡ cờ buộc đổi: không có
+        // đường nào khác bỏ qua bước này.
+        this._mustChangePassword = false;
     }
 
     /**

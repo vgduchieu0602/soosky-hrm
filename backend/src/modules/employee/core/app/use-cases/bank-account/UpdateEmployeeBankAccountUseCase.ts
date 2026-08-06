@@ -1,3 +1,4 @@
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import EmployeeSubResourceNotFoundError from "@modules/employee/core/app/errors/EmployeeSubResourceNotFoundError";
 import EmployeeBankAccountRepo from "@modules/employee/core/app/ports/EmployeeBankAccountRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
@@ -24,6 +25,7 @@ export default class UpdateEmployeeBankAccountUseCase {
     public constructor(
         private readonly _permissions:    PermissionChecker,
         private readonly _bankAccountRepo: EmployeeBankAccountRepo,
+        private readonly _auditTrail:      AuditTrail,
     ) {}
 
     public async execute(input: UpdateEmployeeBankAccountInput): Promise<void> {
@@ -31,6 +33,14 @@ export default class UpdateEmployeeBankAccountUseCase {
 
         const account = await this._bankAccountRepo.getById(input.bankAccountId);
         if (account == undefined) throw new EmployeeSubResourceNotFoundError();
+
+        const before = {
+            bankName:      account.bankName,
+            branch:        account.branch,
+            accountNumber: account.accountNumber,
+            accountHolder: account.accountHolder,
+            isPrimary:     account.isPrimary,
+        };
 
         account.update({
             bankName:      input.bankName,
@@ -41,5 +51,35 @@ export default class UpdateEmployeeBankAccountUseCase {
         });
 
         await this._bankAccountRepo.save(account);
+
+        // Xem ghi chú ở CreateEmployeeBankAccountUseCase: cờ "chính" là duy nhất.
+        if (input.isPrimary === true) await this._demoteOtherPrimaries(account.employeeId, account.id);
+
+        await this._auditTrail.record({
+            actorUserId: input.actorUserId,
+            resource:    "employee_bank_account",
+            action:      "update",
+            resourceId:  account.id,
+            changes:     {
+                employeeId: account.employeeId,
+                before,
+                after: {
+                    bankName:      account.bankName,
+                    branch:        account.branch,
+                    accountNumber: account.accountNumber,
+                    accountHolder: account.accountHolder,
+                    isPrimary:     account.isPrimary,
+                },
+            },
+        });
+    }
+
+    private async _demoteOtherPrimaries(employeeId: string, keepId: string): Promise<void> {
+        const siblings = await this._bankAccountRepo.listByEmployeeId(employeeId);
+        for (const sibling of siblings) {
+            if (sibling.id === keepId || !sibling.isPrimary) continue;
+            sibling.update({ isPrimary: false });
+            await this._bankAccountRepo.save(sibling);
+        }
     }
 }

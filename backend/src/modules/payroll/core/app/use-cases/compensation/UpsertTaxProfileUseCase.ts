@@ -1,9 +1,9 @@
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import TaxProfileRepo from "@modules/payroll/core/app/ports/TaxProfileRepo";
 import TaxProfile from "@modules/payroll/core/domain/entities/TaxProfile";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface UpsertTaxProfileInput {
     employeeId:       string;
@@ -26,7 +26,7 @@ export default class UpsertTaxProfileUseCase {
         await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
 
         const taxProfile = TaxProfile.create({
-            id: UUIDv7(),
+            id: createUuidV7(),
             employeeId: input.employeeId,
             isResident: input.isResident ?? true,
             dependentsCount: input.dependentsCount ?? 0,

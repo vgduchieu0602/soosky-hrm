@@ -78,6 +78,11 @@ export interface DashboardActivity {
 }
 
 export interface DashboardOverview {
+  /** Phạm vi dữ liệu backend đã áp: `all` | `team` | `self`. */
+  scope: "all" | "team" | "self";
+  /** Timezone công ty backend dùng để cắt ngày. */
+  timezone: string;
+  generatedAt: string;
   kpis: DashboardKpis;
   departments: DeptCount[];
   attendanceToday: AttendanceTodayDto;
@@ -85,6 +90,20 @@ export interface DashboardOverview {
   pendingLeaves: DashboardPendingLeave[];
   upcomingLeaves: DashboardUpcomingLeave[];
   payroll: DashboardPayroll | null;
+  /** Phiếu lương của CHÍNH người đang đăng nhập; `null` khi chưa có. */
+  myPayslip: { periodName: string; status: string; netSalary: number } | null;
+  /**
+   * Hình dạng đổi theo phạm vi: tiến độ chu kỳ (all), số phiếu phải chấm (team),
+   * trạng thái phiếu của mình (self). `null` = không được xem / chưa có.
+   */
+  performance: {
+    cycleId?: string;
+    cycleStatus?: string;
+    lockedCount?: number;
+    pendingCount?: number;
+    reviewsToScore?: number;
+    myReviewStatus?: string;
+  } | null;
   performers: DashboardPerformer[];
   activities: DashboardActivity[];
 }

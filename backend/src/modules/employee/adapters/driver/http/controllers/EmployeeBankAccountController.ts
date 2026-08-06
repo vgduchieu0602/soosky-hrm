@@ -19,6 +19,7 @@ const bodySchemaCreateBankAccount = bodySchema({
     branch:        field.optionalString,
     accountNumber: field.string,
     accountHolder: field.string,
+    isPrimary:     field.optionalBoolean,
 });
 
 const bodySchemaUpdateBankAccount = bodySchema({
@@ -26,6 +27,7 @@ const bodySchemaUpdateBankAccount = bodySchema({
     branch:        field.optionalString,
     accountNumber: field.optionalString,
     accountHolder: field.optionalString,
+    isPrimary:     field.optionalBoolean,
 });
 
 /** Controller nhóm endpoint tài khoản ngân hàng của nhân viên. */
@@ -44,7 +46,7 @@ export default class EmployeeBankAccountController {
     };
 
     public listEmployeeBankAccounts = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const accounts = await this._useCases.listEmployeeBankAccounts.execute({ employeeId: req.params.employeeId });
+        const accounts = await this._useCases.listEmployeeBankAccounts.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json({ bankAccounts: accounts.map(EmployeeBankAccountPresenter.toDTO) });
     };
 

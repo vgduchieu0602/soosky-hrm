@@ -1,17 +1,15 @@
+/** Hồ sơ công ty — khớp đúng `CompanyProfileDTO` của backend. */
 export interface CompanyConfig {
   companyName: string;
-  logoUrl?: string;
+  address?: string | null;
+  taxCode?: string | null;
+  phone?: string | null;
+  contactEmail?: string | null;
+  logoUrl?: string | null;
   timezone: string;
-  standardWorkDays: number;
-  graceLateMinutes: number;
-  graceEarlyMinutes: number;
-  earlyLeaveToleranceMinutes?: number;
-  lateArrivalToleranceMinutes?: number;
-  overtimeEnabled?: boolean;
-  lateAffectsPay?: boolean;
-  leaveQuotas?: Record<string, number>;
-  contactEmail?: string;
-  address?: string;
+  currency?: string;
+  standardWorkHoursPerDay?: number;
+  standardWorkDaysPerMonth?: number;
 }
 
 export interface ComponentWeights {
@@ -20,50 +18,37 @@ export interface ComponentWeights {
   goal: number;
 }
 
+/**
+ * Chính sách lương có HIỆU LỰC TỪ một ngày — khớp `SalaryPolicyDTO` của backend.
+ * Bậc thuế và tỷ lệ bảo hiểm nằm trong entity phía backend, không sửa từ UI.
+ */
 export interface SalaryPolicy {
   _id: string;
-  country: string;
-  year: number;
   effectiveFrom: string;
-  baseSalary: string | number;
+  baseSalaryReference: number;
+  regionalMinWage: number;
   insuranceCeilingMultiplier: number;
-  personalDeduction: string | number;
-  dependentDeduction: string | number;
+  socialInsuranceSalary: number;
+  personalDeduction: number;
+  dependentDeduction: number;
+  unionFeeRate: number;
+  unionFeeEnabled: boolean;
+  taxEnabled: boolean;
   nonResidentTaxRate: number;
-  socialInsuranceSalary?: string | number | null;
-  unionFeeRate?: number;
-  unionFeeEnabled?: boolean;
-  probationPayRate?: number;
-  regionalMinWage?: Record<string, number>;
-  taxBrackets?: Array<{ upTo: number | null; rate: number }>;
-  insuranceRates?: {
-    employee?: { social?: number; health?: number; unemployment?: number };
-    employer?: { social?: number; health?: number; unemployment?: number; occupational?: number };
-  };
-  salaryComponentWeights: ComponentWeights;
-}
-
-export interface PerformanceCriterion {
-  _id: string;
-  key: string;
-  label: string;
-  description?: string;
-  type: "performance" | "goal";
-  order: number;
-  status: "active" | "archived";
+  probationPayRate: number;
+  prorateByAttendance: boolean;
+  createdAt: string;
 }
 
 export interface Shift {
   _id: string;
+  code: string;
   name: string;
-  type: "morning" | "afternoon" | "full_day";
   startTime: string;
   endTime: string;
   breakMinutes: number;
+  /** Thứ theo ISO (1 = thứ Hai … 7 = Chủ nhật). */
   workingDays: number[];
-  /** Seasonal validity window (ISO date). Both unset = applies year-round. */
-  effectiveFrom?: string | null;
-  effectiveTo?: string | null;
   status: "active" | "archived";
 }
 
@@ -72,17 +57,11 @@ export interface Holiday {
   name: string;
   date: string;
   isRecurring: boolean;
-  country: string;
-  description?: string;
 }
 
 export interface AttendanceSymbol {
   _id: string;
   code: string;
-  label: string;
-  paidStatus: "paid" | "unpaid" | "neutral";
-  affectsPayroll: boolean;
-  leaveType?: string;
-  color?: string;
-  appliesTo?: string;
+  name: string;
+  description?: string;
 }

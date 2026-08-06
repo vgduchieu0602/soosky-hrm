@@ -1,3 +1,4 @@
+import ActorContext from "@shared/adapters/driver/http/ActorContext";
 import EmployeeHistoryPresenter from "@modules/employee/adapters/driver/http/presenters/EmployeeHistoryPresenter";
 import ListEmployeeHistoryUseCase from "@modules/employee/core/app/use-cases/history/ListEmployeeHistoryUseCase";
 import { Request, Response } from "express";
@@ -13,7 +14,7 @@ export default class EmployeeHistoryController {
     ) {}
 
     public listEmployeeHistory = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const history = await this._useCases.listEmployeeHistory.execute({ employeeId: req.params.employeeId });
+        const history = await this._useCases.listEmployeeHistory.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json({ history: history.map(EmployeeHistoryPresenter.toDTO) });
     };
 }

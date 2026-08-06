@@ -3,7 +3,7 @@ import AuditRepo from "@modules/iam/core/app/ports/AuditRepo";
 import UserRoleRepo from "@modules/iam/core/app/ports/UserRoleRepo";
 import AccessControl from "@modules/iam/core/app/services/AccessControl";
 import AuditLog from "@modules/iam/core/domain/entities/AuditLog";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_IAM_MANAGE     = "iam:manage";
 const AUDIT_RESOURCE_ASSIGNMENT = "user-role";
@@ -44,7 +44,7 @@ export default class RevokeRoleFromUserUseCase {
         await this._userRoleRepo.deleteById(userRole.id);
 
         await this._auditRepo.save(AuditLog.create({
-            id:          UUIDv7(),
+            id:          createUuidV7(),
             actorUserId: input.actorUserId,
             resource:    AUDIT_RESOURCE_ASSIGNMENT,
             action:      AUDIT_ACTION_REVOKE,

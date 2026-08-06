@@ -1,4 +1,4 @@
-import { MongoAllowanceRepo, MongoBonusRepo, MongoDeductionRepo, MongoPayrollPeriodRepo, MongoPayslipRepo, MongoSalaryPolicyRepo, MongoTaxProfileRepo, MongoUnitOfWork } from "@modules/payroll/adapters/driven/persistence/mongodb";
+import { MongoAllowanceRepo, MongoBonusRepo, MongoDeductionRepo, MongoPayrollPeriodRepo, MongoPayrollVarianceRepo, MongoPayslipRepo, MongoRetroAdjustmentRepo, MongoSalaryPolicyRepo, MongoTaxProfileRepo, MongoUnitOfWork } from "@modules/payroll/adapters/driven/persistence/mongodb";
 import { PayrollHttpUseCases } from "@modules/payroll/adapters/driver/http";
 import PayrollRunPort from "@modules/payroll/core/app/ports/PayrollRunPort";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
@@ -11,11 +11,13 @@ import GetPayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/period/
 import ListPayrollPeriodsUseCase from "@modules/payroll/core/app/use-cases/period/ListPayrollPeriodsUseCase";
 import LockAttendanceUseCase from "@modules/payroll/core/app/use-cases/period/LockAttendanceUseCase";
 import LockEvaluationsUseCase from "@modules/payroll/core/app/use-cases/period/LockEvaluationsUseCase";
+import MarkPayrollHrReviewedUseCase from "@modules/payroll/core/app/use-cases/period/MarkPayrollHrReviewedUseCase";
 import ReopenPayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/period/ReopenPayrollPeriodUseCase";
 import UnlockAttendanceUseCase from "@modules/payroll/core/app/use-cases/period/UnlockAttendanceUseCase";
 import UnlockEvaluationsUseCase from "@modules/payroll/core/app/use-cases/period/UnlockEvaluationsUseCase";
 import UpdatePayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/period/UpdatePayrollPeriodUseCase";
 import ApprovePayrollUseCase from "@modules/payroll/core/app/use-cases/payroll/ApprovePayrollUseCase";
+import ExportBankTransferFileUseCase from "@modules/payroll/core/app/use-cases/payroll/ExportBankTransferFileUseCase";
 import ExportPayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/payroll/ExportPayrollPeriodUseCase";
 import GetPayrollUseCase from "@modules/payroll/core/app/use-cases/payroll/GetPayrollUseCase";
 import GrossUpUseCase from "@modules/payroll/core/app/use-cases/payroll/GrossUpUseCase";
@@ -27,6 +29,12 @@ import PayrollTotalsUseCase from "@modules/payroll/core/app/use-cases/payroll/Pa
 import RevertPayrollUseCase from "@modules/payroll/core/app/use-cases/payroll/RevertPayrollUseCase";
 import RunPayrollForEmployeeUseCase from "@modules/payroll/core/app/use-cases/payroll/RunPayrollForEmployeeUseCase";
 import RunPayrollForPeriodUseCase from "@modules/payroll/core/app/use-cases/payroll/RunPayrollForPeriodUseCase";
+import ListPayrollVariancesUseCase from "@modules/payroll/core/app/use-cases/reconciliation/ListPayrollVariancesUseCase";
+import ReconcilePayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/reconciliation/ReconcilePayrollPeriodUseCase";
+import SignPayrollVarianceUseCase from "@modules/payroll/core/app/use-cases/reconciliation/SignPayrollVarianceUseCase";
+import CancelRetroAdjustmentUseCase from "@modules/payroll/core/app/use-cases/retro/CancelRetroAdjustmentUseCase";
+import CreateRetroAdjustmentUseCase from "@modules/payroll/core/app/use-cases/retro/CreateRetroAdjustmentUseCase";
+import ListRetroAdjustmentsUseCase from "@modules/payroll/core/app/use-cases/retro/ListRetroAdjustmentsUseCase";
 import CreateAllowanceUseCase from "@modules/payroll/core/app/use-cases/compensation/CreateAllowanceUseCase";
 import CreateBonusUseCase from "@modules/payroll/core/app/use-cases/compensation/CreateBonusUseCase";
 import CreateDeductionUseCase from "@modules/payroll/core/app/use-cases/compensation/CreateDeductionUseCase";
@@ -45,7 +53,9 @@ import UpdateDeductionUseCase from "@modules/payroll/core/app/use-cases/compensa
 import UpsertTaxProfileUseCase from "@modules/payroll/core/app/use-cases/compensation/UpsertTaxProfileUseCase";
 import { createAttendanceDirectory } from "@modules/attendance";
 import { createEmployeeDirectory } from "@modules/employee";
-import { createIamAccessControl } from "@modules/iam";
+import { createBankTransferProfileDirectory } from "@modules/setting";
+import { createPerformanceEvaluationDirectory } from "@modules/performance";
+import { createIamAccessControl, createIamAuditTrail } from "@modules/iam";
 import EventBus from "@shared/core/domain/EventBus";
 import { Db as MongoDb, MongoClient } from "mongodb";
 
@@ -83,14 +93,28 @@ export default function createPayrollHttpUseCases(mongoClient: MongoClient, mong
     const deductionRepo   = new MongoDeductionRepo(mongoDb);
     const taxProfileRepo  = new MongoTaxProfileRepo(mongoDb);
     const salaryPolicyRepo = new MongoSalaryPolicyRepo(mongoDb);
+    const retroRepo        = new MongoRetroAdjustmentRepo(mongoDb);
+    const varianceRepo     = new MongoPayrollVarianceRepo(mongoDb);
 
     const permissions        = createPermissionChecker(mongoDb);
+    const auditTrail          = createIamAuditTrail(mongoDb);
     const employeeDirectory   = createEmployeeDirectory(mongoDb);
+
+    // Tien do danh gia lay tu module Performance. CHI la tien do (ai da khoa
+    // diem), khong phai diem — diem thuc te nam trong ban chup cua chinh ky luong.
+    const performanceDirectory = createPerformanceEvaluationDirectory(mongoDb);
+    const evaluationDirectory  = {
+        progressForPayrollPeriod: async (payrollPeriodId: string) =>
+            performanceDirectory.progressForPayrollPeriod(payrollPeriodId, await employeeDirectory.listActiveEmployeeIds()),
+    };
     const attendanceDirectory = createAttendanceDirectory(mongoDb);
+
+    // Mẫu file chuyển lương do Admin/HR cấu hình trong module Setting.
+    const bankProfileDirectory = createBankTransferProfileDirectory(mongoDb);
 
     const runPayrollForEmployee = new RunPayrollForEmployeeUseCase(
         permissions, uow, employeeDirectory, attendanceDirectory, salaryPolicyRepo,
-        allowanceRepo, bonusRepo, deductionRepo, taxProfileRepo,
+        allowanceRepo, bonusRepo, deductionRepo, taxProfileRepo, retroRepo,
     );
     const runPayrollForPeriod = new RunPayrollForPeriodUseCase(permissions, employeeDirectory, runPayrollForEmployee);
 
@@ -113,10 +137,11 @@ export default function createPayrollHttpUseCases(mongoClient: MongoClient, mong
         deletePayrollPeriod: new DeletePayrollPeriodUseCase(permissions, periodRepo, payslipRepo),
         attendanceReadiness: new AttendanceReadinessUseCase(periodRepo, employeeDirectory, attendanceDirectory),
         lockAttendance:      new LockAttendanceUseCase(permissions, periodRepo, eventBus, payrollRunPort),
-        unlockAttendance:    new UnlockAttendanceUseCase(permissions, periodRepo, payslipRepo),
-        evaluationReadiness: new EvaluationReadinessUseCase(periodRepo, employeeDirectory),
-        lockEvaluations:     new LockEvaluationsUseCase(permissions, periodRepo, payrollRunPort),
+        unlockAttendance:    new UnlockAttendanceUseCase(permissions, periodRepo, payslipRepo, auditTrail),
+        evaluationReadiness: new EvaluationReadinessUseCase(periodRepo, employeeDirectory, evaluationDirectory),
+        lockEvaluations:     new LockEvaluationsUseCase(permissions, periodRepo, payrollRunPort, evaluationDirectory),
         unlockEvaluations:   new UnlockEvaluationsUseCase(permissions, periodRepo, payslipRepo),
+        markPayrollHrReviewed: new MarkPayrollHrReviewedUseCase(permissions, periodRepo, payslipRepo, varianceRepo),
         runPayrollForPeriod,
         runPayrollForEmployee,
 
@@ -125,8 +150,9 @@ export default function createPayrollHttpUseCases(mongoClient: MongoClient, mong
         getPayroll:          new GetPayrollUseCase(payslipRepo, employeeDirectory),
         listMyPayrolls:      new ListMyPayrollsUseCase(payslipRepo, employeeDirectory, periodRepo),
         payrollTotals:       new PayrollTotalsUseCase(payslipRepo),
-        payrollPreflight:    new PayrollPreflightUseCase(periodRepo, employeeDirectory, salaryPolicyRepo),
+        payrollPreflight:    new PayrollPreflightUseCase(periodRepo, employeeDirectory, salaryPolicyRepo, evaluationDirectory),
         exportPayrollPeriod: new ExportPayrollPeriodUseCase(payslipRepo),
+        exportBankTransferFile: new ExportBankTransferFileUseCase(permissions, periodRepo, payslipRepo, employeeDirectory, bankProfileDirectory),
         grossUp:             new GrossUpUseCase(salaryPolicyRepo),
         approvePayroll:      new ApprovePayrollUseCase(permissions, uow, eventBus),
         revertPayroll:       new RevertPayrollUseCase(permissions, payslipRepo),
@@ -149,6 +175,16 @@ export default function createPayrollHttpUseCases(mongoClient: MongoClient, mong
         updateDeduction: new UpdateDeductionUseCase(permissions, deductionRepo),
         deleteDeduction: new DeleteDeductionUseCase(permissions, deductionRepo),
         listDeductionsByEmployee: new ListDeductionsByEmployeeUseCase(deductionRepo),
+
+        // Đối soát song song v1/v2
+        reconcilePayrollPeriod: new ReconcilePayrollPeriodUseCase(permissions, periodRepo, payslipRepo, varianceRepo, runPayrollForEmployee),
+        listPayrollVariances:   new ListPayrollVariancesUseCase(varianceRepo),
+        signPayrollVariance:    new SignPayrollVarianceUseCase(permissions, varianceRepo, auditTrail),
+
+        // RetroAdjustment
+        createRetroAdjustment: new CreateRetroAdjustmentUseCase(permissions, periodRepo, retroRepo),
+        listRetroAdjustments:  new ListRetroAdjustmentsUseCase(retroRepo),
+        cancelRetroAdjustment: new CancelRetroAdjustmentUseCase(permissions, retroRepo, payslipRepo),
 
         // TaxProfile
         upsertTaxProfile: new UpsertTaxProfileUseCase(permissions, taxProfileRepo),

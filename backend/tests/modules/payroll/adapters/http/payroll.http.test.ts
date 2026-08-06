@@ -1,10 +1,10 @@
-/// <reference types="jest" />
 import { createPayrollHttpRouter, PayrollHttpUseCases } from "@modules/payroll";
 import AllowanceRepo from "@modules/payroll/core/app/ports/AllowanceRepo";
 import AttendanceDirectory from "@modules/payroll/core/app/ports/AttendanceDirectory";
 import BonusRepo from "@modules/payroll/core/app/ports/BonusRepo";
 import DeductionRepo from "@modules/payroll/core/app/ports/DeductionRepo";
 import EmployeeDirectory from "@modules/payroll/core/app/ports/EmployeeDirectory";
+import EvaluationDirectory from "@modules/payroll/core/app/ports/EvaluationDirectory";
 import PayrollPeriodRepo from "@modules/payroll/core/app/ports/PayrollPeriodRepo";
 import PayslipRepo, { PayslipListFilter, PayslipTotalsRow } from "@modules/payroll/core/app/ports/PayslipRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
@@ -60,6 +60,16 @@ import Payslip, { PayslipStatus } from "@modules/payroll/core/domain/entities/Pa
 import SalaryPolicy from "@modules/payroll/core/domain/entities/SalaryPolicy";
 import TaxProfile from "@modules/payroll/core/domain/entities/TaxProfile";
 import AccessTokenVerifier, { AuthenticatedActor } from "@shared/adapters/driver/http/ports/AccessTokenVerifier";
+import InMemoryRetroAdjustmentRepo from "@tests/modules/payroll/support/InMemoryRetroAdjustmentRepo";
+import MarkPayrollHrReviewedUseCase from "@modules/payroll/core/app/use-cases/period/MarkPayrollHrReviewedUseCase";
+import InMemoryPayrollVarianceRepo from "@tests/modules/payroll/support/InMemoryPayrollVarianceRepo";
+import ListPayrollVariancesUseCase from "@modules/payroll/core/app/use-cases/reconciliation/ListPayrollVariancesUseCase";
+import ExportBankTransferFileUseCase from "@modules/payroll/core/app/use-cases/payroll/ExportBankTransferFileUseCase";
+import ReconcilePayrollPeriodUseCase from "@modules/payroll/core/app/use-cases/reconciliation/ReconcilePayrollPeriodUseCase";
+import SignPayrollVarianceUseCase from "@modules/payroll/core/app/use-cases/reconciliation/SignPayrollVarianceUseCase";
+import CancelRetroAdjustmentUseCase from "@modules/payroll/core/app/use-cases/retro/CancelRetroAdjustmentUseCase";
+import CreateRetroAdjustmentUseCase from "@modules/payroll/core/app/use-cases/retro/CreateRetroAdjustmentUseCase";
+import ListRetroAdjustmentsUseCase from "@modules/payroll/core/app/use-cases/retro/ListRetroAdjustmentsUseCase";
 import EventBus from "@shared/core/domain/EventBus";
 import express, { Express } from "express";
 import request from "supertest";
@@ -166,21 +176,55 @@ const allowAllPermissions: PermissionChecker = {
 };
 
 const employeeDirectory: EmployeeDirectory = {
-    async employeeExists() { return true; },
     async listActiveEmployeeIds() { return ["emp-1"]; },
     async contractBasis() { return { contractId: "contract-1", employeeId: "emp-1", baseSalary: 20_000_000, employmentStatus: "official" }; },
+        // Cả kỳ một hợp đồng: một đoạn duy nhất phủ toàn kỳ. Trường hợp đổi hợp
+        // đồng giữa kỳ có test riêng.
+        async contractSegments(employeeId: string, from: Date, to: Date) {
+            const basis = await this.contractBasis(employeeId, to);
+            return basis == undefined ? [] : [{
+                contractId:       basis.contractId,
+                contractNumber:   "HD-TEST",
+                baseSalary:       basis.baseSalary,
+                employmentStatus: basis.employmentStatus,
+                from,
+                to,
+            }];
+        },
+
     async findEmployeeIdByUserId(userId: string) { return userId === "user-emp-1" ? "emp-1" : undefined; },
+
+    async payoutInfo(employeeId: string) {
+        return {
+            employeeId, employeeCode: "EMP-001", fullName: "Nhan Vien Mot",
+            bankAccountNumber: "0123456789", bankAccountHolder: "NHAN VIEN MOT",
+            bankName: "Vietcombank", bankBranch: null,
+        };
+    },
 };
 
 const attendanceDirectory: AttendanceDirectory = {
-    async shiftExists() { return true; },
     async getWorkdaySummary() { return { actualWorkDays: 22, unpaidDays: 0 }; },
+};
+
+/**
+ * Ky luong trong test nay KHONG gan chu ky danh gia nao -> readiness coi nhu san
+ * sang va chot danh gia khong bi chan. Truong hop co chu ky co test rieng.
+ */
+const noAppraisalCycle: EvaluationDirectory = {
+    async progressForPayrollPeriod() { return undefined; },
 };
 
 const noopEventBus: EventBus = {
     async publish() { /* no-op in test */ },
     subscribe() { /* no-op in test */ },
 };
+
+/** Hồ sơ ngân hàng: các test HTTP này không xuất file chuyển lương. */
+const bankProfileDirectory = { activeProfile: async () => undefined };
+
+/** Audit trail rỗng: các test HTTP này không kiểm nội dung nhật ký. */
+const silentAuditTrail = { record: async () => {} };
 
 function buildUseCases(): PayrollHttpUseCases {
     const periods = new InMemoryPeriodRepo();
@@ -190,10 +234,12 @@ function buildUseCases(): PayrollHttpUseCases {
     const deductions = new InMemoryDeductionRepo();
     const taxProfiles = new InMemoryTaxProfileRepo();
     const policies = new InMemorySalaryPolicyRepo();
+    const retros = new InMemoryRetroAdjustmentRepo();
+    const variances = new InMemoryPayrollVarianceRepo();
     const uow = new InMemoryUnitOfWork(periods, payslips);
 
     const runPayrollForEmployee = new RunPayrollForEmployeeUseCase(
-        allowAllPermissions, uow, employeeDirectory, attendanceDirectory, policies, allowances, bonuses, deductions, taxProfiles,
+        allowAllPermissions, uow, employeeDirectory, attendanceDirectory, policies, allowances, bonuses, deductions, taxProfiles, retros,
     );
     const runPayrollForPeriod = new RunPayrollForPeriodUseCase(allowAllPermissions, employeeDirectory, runPayrollForEmployee);
 
@@ -209,9 +255,9 @@ function buildUseCases(): PayrollHttpUseCases {
         deletePayrollPeriod: new DeletePayrollPeriodUseCase(allowAllPermissions, periods, payslips),
         attendanceReadiness: new AttendanceReadinessUseCase(periods, employeeDirectory, attendanceDirectory),
         lockAttendance: new LockAttendanceUseCase(allowAllPermissions, periods, noopEventBus, { forPeriod: (periodId, actorUserId) => runPayrollForPeriod.execute({ periodId, actorUserId }) }),
-        unlockAttendance: new UnlockAttendanceUseCase(allowAllPermissions, periods, payslips),
-        evaluationReadiness: new EvaluationReadinessUseCase(periods, employeeDirectory),
-        lockEvaluations: new LockEvaluationsUseCase(allowAllPermissions, periods, { forPeriod: (periodId, actorUserId) => runPayrollForPeriod.execute({ periodId, actorUserId }) }),
+        unlockAttendance: new UnlockAttendanceUseCase(allowAllPermissions, periods, payslips, { async record() { /* no-op */ } }),
+        evaluationReadiness: new EvaluationReadinessUseCase(periods, employeeDirectory, noAppraisalCycle),
+        lockEvaluations: new LockEvaluationsUseCase(allowAllPermissions, periods, { forPeriod: (periodId, actorUserId) => runPayrollForPeriod.execute({ periodId, actorUserId }) }, noAppraisalCycle),
         unlockEvaluations: new UnlockEvaluationsUseCase(allowAllPermissions, periods, payslips),
         runPayrollForPeriod,
         runPayrollForEmployee,
@@ -220,7 +266,7 @@ function buildUseCases(): PayrollHttpUseCases {
         getPayroll: new GetPayrollUseCase(payslips, employeeDirectory),
         listMyPayrolls: new ListMyPayrollsUseCase(payslips, employeeDirectory, periods),
         payrollTotals: new PayrollTotalsUseCase(payslips),
-        payrollPreflight: new PayrollPreflightUseCase(periods, employeeDirectory, policies),
+        payrollPreflight: new PayrollPreflightUseCase(periods, employeeDirectory, policies, noAppraisalCycle),
         exportPayrollPeriod: new ExportPayrollPeriodUseCase(payslips),
         grossUp: new GrossUpUseCase(policies),
         approvePayroll: new ApprovePayrollUseCase(allowAllPermissions, uow, noopEventBus),
@@ -247,6 +293,17 @@ function buildUseCases(): PayrollHttpUseCases {
 
         createSalaryPolicy: new CreateSalaryPolicyUseCase(allowAllPermissions, policies),
         listSalaryPolicies: new ListSalaryPoliciesUseCase(policies),
+
+        createRetroAdjustment: new CreateRetroAdjustmentUseCase(allowAllPermissions, periods, retros),
+        listRetroAdjustments:  new ListRetroAdjustmentsUseCase(retros),
+        cancelRetroAdjustment: new CancelRetroAdjustmentUseCase(allowAllPermissions, retros, payslips),
+
+        markPayrollHrReviewed: new MarkPayrollHrReviewedUseCase(allowAllPermissions, periods, payslips, variances),
+
+        reconcilePayrollPeriod: new ReconcilePayrollPeriodUseCase(allowAllPermissions, periods, payslips, variances, runPayrollForEmployee),
+        listPayrollVariances:   new ListPayrollVariancesUseCase(variances),
+        exportBankTransferFile: new ExportBankTransferFileUseCase(allowAllPermissions, periods, payslips, employeeDirectory, bankProfileDirectory),
+        signPayrollVariance:    new SignPayrollVarianceUseCase(allowAllPermissions, variances, silentAuditTrail),
     };
 }
 
@@ -268,7 +325,10 @@ describe("Payroll HTTP", () => {
         app = buildApp();
     });
 
-    const auth = { Authorization: "Bearer hr-1" };
+    // HR lập lương; người duyệt PHẢI là người khác (nguyên tắc bốn mắt được
+    // backend chặn cứng, không chỉ dựa vào tách khoá quyền).
+    const auth         = { Authorization: "Bearer hr-1" };
+    const approverAuth = { Authorization: "Bearer approver-1" };
 
     it("401 khi thiếu token", async () => {
         await request(app).get("/payroll/periods").expect(401);
@@ -305,15 +365,27 @@ describe("Payroll HTTP", () => {
         expect(payslip.status).toBe("draft");
         expect(payslip.breakdown.grossSalary).toBe(20_000_000);
 
+        // Duyệt trước khi HR soát -> 409: đây là cổng của quy trình 7 bước.
+        const earlyApprove = await request(app).post(`/payroll/periods/${periodId}/approve`).set(approverAuth).send({}).expect(409);
+        expect(earlyApprove.body.code).toBe("PAYROLL_STAGE_INVALID");
+
+        const reviewed = await request(app).post(`/payroll/periods/${periodId}/hr-review`).set(auth).expect(200);
+        expect(reviewed.body.stage).toBe("hr_reviewed");
+
         // Duyệt toàn kỳ.
-        const approved = await request(app).post(`/payroll/periods/${periodId}/approve`).set(auth).send({}).expect(200);
+        // Người lập tự duyệt -> 403, kể cả khi có đủ quyền.
+        const selfApprove = await request(app).post(`/payroll/periods/${periodId}/approve`).set(auth).send({}).expect(403);
+        expect(selfApprove.body.code).toBe("PAYROLL_SELF_APPROVAL_FORBIDDEN");
+
+        const approved = await request(app).post(`/payroll/periods/${periodId}/approve`).set(approverAuth).send({}).expect(200);
         expect(approved.body.affected).toBe(1);
 
         const periodAfterApprove = await request(app).get(`/payroll/periods/${periodId}`).set(auth).expect(200);
         expect(periodAfterApprove.body.status).toBe("processing");
+        expect(periodAfterApprove.body.stage).toBe("approved");
 
         // Thanh toán.
-        const paid = await request(app).post(`/payroll/periods/${periodId}/mark-paid`).set(auth).expect(200);
+        const paid = await request(app).post(`/payroll/periods/${periodId}/mark-paid`).set(approverAuth).expect(200);
         expect(paid.body.affected).toBe(1);
 
         const periodAfterPay = await request(app).get(`/payroll/periods/${periodId}`).set(auth).expect(200);

@@ -5,14 +5,14 @@ import PayslipRepo from "@modules/payroll/core/app/ports/PayslipRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import PayrollPeriod from "@modules/payroll/core/domain/entities/PayrollPeriod";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:approve";
 
 /**
  * Mở lại một kỳ đã `closed` để sửa/chạy lại — hoàn tác mọi phiếu lương
  * `approved` về `draft` (nếu không, sẽ không tính lại được: recompute chỉ
  * cho phép trên phiếu `draft`). Kỳ `paid` không thể mở lại.
  *
- * @throws {AccessDeniedError}          Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}          Actor không có quyền `payroll:approve`.
  * @throws {PayrollPeriodNotFoundError} Không tìm thấy kỳ lương.
  * @throws {PayrollPeriodLockedError}   Kỳ đã thanh toán.
  */

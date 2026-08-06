@@ -17,6 +17,9 @@ export default class MongoAttendanceRepo extends MongoRepository<AttendanceDocum
         const collection = db.collection<AttendanceDocument>(ATTENDANCE_COLLECTIONS.attendances);
         await collection.createIndex({ employeeId: 1, date: 1, shiftId: 1 }, { unique: true });
         await collection.createIndex({ leaveRequestId: 1 });
+        // Bảng điều khiển đếm theo KHOẢNG NGÀY cho mọi nhân viên (không có employeeId
+        // dẫn đường), nên cần index riêng trên `date`.
+        await collection.createIndex({ date: 1 });
     }
 
     public async getById(id: string): Promise<Attendance | undefined> {
@@ -32,6 +35,59 @@ export default class MongoAttendanceRepo extends MongoRepository<AttendanceDocum
     public async listByEmployeeAndRange(employeeId: string, start: Date, end: Date): Promise<Attendance[]> {
         const documents = await this._collection
             .find({ employeeId, date: { $gte: start, $lte: end } }, { sort: { date: 1 }, ...this._sessionOptions })
+            .toArray();
+        return documents.map(AttendanceMapper.toDomain);
+    }
+
+    /**
+     * Đếm bản ghi theo trạng thái, GOM THEO NGÀY, trong một khoảng.
+     *
+     * Gom bằng aggregate của Mongo thay vì tải hết bản ghi rồi đếm trong Node:
+     * 30 ngày × toàn công ty là hàng chục nghìn document, không cần chuyển hết
+     * qua tiến trình app chỉ để cộng.
+     */
+    public async countByStatusPerDay(
+        start: Date,
+        end: Date,
+        employeeIds?: readonly string[] | undefined,
+    ): Promise<{ date: Date; status: string; count: number; employeeIds: string[] }[]> {
+        const rows = await this._collection.aggregate<{
+            _id:         { date: Date; status: string };
+            count:       number;
+            employeeIds: string[];
+        }>([
+            {
+                $match: {
+                    date: { $gte: start, $lte: end },
+                    ...(employeeIds == undefined ? {} : { employeeId: { $in: [...employeeIds] } }),
+                },
+            },
+            {
+                $group: {
+                    _id:         { date: "$date", status: "$status" },
+                    count:       { $sum: 1 },
+                    employeeIds: { $addToSet: "$employeeId" },
+                },
+            },
+        ], this._sessionOptions).toArray();
+
+        return rows.map(row => ({
+            date:        row._id.date,
+            status:      row._id.status,
+            count:       row.count,
+            employeeIds: row.employeeIds,
+        }));
+    }
+
+    public async listByRange(start: Date, end: Date, employeeIds?: string[] | undefined): Promise<Attendance[]> {
+        const documents = await this._collection
+            .find(
+                {
+                    date: { $gte: start, $lte: end },
+                    ...(employeeIds == undefined ? {} : { employeeId: { $in: employeeIds } }),
+                },
+                { sort: { date: 1 }, ...this._sessionOptions },
+            )
             .toArray();
         return documents.map(AttendanceMapper.toDomain);
     }

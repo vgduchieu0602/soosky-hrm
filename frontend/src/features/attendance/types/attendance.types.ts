@@ -32,10 +32,6 @@ export interface RosterEmployee {
   employeeCode: string;
   fullName: string;
   departmentName: string;
-  /** Remaining annual leave for the current year (entitled − used). */
-  annualLeaveRemaining?: number;
-  /** Whole months the employee has worked at the company. */
-  tenureMonths?: number;
 }
 
 export interface AdminGrid {
@@ -97,17 +93,49 @@ export interface ShiftOption {
   status?: string;
 }
 
+/**
+ * HR nhập công cho MỘT ngày. Không có `shiftId`: backend nhận một cặp giờ
+ * vào/ra rồi tự rải sang từng ca của ngày (`AttendanceDayWriter`) — client không
+ * quyết định ca nào.
+ */
 export interface UpsertAttendanceInput {
   employeeId: string;
-  date: string; // YYYY-MM-DD
-  shiftId: string;
+  date: string;
   checkIn?: string | null;
   checkOut?: string | null;
-  status?: "leave_paid" | "leave_unpaid" | "holiday" | "absent";
   note?: string | null;
 }
 
+export type CorrectionStatus = "pending" | "approved" | "rejected";
+
+/** Yêu cầu chỉnh công: nhân viên gửi, HR/quản lý duyệt. */
+export interface AttendanceCorrectionRecord {
+  _id: string;
+  employeeId: string;
+  date: string;
+  requestedCheckIn: string | null;
+  requestedCheckOut: string | null;
+  reason: string;
+  status: CorrectionStatus;
+  createdBy: string;
+  createdAt: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+}
+
+export interface SubmitCorrectionInput {
+  date: string;
+  reason: string;
+  /** Bỏ trống = yêu cầu cho chính mình (backend suy ra từ access token). */
+  employeeId?: string | null;
+  requestedCheckIn?: string | null;
+  requestedCheckOut?: string | null;
+}
+
 export interface SubmitLeaveInput {
+  /** Bỏ trống = đơn của chính mình; HR nộp thay thì truyền id nhân viên. */
+  employeeId?: string | null;
   leaveType: LeaveTypeKey;
   startDate: string;
   endDate: string;

@@ -38,7 +38,7 @@ export function GrossUpCalculatorDialog({ open, onOpenChange }: Props) {
     payrollService
       .calculateGrossUp({ net, dependentsCount, isResident, salaryZone })
       .then((r) => setResult(r))
-      .catch((e) => setError(e?.response?.data?.error?.message ?? e?.response?.data?.message ?? "Không tính được."))
+      .catch((e) => setError(e?.response?.data?.message ?? e?.response?.data?.message ?? "Không tính được."))
       .finally(() => setLoading(false));
   }
 

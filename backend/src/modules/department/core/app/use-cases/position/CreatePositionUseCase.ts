@@ -8,7 +8,7 @@ import Description from "@modules/department/core/domain/value-objects/Descripti
 import PositionCode from "@modules/department/core/domain/value-objects/PositionCode";
 import PositionLevel from "@modules/department/core/domain/value-objects/PositionLevel";
 import PositionTitle from "@modules/department/core/domain/value-objects/PositionTitle";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "department:manage";
 const DEFAULT_LEVEL  = 1;
@@ -52,7 +52,7 @@ export default class CreatePositionUseCase {
         if (existing != undefined) throw new PositionCodeConflictError();
 
         const position = Position.create({
-            id:           UUIDv7(),
+            id:           createUuidV7(),
             code,
             title:        PositionTitle.create(input.title),
             departmentId: input.departmentId,

@@ -50,7 +50,9 @@ export default class JwtAccessTokenVerifier implements AccessTokenVerifier {
             if (isInvalid)
                 return undefined;
 
-            return new AuthenticatedActor(userId as string);
+            // Claim vắng mặt (token phát hành trước khi có tính năng này) → false:
+            // không chặn oan người đang có phiên hợp lệ.
+            return new AuthenticatedActor(userId as string, payload.mustChangePassword === true);
 
         } catch {
             // Mọi lỗi parse/decode đều coi là token không hợp lệ.

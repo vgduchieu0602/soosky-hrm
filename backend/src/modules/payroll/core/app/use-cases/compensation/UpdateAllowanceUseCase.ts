@@ -3,7 +3,7 @@ import AllowanceRepo from "@modules/payroll/core/app/ports/AllowanceRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import { AllowanceType } from "@modules/payroll/core/domain/entities/Allowance";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface UpdateAllowanceInput {
     allowanceId:      string;

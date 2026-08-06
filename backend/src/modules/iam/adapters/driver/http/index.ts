@@ -38,6 +38,7 @@ export function createIamHttpRouter(
     router.use(authenticate(accessTokenVerifier));
 
     // User (share-docs/use-cases.html § IAM)
+    router.get   ("/me/permissions",                users.getMyPermissions);
     router.get   ("/users",                        users.listUsers);
     router.get   ("/users/:userId",                 users.getUser);
     router.get   ("/users/:userId/permissions",     users.getUserPermissions);
@@ -51,6 +52,7 @@ export function createIamHttpRouter(
     router.get   ("/roles/:roleId",                 roles.getRole);
     router.patch ("/roles/:roleId",                 roles.updateRole);
     router.delete("/roles/:roleId",                 roles.deleteRole);
+    router.get   ("/roles/:roleId/permissions",     roles.listRolePermissions);
     router.put   ("/roles/:roleId/permissions",     roles.setRolePermissions);
 
     // Permission (catalog)

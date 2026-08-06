@@ -1,4 +1,10 @@
 import { createSettingHttpRouter, SettingHttpUseCases } from "@modules/setting";
+import InMemoryBankTransferProfileRepo from "@tests/modules/setting/support/InMemoryBankTransferProfileRepo";
+import ActivateBankTransferProfileUseCase from "@modules/setting/core/app/use-cases/bank/ActivateBankTransferProfileUseCase";
+import CreateBankTransferProfileUseCase from "@modules/setting/core/app/use-cases/bank/CreateBankTransferProfileUseCase";
+import DeleteBankTransferProfileUseCase from "@modules/setting/core/app/use-cases/bank/DeleteBankTransferProfileUseCase";
+import ListBankTransferProfilesUseCase from "@modules/setting/core/app/use-cases/bank/ListBankTransferProfilesUseCase";
+import UpdateBankTransferProfileUseCase from "@modules/setting/core/app/use-cases/bank/UpdateBankTransferProfileUseCase";
 import CompanyProfileRepo from "@modules/setting/core/app/ports/CompanyProfileRepo";
 import PermissionChecker from "@modules/setting/core/app/ports/PermissionChecker";
 import SystemSettingRepo from "@modules/setting/core/app/ports/SystemSettingRepo";
@@ -30,6 +36,7 @@ const allowAllPermissions: PermissionChecker = {
 };
 
 function buildUseCases(): SettingHttpUseCases {
+    const bankProfileRepo = new InMemoryBankTransferProfileRepo();
     const companyProfileRepo = new InMemoryCompanyProfileRepo();
     const systemSettingRepo  = new InMemorySystemSettingRepo();
     return {
@@ -37,6 +44,12 @@ function buildUseCases(): SettingHttpUseCases {
         upsertCompanyProfile: new UpsertCompanyProfileUseCase(allowAllPermissions, companyProfileRepo),
         getSystemSettings:    new GetSystemSettingsUseCase(systemSettingRepo),
         updateSystemSettings: new UpdateSystemSettingsUseCase(allowAllPermissions, systemSettingRepo),
+
+        createBankTransferProfile:   new CreateBankTransferProfileUseCase(allowAllPermissions, bankProfileRepo),
+        listBankTransferProfiles:    new ListBankTransferProfilesUseCase(bankProfileRepo),
+        updateBankTransferProfile:   new UpdateBankTransferProfileUseCase(allowAllPermissions, bankProfileRepo),
+        activateBankTransferProfile: new ActivateBankTransferProfileUseCase(allowAllPermissions, bankProfileRepo),
+        deleteBankTransferProfile:   new DeleteBankTransferProfileUseCase(allowAllPermissions, bankProfileRepo),
     };
 }
 

@@ -5,7 +5,7 @@ import Shift from "@modules/attendance/core/domain/entities/Shift";
 import ShiftCode from "@modules/attendance/core/domain/value-objects/ShiftCode";
 import ShiftName from "@modules/attendance/core/domain/value-objects/ShiftName";
 import ShiftTimeWindow from "@modules/attendance/core/domain/value-objects/ShiftTimeWindow";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "attendance:manage";
 
@@ -47,7 +47,7 @@ export default class CreateShiftUseCase {
         if (existing != undefined) throw new ShiftCodeConflictError();
 
         const shift = Shift.create({
-            id:          UUIDv7(),
+            id:          createUuidV7(),
             code,
             name:        ShiftName.create(input.name),
             window:      ShiftTimeWindow.create(input.startTime, input.endTime, input.breakMinutes),

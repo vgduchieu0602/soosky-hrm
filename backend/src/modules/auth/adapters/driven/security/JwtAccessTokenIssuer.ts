@@ -1,4 +1,4 @@
-import AccessTokenIssuer from "@modules/auth/core/app/ports/AccessTokenIssuer";
+import AccessTokenIssuer, { AccessTokenClaims } from "@modules/auth/core/app/ports/AccessTokenIssuer";
 import IssuedToken from "@modules/auth/core/app/ports/IssuedToken";
 import { createHmac } from "node:crypto";
 
@@ -16,12 +16,12 @@ export default class JwtAccessTokenIssuer implements AccessTokenIssuer {
         private readonly _ttlSeconds: number = DEFAULT_TTL_SECONDS,
     ) {}
 
-    public async issue(accountId: string): Promise<IssuedToken> {
+    public async issue(accountId: string, claims: AccessTokenClaims): Promise<IssuedToken> {
         const nowSeconds = Math.floor(Date.now() / 1000);
         const expSeconds = nowSeconds + this._ttlSeconds;
 
         const header  = { alg: "HS256", typ: "JWT" };
-        const payload = { userId: accountId, iat: nowSeconds, exp: expSeconds };
+        const payload = { userId: accountId, mustChangePassword: claims.mustChangePassword, iat: nowSeconds, exp: expSeconds };
 
         const signingInput = `${this._encodeJson(header)}.${this._encodeJson(payload)}`;
         const signature    = createHmac("sha256", this._secret).update(signingInput).digest("base64url");

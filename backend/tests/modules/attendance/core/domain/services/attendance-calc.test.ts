@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { matchShifts, vnDateKey } from "@modules/attendance/core/domain/services/attendance-calc";
 import { describe, expect, it } from "vitest";
 

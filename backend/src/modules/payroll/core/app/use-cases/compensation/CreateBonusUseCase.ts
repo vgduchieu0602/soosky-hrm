@@ -1,9 +1,9 @@
 import BonusRepo from "@modules/payroll/core/app/ports/BonusRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import Bonus from "@modules/payroll/core/domain/entities/Bonus";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface CreateBonusInput {
     employeeId:      string;
@@ -25,7 +25,7 @@ export default class CreateBonusUseCase {
         await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
 
         const bonus = Bonus.create({
-            id: UUIDv7(),
+            id: createUuidV7(),
             employeeId: input.employeeId,
             payrollPeriodId: input.payrollPeriodId,
             name: input.name,

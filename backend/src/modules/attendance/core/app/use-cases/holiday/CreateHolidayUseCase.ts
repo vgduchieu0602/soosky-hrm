@@ -2,7 +2,7 @@ import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChec
 import HolidayRepo from "@modules/attendance/core/app/ports/HolidayRepo";
 import Holiday from "@modules/attendance/core/domain/entities/Holiday";
 import HolidayName from "@modules/attendance/core/domain/value-objects/HolidayName";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "attendance:manage";
 
@@ -33,7 +33,7 @@ export default class CreateHolidayUseCase {
         await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
 
         const holiday = Holiday.create({
-            id:          UUIDv7(),
+            id:          createUuidV7(),
             name:        HolidayName.create(input.name),
             date:        input.date,
             isRecurring: input.isRecurring ?? false,

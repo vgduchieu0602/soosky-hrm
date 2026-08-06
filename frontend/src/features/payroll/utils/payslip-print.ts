@@ -43,6 +43,9 @@ function buildPayslipHtml(p: PayrollRecord, emp: EmpInfo, periodName: string): s
     { label: "Phụ cấp", value: parseDecimal(p.totalAllowances) },
     { label: "Tăng ca", value: parseDecimal(p.overtimePay) },
     { label: "Thưởng", value: parseDecimal(p.totalBonuses) },
+    // Truy lĩnh hiện thành dòng riêng, KHÔNG gộp vào thưởng: nhân viên phải đọc
+    // được đây là tiền bù kỳ trước.
+    { label: "Truy lĩnh kỳ trước", value: parseDecimal(p.totalRetroClaims ?? 0) },
   ].filter((r) => r.value > 0);
   const deductions = [
     { label: "BHXH (8%)", value: parseDecimal(p.socialInsurance) },
@@ -51,6 +54,7 @@ function buildPayslipHtml(p: PayrollRecord, emp: EmpInfo, periodName: string): s
     { label: "Thuế TNCN", value: parseDecimal(p.tax) },
     { label: "Đoàn phí công đoàn", value: parseDecimal(p.unionFee) },
     { label: "Khấu trừ khác", value: parseDecimal(p.otherDeductions) },
+    { label: "Truy thu kỳ trước", value: parseDecimal(p.totalRetroClawbacks ?? 0) },
   ].filter((r) => r.value > 0);
 
   const groupRows = groups.map((g) => `
@@ -61,6 +65,16 @@ function buildPayslipHtml(p: PayrollRecord, emp: EmpInfo, periodName: string): s
     </tr>`).join("");
   const addonRows = addons.map((r) => `<tr><td>${esc(r.label)}</td><td class="r pos">+${money(r.value)}</td></tr>`).join("");
   const dedRows = deductions.map((r) => `<tr><td>${esc(r.label)}</td><td class="r neg">−${money(r.value)}</td></tr>`).join("");
+
+  // Đổi hợp đồng giữa kỳ: hiện từng đoạn để nhân viên đọc được "nửa đầu tháng
+  // thử việc, nửa sau chính thức" thay vì một con số bình quân không giải thích được.
+  const segments = p.segments ?? [];
+  const segmentBlock = segments.length > 1
+    ? `<h2>Chi tiết theo hợp đồng</h2><table>
+        <tr><td>Hợp đồng</td><td>Ngày công</td><td class="r">Lương theo công</td></tr>
+        ${segments.map((seg) => `<tr><td>${esc(seg.contractNumber)} (${esc(seg.employmentStatus)})</td><td>${seg.workDays}</td><td class="r">${money(seg.proRatedBaseSalary)}</td></tr>`).join("")}
+      </table>`
+    : "";
 
   return `<!doctype html><html lang="vi"><head><meta charset="utf-8" />
 <title>Phiếu lương ${esc(emp.name)} · ${esc(periodName)}</title>
@@ -117,6 +131,8 @@ function buildPayslipHtml(p: PayrollRecord, emp: EmpInfo, periodName: string): s
   <table>${groupRows}
     <tr class="tot"><td>Lương cấu thành theo hiệu suất</td><td></td><td class="r">${money(p.proRatedBaseSalary)}</td></tr>
   </table>
+
+  ${segmentBlock}
 
   ${addons.length ? `<h2>Phụ cấp &amp; thưởng</h2><table>${addonRows}<tr class="tot"><td>Tổng thu nhập (Gross)</td><td class="r">${money(p.grossSalary)}</td></tr></table>` : ""}
 

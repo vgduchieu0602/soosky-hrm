@@ -1,7 +1,90 @@
 import type { DecimalLike } from "@/shared/utils/money";
 
 export type PayrollPeriodStatus = "open" | "processing" | "closed" | "paid";
+
+/**
+ * Bước trong quy trình lương 7 bước — chi tiết hơn `status`.
+ *
+ * `status` không phân biệt được "đã tính thử" với "HR đã soát", mà backend chặn
+ * duyệt đúng ở chỗ đó, nên UI phải đọc `stage` để biết bấm gì tiếp theo.
+ */
+export type PayrollPeriodStage =
+  | "open" | "reconciling" | "trial" | "hr_reviewed" | "approved" | "paid" | "closed";
 export type PayrollStatus = "draft" | "approved" | "paid";
+
+/** Phiên bản công thức tính lương. `v1` chỉ còn dùng làm mốc đối soát. */
+export type PayrollEngineVersion = "v1" | "v2";
+
+/** Một ô số khác nhau giữa hai phiên bản công thức. */
+export interface PayrollVarianceField {
+  field: string;
+  baseline: number;
+  target: number;
+}
+
+/**
+ * Chênh lệch giữa hai phiên bản công thức cho một nhân viên trong một kỳ.
+ *
+ * `signedAt == null` = chưa ai giải thích và ký; còn dòng như vậy thì backend
+ * chặn bước "HR đã soát" của kỳ.
+ */
+export interface PayrollVariance {
+  payrollPeriodId: string;
+  employeeId: string;
+  baselineEngine: PayrollEngineVersion;
+  targetEngine: PayrollEngineVersion;
+  baselineNet: number;
+  targetNet: number;
+  /** Dương = phiên bản mới trả cao hơn phiên bản cũ. */
+  diff: number;
+  fields: PayrollVarianceField[];
+  detectedAt: string;
+  detectedBy: string;
+  signedBy: string | null;
+  signedAt: string | null;
+  explanation: string | null;
+}
+
+/** Kết quả sinh file chuyển lương theo mẫu ngân hàng đang bật. */
+export interface BankTransferFileResult {
+  fileName: string;
+  /** Nội dung file (đã gồm BOM nếu mẫu yêu cầu). */
+  content: string;
+  bankCode: string;
+  bankName: string;
+  rowCount: number;
+  totalAmount: number;
+  /** Nhân viên bị loại khỏi lệnh chi kèm lý do — phải hiện cho người dùng. */
+  skipped: { employeeId: string; reason: string }[];
+}
+
+/** Điều chỉnh hồi tố: truy lĩnh (`claim`) / truy thu (`clawback`) cho kỳ trước. */
+export interface RetroAdjustment {
+  id: string;
+  employeeId: string;
+  kind: "claim" | "clawback";
+  amount: number;
+  taxable: boolean;
+  originPeriodId: string;
+  payoutPeriodId: string;
+  reason: string;
+  status: "active" | "cancelled";
+  createdBy: string;
+  createdAt: string;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+}
+
+export interface ReconciliationRunResult {
+  periodId: string;
+  baselineEngine: PayrollEngineVersion;
+  targetEngine: PayrollEngineVersion;
+  comparedCount: number;
+  varianceCount: number;
+  unsignedCount: number;
+  errors: { employeeId: string; message: string }[];
+}
 export type SalaryZone = "zone1" | "zone2" | "zone3" | "zone4";
 
 export interface GrossUpInput {
@@ -20,6 +103,20 @@ export interface GrossUpResult {
   employerCost: number;
 }
 
+/** Một dòng lương theo đoạn hợp đồng trong kỳ. */
+export interface PayslipSegment {
+  contractId: string;
+  contractNumber: string;
+  employmentStatus: string;
+  from: string;
+  to: string;
+  workDays: number;
+  baseSalary: number;
+  effectiveBase: number;
+  attendanceRatio: number;
+  proRatedBaseSalary: number;
+}
+
 export interface PayrollPeriod {
   _id: string;
   name: string;
@@ -28,6 +125,9 @@ export interface PayrollPeriod {
   payDate: string;
   standardWorkDays: number;
   status: PayrollPeriodStatus;
+  stage?: PayrollPeriodStage;
+  hrReviewedBy?: string | null;
+  hrReviewedAt?: string | null;
   closedAt?: string | null;
   attendanceLockedAt?: string | null;
   evaluationLockedAt?: string | null;
@@ -84,6 +184,12 @@ export interface PayrollRecord {
   totalAllowances: DecimalLike;
   overtimePay: DecimalLike;
   totalBonuses: DecimalLike;
+  /** Truy lĩnh kỳ trước, đã cộng vào Gross của kỳ này. */
+  totalRetroClaims?: DecimalLike;
+  /** Truy thu kỳ trước, khấu trừ sau thuế. */
+  totalRetroClawbacks?: DecimalLike;
+  /** Dòng lương theo đoạn hợp đồng (chỉ có khi đổi hợp đồng giữa kỳ). */
+  segments?: PayslipSegment[];
   grossSalary: DecimalLike;
 
   insuranceBase: DecimalLike;

@@ -1,4 +1,5 @@
 import AccessTokenIssuer from "@modules/auth/core/app/ports/AccessTokenIssuer";
+import Account from "@modules/auth/core/domain/entities/Account";
 import RefreshTokenStore from "@modules/auth/core/app/ports/RefreshTokenStore";
 
 /**
@@ -9,6 +10,11 @@ export interface AuthTokens {
     accessTokenExpiresAt:  Date;
     refreshToken:          string;
     refreshTokenExpiresAt: Date;
+    /**
+     * Trả thẳng cho client để giao diện điều hướng sang trang đổi mật khẩu ngay
+     * sau khi đăng nhập, không phải chờ một request khác bị 403.
+     */
+    mustChangePassword:    boolean;
 }
 
 /**
@@ -16,17 +22,18 @@ export interface AuthTokens {
  * RefreshSession.
  */
 export async function issueAuthTokens(
-    accountId:         string,
+    account:           Account,
     accessTokenIssuer: AccessTokenIssuer,
     refreshTokenStore: RefreshTokenStore,
 ): Promise<AuthTokens> {
-    const accessToken  = await accessTokenIssuer.issue(accountId);
-    const refreshToken = await refreshTokenStore.issue(accountId);
+    const accessToken  = await accessTokenIssuer.issue(account.id, { mustChangePassword: account.mustChangePassword });
+    const refreshToken = await refreshTokenStore.issue(account.id);
 
     return {
         accessToken:           accessToken.token,
         accessTokenExpiresAt:  accessToken.expiresAt,
         refreshToken:          refreshToken.token,
         refreshTokenExpiresAt: refreshToken.expiresAt,
+        mustChangePassword:    account.mustChangePassword,
     };
 }

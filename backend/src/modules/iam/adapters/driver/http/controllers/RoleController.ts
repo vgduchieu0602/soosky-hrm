@@ -3,6 +3,7 @@ import SetRolePermissionsUseCase from "@modules/iam/core/app/use-cases/assignmen
 import CreateRoleUseCase from "@modules/iam/core/app/use-cases/role/CreateRoleUseCase";
 import DeleteRoleUseCase from "@modules/iam/core/app/use-cases/role/DeleteRoleUseCase";
 import GetRoleUseCase from "@modules/iam/core/app/use-cases/role/GetRoleUseCase";
+import ListRolePermissionsUseCase from "@modules/iam/core/app/use-cases/role/ListRolePermissionsUseCase";
 import ListRolesUseCase from "@modules/iam/core/app/use-cases/role/ListRolesUseCase";
 import UpdateRoleUseCase from "@modules/iam/core/app/use-cases/role/UpdateRoleUseCase";
 import ActorContext from "@shared/adapters/driver/http/ActorContext";
@@ -17,6 +18,7 @@ export interface RoleControllerUseCases {
     updateRole:          UpdateRoleUseCase;
     deleteRole:          DeleteRoleUseCase;
     setRolePermissions:  SetRolePermissionsUseCase;
+    listRolePermissions: ListRolePermissionsUseCase;
 }
 
 const bodySchemaCreateRole = bodySchema({
@@ -81,6 +83,14 @@ export default class RoleController {
             roleId:      req.params.roleId,
         });
         res.status(204).end();
+    };
+
+    public listRolePermissions = async (req: Request<{ roleId: string }>, res: Response): Promise<void> => {
+        const output = await this._useCases.listRolePermissions.execute({
+            actorUserId: ActorContext.get(res),
+            roleId:      req.params.roleId,
+        });
+        res.status(200).json(output);
     };
 
     public setRolePermissions = async (req: Request<{ roleId: string }>, res: Response): Promise<void> => {

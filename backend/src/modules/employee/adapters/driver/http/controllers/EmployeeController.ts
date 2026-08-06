@@ -1,6 +1,7 @@
 import EmployeePresenter from "@modules/employee/adapters/driver/http/presenters/EmployeePresenter";
 import CreateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/CreateEmployeeUseCase";
 import GetEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/GetEmployeeUseCase";
+import GrantEmployeeLoginUseCase from "@modules/employee/core/app/use-cases/employee/GrantEmployeeLoginUseCase";
 import ListEmployeesUseCase from "@modules/employee/core/app/use-cases/employee/ListEmployeesUseCase";
 import TerminateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/TerminateEmployeeUseCase";
 import UpdateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/UpdateEmployeeUseCase";
@@ -14,6 +15,7 @@ export interface EmployeeControllerUseCases {
     getEmployee:       GetEmployeeUseCase;
     listEmployees:     ListEmployeesUseCase;
     terminateEmployee: TerminateEmployeeUseCase;
+    grantEmployeeLogin: GrantEmployeeLoginUseCase;
 }
 
 const bodySchemaCreateEmployee = bodySchema({
@@ -47,6 +49,11 @@ const bodySchemaTerminateEmployee = bodySchema({
     note:            field.optionalString,
 });
 
+// Bỏ trống `email` → dùng email trên hồ sơ nhân viên.
+const bodySchemaGrantLogin = bodySchema({
+    email: field.optionalString,
+});
+
 /**
  * Controller nhóm endpoint Employee: parse request, gọi use-case, ghi
  * response — không chứa nghiệp vụ.
@@ -68,12 +75,13 @@ export default class EmployeeController {
         const employees = await this._useCases.listEmployees.execute({
             departmentId: typeof req.query.departmentId === "string" ? req.query.departmentId : undefined,
             status:       typeof req.query.status === "string" ? req.query.status : undefined,
+            actorUserId:  ActorContext.get(res),
         });
         res.status(200).json({ employees: employees.map(EmployeePresenter.toDTO) });
     };
 
     public getEmployee = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const employee = await this._useCases.getEmployee.execute({ employeeId: req.params.employeeId });
+        const employee = await this._useCases.getEmployee.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json(EmployeePresenter.toDTO(employee));
     };
 
@@ -95,5 +103,15 @@ export default class EmployeeController {
             actorUserId:     ActorContext.get(res),
         });
         res.status(200).end();
+    };
+
+    public grantEmployeeLogin = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
+        const body   = bodySchemaGrantLogin.parse(req.body ?? {});
+        const output = await this._useCases.grantEmployeeLogin.execute({
+            employeeId:  req.params.employeeId,
+            email:       body.email,
+            actorUserId: ActorContext.get(res),
+        });
+        res.status(201).json(output);
     };
 }

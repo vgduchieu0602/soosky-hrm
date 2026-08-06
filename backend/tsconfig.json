@@ -46,6 +46,11 @@
     "resolveJsonModule": true,
 
     // Path aliases
+    // baseUrl BẮT BUỘC phải có: `tsc-alias` (bước 2 của `pnpm run build`) dùng
+    // nó làm gốc để đổi "@infra/..." trong dist/ thành đường dẫn tương đối.
+    // Thiếu baseUrl thì trên Linux tsc-alias báo "0 files were affected" và
+    // image Docker khởi động là chết ngay: Cannot find module '@infra/...'.
+    "baseUrl": ".",
     "paths": {
       "@shared/*": ["./src/shared/*"],
       "@modules/*": ["./src/modules/*"],

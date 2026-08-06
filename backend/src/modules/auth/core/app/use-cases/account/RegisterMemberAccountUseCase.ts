@@ -1,5 +1,6 @@
 import { EmailAlreadyInUseError } from "@modules/auth/core/app/errors/EmailAlreadyInUseError";
 import PasswordHasher from "@modules/auth/core/app/ports/PasswordHasher";
+import RandomSecretGenerator from "@modules/auth/core/app/ports/RandomSecretGenerator";
 import UnitOfWork from "@modules/auth/core/app/ports/UnitOfWork";
 import VerificationMailer from "@modules/auth/core/app/ports/VerificationMailer";
 import Account from "@modules/auth/core/domain/entities/Account";
@@ -7,9 +8,8 @@ import AccountRole from "@modules/auth/core/domain/value-objects/AccountRole";
 import FullName from "@modules/auth/core/domain/value-objects/FullName";
 import PlainPassword from "@modules/auth/core/domain/value-objects/PlainPassword";
 import AccessDeniedError from "@shared/core/app/errors/AccessDeniedError";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 import Email from "@shared/core/domain/value-objects/email/Email";
-import { randomBytes } from "node:crypto";
-import { v7 as UUIDv7 } from "uuid";
 
 export interface RegisterAccountInput {
     email:          string;
@@ -44,6 +44,7 @@ export default class RegisterMemberAccountUseCase {
         private readonly _uow: UnitOfWork,
         private readonly _passwordHasher: PasswordHasher,
         private readonly _verificationMailer: VerificationMailer,
+        private readonly _secretGenerator: RandomSecretGenerator,
     ) {}
 
     /**
@@ -77,11 +78,14 @@ export default class RegisterMemberAccountUseCase {
             }
 
             const account = Account.register({
-                id:           UUIDv7(),
+                id:           createUuidV7(),
                 email:        email,
                 passwordHash: passwordHash,
                 fullName:     fullName,
                 role:         AccountRole.MEMBER, // account mới luôn là member; nâng quyền qua ChangeAccountRole
+                // Mật khẩu do hệ thống sinh và gửi qua mail → buộc đổi ở lần
+                // đăng nhập đầu tiên.
+                mustChangePassword: true,
             });
             await ctx.accountRepo.save(account);
 
@@ -96,6 +100,6 @@ export default class RegisterMemberAccountUseCase {
     }
 
     private _generateRandomPassword(): string {
-        return randomBytes(32).toString("base64url");
+        return this._secretGenerator.generate(32);
     }
 }

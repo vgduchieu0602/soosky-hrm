@@ -2,7 +2,7 @@ import CompensationEntryNotFoundError from "@modules/payroll/core/app/errors/Com
 import DeductionRepo from "@modules/payroll/core/app/ports/DeductionRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export default class DeleteDeductionUseCase {
     public constructor(

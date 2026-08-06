@@ -1,26 +1,37 @@
 import { useEffect, useState } from "react";
-import { Building2, Globe2, Timer, Check, AlertCircle, CalendarDays } from "lucide-react";
+import { Building2, Globe2, Check, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { settingsService } from "@features/settings/services/settings.service";
 import { SettingsSection } from "@features/settings/components/SettingsSection";
+import { apiErrorMessage } from "@shared/utils/apiError";
 import type { CompanyConfig } from "@features/settings/types/settings.types";
 
 const inputCls =
   "flex h-10 w-full rounded-lg border border-input bg-card px-3 text-[13px] text-foreground transition-colors focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60";
 
 const TIMEZONES = ["Asia/Ho_Chi_Minh", "Asia/Bangkok", "Asia/Singapore", "Asia/Tokyo", "Asia/Seoul", "UTC"];
+const CURRENCIES = ["VND", "USD"];
 
-const LEAVE_TYPES: { key: string; label: string }[] = [
-  { key: "annual", label: "Phép năm" },
-  { key: "sick", label: "Nghỉ ốm" },
-  { key: "personal", label: "Việc riêng" },
-  { key: "maternity", label: "Thai sản" },
-  { key: "paternity", label: "Nghỉ vợ sinh" },
-];
+/** Hồ sơ mặc định khi hệ thống chưa cấu hình công ty lần nào. */
+const EMPTY_COMPANY: CompanyConfig = {
+  companyName: "",
+  timezone: "Asia/Ho_Chi_Minh",
+  currency: "VND",
+  standardWorkHoursPerDay: 8,
+  standardWorkDaysPerMonth: 22,
+};
 
 interface Props { canManage: boolean }
 
+/**
+ * Hồ sơ công ty — đúng những trường backend lưu (`CompanyProfile`).
+ *
+ * Dung sai đi muộn/về sớm và hạn mức phép mặc định KHÔNG ở đây: dung sai thuộc
+ * ca làm việc (`/attendance/shifts`), hạn mức phép là số dư từng nhân viên
+ * (`/attendance/leave-balances`). Ghép chúng vào hồ sơ công ty là tạo cấu hình
+ * không có nơi lưu.
+ */
 export function CompanySettings({ canManage }: Props) {
   const [cfg, setCfg] = useState<CompanyConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +43,10 @@ export function CompanySettings({ canManage }: Props) {
     let cancelled = false;
     settingsService.getCompany()
       .then((c) => { if (!cancelled) { setCfg(c); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setError("Không tải được cấu hình công ty."); setLoading(false); } });
+      .catch(() => {
+        // 404 = chưa cấu hình lần nào -> mở form trắng để tạo mới.
+        if (!cancelled) { setCfg(EMPTY_COMPANY); setLoading(false); }
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -43,23 +57,12 @@ export function CompanySettings({ canManage }: Props) {
 
   function save() {
     if (!cfg) return;
+    if (cfg.companyName.trim() === "") { setError("Tên công ty là bắt buộc."); return; }
+
     setSaving(true); setMsg(null); setError(null);
-    settingsService.updateCompany({
-      companyName: cfg.companyName,
-      timezone: cfg.timezone,
-      standardWorkDays: cfg.standardWorkDays,
-      graceLateMinutes: cfg.graceLateMinutes,
-      graceEarlyMinutes: cfg.graceEarlyMinutes,
-      earlyLeaveToleranceMinutes: cfg.earlyLeaveToleranceMinutes,
-      lateArrivalToleranceMinutes: cfg.lateArrivalToleranceMinutes,
-      overtimeEnabled: !!cfg.overtimeEnabled,
-      lateAffectsPay: !!cfg.lateAffectsPay,
-      leaveQuotas: cfg.leaveQuotas ?? {},
-      contactEmail: cfg.contactEmail || undefined,
-      address: cfg.address || undefined,
-    })
-      .then((c) => { setCfg(c); setMsg("Đã lưu cấu hình công ty."); })
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể lưu."))
+    settingsService.updateCompany(cfg)
+      .then((c) => { setCfg(c); setMsg("Đã lưu hồ sơ công ty."); })
+      .catch((e) => setError(apiErrorMessage(e, "Không thể lưu.")))
       .finally(() => setSaving(false));
   }
 
@@ -73,67 +76,51 @@ export function CompanySettings({ canManage }: Props) {
           <Field label="Tên công ty" span>
             <input className={inputCls} disabled={!canManage} value={cfg.companyName} onChange={(e) => set("companyName", e.target.value)} />
           </Field>
+          <Field label="Mã số thuế">
+            <input className={inputCls} disabled={!canManage} value={cfg.taxCode ?? ""} onChange={(e) => set("taxCode", e.target.value)} />
+          </Field>
+          <Field label="Điện thoại">
+            <input className={inputCls} disabled={!canManage} value={cfg.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
+          </Field>
           <Field label="Email liên hệ">
             <input type="email" className={inputCls} disabled={!canManage} placeholder="hr@congty.com" value={cfg.contactEmail ?? ""} onChange={(e) => set("contactEmail", e.target.value)} />
           </Field>
           <Field label="Địa chỉ">
             <input className={inputCls} disabled={!canManage} placeholder="Số nhà, đường, quận…" value={cfg.address ?? ""} onChange={(e) => set("address", e.target.value)} />
           </Field>
+          <Field label="Logo (URL)" span>
+            <input className={inputCls} disabled={!canManage} placeholder="https://…" value={cfg.logoUrl ?? ""} onChange={(e) => set("logoUrl", e.target.value)} />
+          </Field>
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={Globe2} tone="indigo" title="Khu vực & lịch làm việc" description="Múi giờ và số ngày công chuẩn dùng để tính lương theo tháng.">
+      <SettingsSection
+        icon={Globe2}
+        tone="indigo"
+        title="Khu vực & lịch làm việc"
+        description="Múi giờ dùng cho chấm công; giờ/ngày công chuẩn dùng khi quy đổi tỷ lệ."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Múi giờ" hint="Áp dụng cho chấm công và báo cáo.">
+          <Field label="Múi giờ" hint="Backend dùng giá trị này để cắt ngày chấm công.">
             <select className={inputCls} disabled={!canManage} value={cfg.timezone} onChange={(e) => set("timezone", e.target.value)}>
               {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </select>
           </Field>
-          <Field label="Ngày công chuẩn / tháng" hint="Mẫu số khi quy đổi tỷ lệ chấm công.">
-            <input type="number" min={1} max={31} className={inputCls} disabled={!canManage} value={cfg.standardWorkDays} onChange={(e) => set("standardWorkDays", Number(e.target.value))} />
+          <Field label="Tiền tệ">
+            <select className={inputCls} disabled={!canManage} value={cfg.currency ?? "VND"} onChange={(e) => set("currency", e.target.value)}>
+              {CURRENCIES.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+            </select>
           </Field>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection icon={Timer} tone="amber" title="Dung sai chấm công" description="Khoảng thời gian được bỏ qua trước khi tính đi muộn hoặc về sớm.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Dung sai đi muộn (phút)">
-            <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.graceLateMinutes} onChange={(e) => set("graceLateMinutes", Number(e.target.value))} />
+          <Field label="Giờ công chuẩn / ngày">
+            <input type="number" min={1} max={24} className={inputCls} disabled={!canManage}
+              value={cfg.standardWorkHoursPerDay ?? 8}
+              onChange={(e) => set("standardWorkHoursPerDay", Number(e.target.value))} />
           </Field>
-          <Field label="Dung sai về sớm (phút)">
-            <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.graceEarlyMinutes} onChange={(e) => set("graceEarlyMinutes", Number(e.target.value))} />
+          <Field label="Ngày công chuẩn / tháng" hint="Kỳ lương vẫn khai riêng số ngày công của chính kỳ đó.">
+            <input type="number" min={1} max={31} className={inputCls} disabled={!canManage}
+              value={cfg.standardWorkDaysPerMonth ?? 22}
+              onChange={(e) => set("standardWorkDaysPerMonth", Number(e.target.value))} />
           </Field>
-          <Field label="Ngưỡng về sớm huỷ công ca (phút)" hint="Về sớm quá ngưỡng này thì ca đó không được tính công.">
-            <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.earlyLeaveToleranceMinutes ?? 120} onChange={(e) => set("earlyLeaveToleranceMinutes", Number(e.target.value))} />
-          </Field>
-          <Field label="Ngưỡng đi muộn (phút)" hint="Đi muộn được ghi nhận nhưng không huỷ công ca.">
-            <input type="number" min={0} className={inputCls} disabled={!canManage} value={cfg.lateArrivalToleranceMinutes ?? 120} onChange={(e) => set("lateArrivalToleranceMinutes", Number(e.target.value))} />
-          </Field>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection icon={Timer} tone="violet" title="Chính sách lương theo chấm công" description="Bật khi muốn áp dụng — mặc định tắt.">
-        <div className="flex flex-col gap-3">
-          <label className="flex items-center gap-2.5 rounded-lg border bg-muted/30 p-3 text-[13px]">
-            <input type="checkbox" disabled={!canManage} checked={!!cfg.overtimeEnabled} onChange={(e) => set("overtimeEnabled", e.target.checked)} className="size-4 accent-primary" />
-            <span className="flex-1 text-foreground">Tính lương tăng ca (OT)</span>
-          </label>
-          <label className="flex items-center gap-2.5 rounded-lg border bg-muted/30 p-3 text-[13px]">
-            <input type="checkbox" disabled={!canManage} checked={!!cfg.lateAffectsPay} onChange={(e) => set("lateAffectsPay", e.target.checked)} className="size-4 accent-primary" />
-            <span className="flex-1 text-foreground">Đi muộn/về sớm ảnh hưởng lương</span>
-          </label>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection icon={CalendarDays} tone="emerald" title="Hạn mức nghỉ phép mặc định" description="Số ngày phép/năm tự gán cho nhân viên mới (0 = không gán).">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {LEAVE_TYPES.map((lt) => (
-            <Field key={lt.key} label={lt.label}>
-              <input type="number" min={0} max={365} className={inputCls} disabled={!canManage}
-                value={cfg.leaveQuotas?.[lt.key] ?? 0}
-                onChange={(e) => set("leaveQuotas", { ...(cfg.leaveQuotas ?? {}), [lt.key]: Number(e.target.value) })} />
-            </Field>
-          ))}
         </div>
       </SettingsSection>
 

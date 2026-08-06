@@ -51,6 +51,48 @@ export interface EffectiveBaseInput {
     prorateByAttendance?: boolean | undefined;
 }
 
+/**
+ * Phiên bản CÔNG THỨC tính lương.
+ *
+ * Đổi bất cứ thứ gì làm cùng đầu vào cho ra số khác → phải tăng version. Phiếu
+ * lương lưu version đã dùng, nên sáu tháng sau còn trả lời được "số này tính
+ * bằng công thức nào", và việc chạy song song hai phiên bản để đối soát mới có
+ * nghĩa.
+ */
+export const PAYROLL_ENGINE_VERSIONS = ["v1", "v2"] as const;
+export type PayrollEngineVersion = (typeof PAYROLL_ENGINE_VERSIONS)[number];
+
+/**
+ * Phiên bản đang dùng để tính lương thật.
+ *
+ * `v1` = công thức cũ: một mức lương cho cả kỳ, không tách đoạn hợp đồng, không
+ * biết tới điều chỉnh hồi tố. Giữ lại KHÔNG phải để dùng, mà để chạy song song:
+ * tính cùng một kỳ bằng cả hai phiên bản rồi giải thích từng chênh lệch.
+ *
+ * `v2` = thêm tách đoạn hợp đồng giữa kỳ và truy lĩnh/truy thu hồi tố.
+ */
+export const PAYROLL_ENGINE_VERSION: PayrollEngineVersion = "v2";
+
+/**
+ * Một ĐOẠN hợp đồng trong kỳ — dùng khi nhân viên đổi hợp đồng giữa kỳ (hết thử
+ * việc, tăng lương, đổi loại hợp đồng).
+ */
+export interface EffectiveBaseSegmentInput {
+    /** Lương cơ bản đã áp tỷ lệ thử việc của đoạn này. */
+    baseSalary:      number;
+    /** Ngày công THỰC TẾ thuộc đoạn này / ngày công tiêu chuẩn của CẢ kỳ. */
+    attendanceRatio: number;
+    /**
+     * Tỷ trọng THỜI GIAN của đoạn trong kỳ (số ngày của đoạn / số ngày của kỳ).
+     *
+     * Cần riêng khỏi `attendanceRatio` vì phần hiệu suất + mục tiêu (80% theo
+     * bộ trọng số mặc định) KHÔNG bị cắt theo ngày công khi
+     * `prorateByAttendance = false`. Nếu chia đoạn mà vẫn cho mỗi đoạn hưởng đủ
+     * 80% đó thì hai đoạn nửa tháng sẽ trả 180% lương tháng.
+     */
+    periodShare:     number;
+}
+
 export interface EffectiveBaseResult {
     attendanceComponent:  number;
     performanceComponent: number;
@@ -268,6 +310,16 @@ export function computeOvertimePayBreakdown(
 
 export interface ComputePayrollInput {
     baseSalary:            number;
+    /**
+     * Các đoạn hợp đồng trong kỳ. Có mặt → lương theo công = TỔNG phần của từng
+     * đoạn (mỗi đoạn dùng lương cơ bản riêng và tỷ lệ ngày công riêng), và
+     * `baseSalary`/`attendanceRatio` ở trên chỉ còn dùng để tham chiếu.
+     *
+     * Bảo hiểm và THUẾ vẫn tính MỘT LẦN trên tổng tháng: thuế TNCN luỹ tiến và
+     * trần bảo hiểm là quy tắc theo tháng. Cộng thuế của từng đoạn sẽ cho mỗi
+     * đoạn một suất giảm trừ và một bậc thuế riêng → thiếu thuế.
+     */
+    segments?:             EffectiveBaseSegmentInput[] | undefined;
     attendanceRatio:       number;
     performanceRatio:      number;
     goalRatio:             number;
@@ -289,6 +341,19 @@ export interface ComputePayrollInput {
     totalBonuses?:              number | undefined;
     /** Phần totalBonuses miễn thuế. */
     totalNonTaxableBonuses?:    number | undefined;
+
+    /**
+     * TRUY LĨNH: tiền trả thêm cho kỳ TRƯỚC bị tính thiếu. Cộng vào gross của kỳ
+     * chi trả (giống thưởng) vì thu nhập chịu thuế tính theo kỳ NHẬN tiền.
+     */
+    totalRetroClaims?:            number | undefined;
+    /** Phần truy lĩnh miễn thuế. */
+    totalNonTaxableRetroClaims?:  number | undefined;
+    /**
+     * TRUY THU: thu hồi tiền đã trả thừa kỳ trước. Khấu trừ SAU thuế — thuế của
+     * kỳ trước đã nộp trên số tiền đó rồi, trừ trước thuế lần nữa là giảm thuế hai lần.
+     */
+    totalRetroClawbacks?:         number | undefined;
 
     socialHealthCeiling:   number;
     unemploymentCeiling:   number;
@@ -317,6 +382,8 @@ export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResu
     overtimePay:                 number;
     overtimeNonTaxablePay:       number;
     totalBonuses:                number;
+    totalRetroClaims:            number;
+    totalRetroClawbacks:         number;
     grossSalary:                 number;
     /** Lương thực sự chịu BH (trước khi áp trần). */
     insurableSalary:             number;
@@ -333,18 +400,81 @@ export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResu
 }
 
 /**
+ * Cộng phần lương theo công của từng đoạn hợp đồng.
+ *
+ * Điểm hiệu suất/mục tiêu áp CHUNG cho cả kỳ (đánh giá là của con người trong
+ * kỳ, không phải của từng hợp đồng), chỉ lương cơ bản và ngày công là theo đoạn.
+ */
+function sumSegmentEffectiveBase(
+    input:    ComputePayrollInput,
+    segments: EffectiveBaseSegmentInput[],
+): EffectiveBaseResult {
+    let attendanceComponent  = 0;
+    let performanceComponent = 0;
+    let goalComponent        = 0;
+
+    const weights = input.weights ?? DEFAULT_COMPONENT_WEIGHTS;
+
+    for (const segment of segments) {
+        // `prorateByAttendance = true` → hiệu suất/mục tiêu cắt theo ngày công
+        // (giống đường tính cả tháng). `false` → không cắt theo ngày công, nhưng
+        // VẪN phải chia theo tỷ trọng thời gian của đoạn.
+        const qualityFactor = input.prorateByAttendance === true ? segment.attendanceRatio : segment.periodShare;
+
+        attendanceComponent += Math.round(
+            (weights.attendance / 100) * segment.baseSalary * segment.attendanceRatio,
+        );
+        performanceComponent += Math.round(
+            (weights.performance / 100) * segment.baseSalary * (input.performanceRatio / 100) * qualityFactor,
+        );
+        goalComponent += Math.round(
+            (weights.goal / 100) * segment.baseSalary * (input.goalRatio / 100) * qualityFactor,
+        );
+    }
+
+    return {
+        attendanceComponent,
+        performanceComponent,
+        goalComponent,
+        proRatedBaseSalary: attendanceComponent + performanceComponent + goalComponent,
+    };
+}
+
+/**
  * Tính lương thuần một tháng, từ lương theo công tới net. Field layout khớp
  * `PayslipProps` để map thẳng lên payslip (sau khi làm tròn số nguyên VNĐ).
  */
-export function computePayroll(input: ComputePayrollInput): ComputePayrollResult {
-    const effective = computeEffectiveBaseSalary({
-        baseSalary:          input.baseSalary,
-        attendanceRatio:     input.attendanceRatio,
-        performanceRatio:    input.performanceRatio,
-        goalRatio:           input.goalRatio,
-        weights:             input.weights,
-        prorateByAttendance: input.prorateByAttendance,
-    });
+/**
+ * @param engineVersion Phiên bản công thức. `v1` bỏ qua `segments` (dùng một mức
+ *   lương cho cả kỳ) và bỏ qua hồi tố — đúng hành vi trước khi có hai tính năng
+ *   đó, để đối soát song song có ý nghĩa.
+ */
+export function computePayroll(
+    input: ComputePayrollInput,
+    engineVersion: PayrollEngineVersion = PAYROLL_ENGINE_VERSION,
+): ComputePayrollResult {
+    // `v1` không biết tới hai tính năng của v2 — bỏ đúng phần đầu vào đó thay vì
+    // sửa công thức, để hai nhánh dùng chung một đường tính và chênh lệch quan
+    // sát được chỉ đến từ tính năng mới.
+    const segments = engineVersion === "v1" ? undefined : input.segments;
+    const retro = engineVersion === "v1"
+        ? { claims: 0, nonTaxableClaims: 0, clawbacks: 0 }
+        : {
+            claims:           input.totalRetroClaims ?? 0,
+            nonTaxableClaims: input.totalNonTaxableRetroClaims ?? 0,
+            clawbacks:        input.totalRetroClawbacks ?? 0,
+        };
+
+    const effective = segments == undefined || segments.length === 0
+        ? computeEffectiveBaseSalary({
+              baseSalary:          input.baseSalary,
+              attendanceRatio:     input.attendanceRatio,
+              performanceRatio:    input.performanceRatio,
+              goalRatio:           input.goalRatio,
+              weights:             input.weights,
+              prorateByAttendance: input.prorateByAttendance,
+          })
+        : sumSegmentEffectiveBase(input, segments);
 
     const totalTaxableAllowances    = input.totalTaxableAllowances ?? 0;
     const totalNonTaxableAllowances = input.totalNonTaxableAllowances ?? 0;
@@ -352,8 +482,12 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     const overtimePay               = input.overtimePay ?? 0;
     const overtimeNonTaxablePay     = Math.min(input.overtimeNonTaxablePay ?? 0, overtimePay);
     const totalBonuses              = input.totalBonuses ?? 0;
+    const totalRetroClaims          = retro.claims;
+    const totalNonTaxableRetroClaims = Math.min(retro.nonTaxableClaims, totalRetroClaims);
+    const totalRetroClawbacks       = retro.clawbacks;
 
-    const grossSalary = effective.proRatedBaseSalary + totalAllowances + overtimePay + totalBonuses;
+    const grossSalary =
+        effective.proRatedBaseSalary + totalAllowances + overtimePay + totalBonuses + totalRetroClaims;
 
     // Nền BHXH = lương công ty đăng ký (KHÔNG theo công) + phụ cấp tính BH;
     // computeInsurance áp trần sau đó. insuranceBaseSalary=0 → miễn BH cả tháng.
@@ -375,7 +509,8 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
     // Thu nhập tính thuế: loại phụ cấp/thưởng miễn thuế + phần OT miễn thuế;
     // người cư trú được giảm trừ thêm bảo hiểm NLĐ (người không cư trú thì không).
     const assessableIncome =
-        grossSalary - totalNonTaxableAllowances - (input.totalNonTaxableBonuses ?? 0) - overtimeNonTaxablePay;
+        grossSalary - totalNonTaxableAllowances - (input.totalNonTaxableBonuses ?? 0) - overtimeNonTaxablePay
+        - totalNonTaxableRetroClaims;
     const taxableIncome = isResident ? assessableIncome - insurance.insurance : assessableIncome;
 
     let personalDeduction = 0;
@@ -404,9 +539,11 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
             0,
         ),
     );
-    const totalDeductions = insurance.insurance + tax + unionFee + otherDeductions;
+    const totalDeductions = insurance.insurance + tax + unionFee + otherDeductions + totalRetroClawbacks;
     // Net không bao giờ âm: khấu trừ vượt gross thì chặn ở 0 thay vì ra số âm.
-    const netSalary = Math.max(0, grossSalary - insurance.insurance - tax - unionFee - otherDeductions);
+    // Truy thu vượt lương tháng này thì phần còn lại phải thu ở kỳ sau bằng một
+    // bản ghi truy thu mới — hệ thống KHÔNG tự mang nợ sang kỳ sau.
+    const netSalary = Math.max(0, grossSalary - totalDeductions);
 
     return {
         ...effective,
@@ -420,6 +557,8 @@ export function computePayroll(input: ComputePayrollInput): ComputePayrollResult
         overtimePay,
         overtimeNonTaxablePay,
         totalBonuses,
+        totalRetroClaims,
+        totalRetroClawbacks,
         grossSalary,
         taxableIncome,
         personalDeduction,

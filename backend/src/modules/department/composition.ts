@@ -9,6 +9,12 @@ import { Db as MongoDb } from "mongodb";
 export interface DepartmentDirectory {
     departmentExists(departmentId: string): Promise<boolean>;
     positionExists(positionId: string): Promise<boolean>;
+    /**
+     * Id phong ban theo MA phong ban. File CSV do nguoi lam nhan su chuan bi
+     * mang ma nghiep vu (vd "ENG"), khong mang UUID.
+     */
+    findDepartmentIdByCode(code: string): Promise<string | undefined>;
+    findPositionIdByCode(code: string): Promise<string | undefined>;
 }
 
 /**
@@ -23,5 +29,22 @@ export function createDepartmentDirectory(mongoDb: MongoDb): DepartmentDirectory
     return {
         departmentExists: async (departmentId: string) => (await departmentRepo.getById(departmentId)) != undefined,
         positionExists:    async (positionId: string) => (await positionRepo.getById(positionId)) != undefined,
+
+        findDepartmentIdByCode: async (code: string) => (await departmentRepo.getByCode(code))?.id,
+        findPositionIdByCode:   async (code: string) => (await positionRepo.getByCode(code))?.id,
+    };
+}
+
+/** Bề mặt đọc TÊN phòng ban cho read model (module Dashboard). */
+export interface DepartmentNameDirectory {
+    listNames(): Promise<{ id: string; name: string }[]>;
+}
+
+export function createDepartmentNameDirectory(mongoDb: MongoDb): DepartmentNameDirectory {
+    const departmentRepo = new MongoDepartmentRepo(mongoDb);
+
+    return {
+        listNames: async () =>
+            (await departmentRepo.listAll()).map(department => ({ id: department.id, name: department.name.value })),
     };
 }

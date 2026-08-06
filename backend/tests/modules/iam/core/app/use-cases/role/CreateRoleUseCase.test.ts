@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { RoleKeyConflictError } from "@modules/iam/core/app/errors/RoleKeyConflictError";
 import AuditRepo from "@modules/iam/core/app/ports/AuditRepo";
 import RoleRepo from "@modules/iam/core/app/ports/RoleRepo";

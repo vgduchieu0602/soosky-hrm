@@ -35,7 +35,7 @@ export default class EmployeeProfileController {
     ) {}
 
     public getEmployeeProfile = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const profile = await this._useCases.getEmployeeProfile.execute({ employeeId: req.params.employeeId });
+        const profile = await this._useCases.getEmployeeProfile.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json(EmployeeProfilePresenter.toDTO(profile));
     };
 

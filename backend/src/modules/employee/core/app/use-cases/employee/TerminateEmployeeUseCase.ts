@@ -1,9 +1,10 @@
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import EmployeeNotFoundError from "@modules/employee/core/app/errors/EmployeeNotFoundError";
 import EmployeeHistoryRepo from "@modules/employee/core/app/ports/EmployeeHistoryRepo";
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import EmployeeHistory from "@modules/employee/core/domain/entities/EmployeeHistory";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -27,6 +28,7 @@ export default class TerminateEmployeeUseCase {
         private readonly _permissions:  PermissionChecker,
         private readonly _employeeRepo: EmployeeRepo,
         private readonly _historyRepo:  EmployeeHistoryRepo,
+        private readonly _auditTrail:   AuditTrail,
     ) {}
 
     public async execute(input: TerminateEmployeeInput): Promise<void> {
@@ -42,7 +44,7 @@ export default class TerminateEmployeeUseCase {
         await this._employeeRepo.save(employee);
 
         await this._historyRepo.save(EmployeeHistory.create({
-            id:              UUIDv7(),
+            id:              createUuidV7(),
             employeeId:      employee.id,
             eventType:       "terminated",
             fromValue:       { status: previousStatus },
@@ -51,5 +53,17 @@ export default class TerminateEmployeeUseCase {
             note:            input.note ?? null,
             createdByUserId: input.actorUserId,
         }));
+
+        await this._auditTrail.record({
+            actorUserId: input.actorUserId,
+            resource:    "employee",
+            action:      "terminate",
+            resourceId:  employee.id,
+            changes:     {
+                before: { status: previousStatus },
+                after:  { status: employee.status.value, terminationDate: input.terminationDate },
+                note:   input.note ?? null,
+            },
+        });
     }
 }

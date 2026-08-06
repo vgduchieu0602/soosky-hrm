@@ -103,11 +103,11 @@ export default function LoginPage() {
             setError(null);
             setLoading(true);
             try {
-              const { accessToken, user } = await authService.login({
+              const { accessToken, refreshToken, user } = await authService.login({
                 identifier: identifier.trim(),
                 password,
               });
-              setAuth(accessToken, user);
+              setAuth(accessToken, refreshToken, user);
               navigate(user.mustChangePassword ? "/auth/change-password" : "/dashboard", {
                 replace: true,
               });

@@ -1,0 +1,35 @@
+# =============================================================================
+# docker-compose.test.yml — MongoDB replica set 1 node CHỈ để chạy test tích hợp
+# -----------------------------------------------------------------------------
+# App dùng transaction (MongoUnitOfWork) nên mongod đơn lẻ KHÔNG chạy được —
+# transaction đòi replica set. File này dựng đúng một node rs0, mở cổng 27018
+# (khác 27017 để không đụng MongoDB cài sẵn trên máy dev) và KHÔNG có volume:
+# dữ liệu nằm trong RAM/ổ tạm của container, xoá container là sạch.
+#
+#   docker compose -f docker-compose.test.yml up -d
+#   cd backend && pnpm test:integration
+#   docker compose -f docker-compose.test.yml down -v
+# =============================================================================
+name: hrm-test
+
+services:
+  mongodb-test:
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27018:27017"
+    healthcheck:
+      # Lần chạy đầu rs chưa khởi tạo -> rs.status() ném lỗi -> initiate.
+      # Các lần sau rs.status().ok = 1 -> healthy ngay.
+      # host phải là "localhost:27017" (địa chỉ nội bộ container) để client
+      # ngoài kết nối được bằng directConnection=true.
+      test:
+        - "CMD-SHELL"
+        - >
+          mongosh --quiet --eval
+          "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }"
+          | grep -q 1
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 5s

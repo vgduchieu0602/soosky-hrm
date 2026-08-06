@@ -1,0 +1,19 @@
+# =============================================================================
+# docker-compose.expose.yml — overlay "chưa có tên miền"
+# -----------------------------------------------------------------------------
+# Mở thẳng cổng ${WEB_PORT} của VPS vào nginx của frontend:
+#     http://<IP_VPS>:<WEB_PORT>
+#
+# Mỗi stack trên cùng VPS phải đặt WEB_PORT KHÁC NHAU (80, 8081, 8082, ...).
+#
+# CẢNH BÁO: chế độ này chạy HTTP thuần — mật khẩu và access token đi qua mạng
+# không mã hoá. Chấp nhận được khi demo nội bộ; có tên miền rồi thì chuyển sang
+# docker-compose.https.yml.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.expose.yml up -d
+#   (hoặc để COMPOSE_FILE trong .env lo việc này)
+# =============================================================================
+services:
+  frontend:
+    ports:
+      - "${WEB_PORT:-80}:80"

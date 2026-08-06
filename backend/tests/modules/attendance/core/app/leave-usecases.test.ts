@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import LeaveOverlapError from "@modules/attendance/core/app/errors/LeaveOverlapError";
 import AttendanceRepo from "@modules/attendance/core/app/ports/AttendanceRepo";
 import EmployeeDirectory from "@modules/attendance/core/app/ports/EmployeeDirectory";
@@ -6,6 +5,8 @@ import HolidayRepo from "@modules/attendance/core/app/ports/HolidayRepo";
 import LeaveBalanceRepo from "@modules/attendance/core/app/ports/LeaveBalanceRepo";
 import LeaveRequestRepo from "@modules/attendance/core/app/ports/LeaveRequestRepo";
 import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChecker";
+import LeaveAccessScope from "@modules/attendance/core/app/services/LeaveAccessScope";
+import LeaveDecisionAuthorizer from "@modules/attendance/core/app/services/LeaveDecisionAuthorizer";
 import LeaveEntitlementService from "@modules/attendance/core/app/services/LeaveEntitlementService";
 import ApproveLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/leave/ApproveLeaveRequestUseCase";
 import SubmitLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/leave/SubmitLeaveRequestUseCase";
@@ -39,10 +40,12 @@ describe("SubmitLeaveRequestUseCase", () => {
         eventBus          = mock<EventBus>();
 
         useCase = new SubmitLeaveRequestUseCase(
-            permissions, leaveRequestRepo, holidayRepo, employeeDirectory,
+            new LeaveAccessScope(permissions, employeeDirectory), leaveRequestRepo, holidayRepo, employeeDirectory,
             new LeaveEntitlementService(leaveBalanceRepo), eventBus,
         );
 
+        // Actor mac dinh la HR: pham vi `all` -> nop thay cho ai cung duoc.
+        permissions.resolveScope.mockResolvedValue("all");
         employeeDirectory.employeeExists.mockResolvedValue(true);
         holidayRepo.listOverlapping.mockResolvedValue([]);
         leaveRequestRepo.listOverlapping.mockResolvedValue([]);
@@ -51,8 +54,8 @@ describe("SubmitLeaveRequestUseCase", () => {
         ]);
     });
 
-    it("từ chối khi không có quyền attendance:manage", async () => {
-        permissions.assertPermission.mockRejectedValue(new AccessDeniedError());
+    it("từ chối khi không có quyền nộp đơn", async () => {
+        permissions.resolveScope.mockRejectedValue(new AccessDeniedError());
 
         await expect(useCase.execute({
             employeeId:  "emp-1",
@@ -97,6 +100,8 @@ describe("SubmitLeaveRequestUseCase", () => {
 
 describe("ApproveLeaveRequestUseCase", () => {
     let permissions: MockProxy<PermissionChecker>;
+    let employees: MockProxy<EmployeeDirectory>;
+    let decisionAuthorizer: LeaveDecisionAuthorizer;
     let leaveRequestRepo: MockProxy<LeaveRequestRepo>;
     let leaveBalanceRepo: MockProxy<LeaveBalanceRepo>;
     let attendanceRepo: MockProxy<AttendanceRepo>;
@@ -120,12 +125,18 @@ describe("ApproveLeaveRequestUseCase", () => {
         holidayRepo      = mock<HolidayRepo>();
         eventBus         = mock<EventBus>();
 
+        employees        = mock<EmployeeDirectory>();
+        decisionAuthorizer = new LeaveDecisionAuthorizer(permissions, employees);
+
         useCase = new ApproveLeaveRequestUseCase(
-            permissions, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, holidayRepo,
+            decisionAuthorizer, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, holidayRepo,
             new LeaveEntitlementService(leaveBalanceRepo), eventBus,
+            // Kỳ công mở — trường hợp kỳ đã chốt có test riêng.
+            { async findLockedPeriodCovering() { return undefined; } },
         );
 
-        permissions.assertPermission.mockResolvedValue(undefined);
+        permissions.resolveScope.mockResolvedValue("all");
+        employees.isManagedBy.mockResolvedValue(true);
         leaveRequestRepo.getById.mockResolvedValue(pendingRequest());
         leaveRequestRepo.listOverlapping.mockResolvedValue([]);
         holidayRepo.listOverlapping.mockResolvedValue([]);
@@ -135,8 +146,8 @@ describe("ApproveLeaveRequestUseCase", () => {
         leaveBalanceRepo.getOne.mockResolvedValue(undefined);
     });
 
-    it("từ chối khi không có quyền attendance:manage", async () => {
-        permissions.assertPermission.mockRejectedValue(new AccessDeniedError());
+    it("từ chối khi không có quyền duyệt đơn (leave:approve)", async () => {
+        permissions.resolveScope.mockRejectedValue(new AccessDeniedError());
         await expect(useCase.execute({ leaveRequestId: "lr-1", actorUserId: "user-1" }))
             .rejects.toBeInstanceOf(AccessDeniedError);
         expect(leaveBalanceRepo.save).not.toHaveBeenCalled();

@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { bodySchema, field } from "@shared/adapters/driver/http/validation";
 import { describe, expect, it } from "vitest";
 

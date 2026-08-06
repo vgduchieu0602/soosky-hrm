@@ -11,8 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DateField } from "@/components/ui/date-field";
 import { cn } from "@/shared/utils/cn";
-import { uploadFile, signDownload, UPLOAD_RULES, type UploadScope } from "@/shared/utils/upload";
+import { toast } from "sonner";
+import { apiErrorMessage } from "@shared/utils/apiError";
 import { employeeService } from "@features/employee/services/employee.service";
+import { filterHistory, historyTouchedKeys } from "@features/employee/utils/history-filter";
 import { iamService } from "@features/iam/services/iam.service";
 import { EmployeeEditModal } from "@features/employee/components/EmployeeEditModal";
 import { ProfileCompletenessCard } from "@features/employee/components/ProfileCompletenessCard";
@@ -26,7 +28,17 @@ import type {
   EmployeeDocumentRecord, EmployeeHistoryRecord, EmployeeProfile,
   EmployeeStatus, EmployeeView,
 } from "@features/employee/types/employee.types";
-import { bankService, type Bank } from "@features/settings/services/bank.service";
+
+/**
+ * Báo lỗi của một mutation ra người dùng.
+ *
+ * Trước đây các nhánh này `catch(() => {})` — request fail mà UI im, người dùng
+ * tưởng đã lưu. Message lấy từ envelope thật `{ code, message }` qua
+ * `apiErrorMessage`, không tự bóc `data.error.message`.
+ */
+function fail(error: unknown, fallback: string): void {
+  toast.error(apiErrorMessage(error, fallback));
+}
 
 const CHIP = (c: string) => ({ background: `var(--chip-${c}-bg)`, color: `var(--chip-${c}-ink)` });
 const inputCls =
@@ -73,7 +85,7 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
     employeeService
       .remove(view.id)
       .then(() => { setConfirmDelete(false); onDeleted?.(); })
-      .catch((e) => setDeleteError(e?.response?.data?.error?.message ?? "Không thể xoá nhân viên."))
+      .catch((e) => setDeleteError(e?.response?.data?.message ?? "Không thể xoá nhân viên."))
       .finally(() => setDeleting(false));
   }
 
@@ -301,95 +313,52 @@ function LabeledInput({ label, children, required }: { label: string; children: 
   );
 }
 
-// File picker that uploads straight to object storage and reports back the key.
-function FileUploadField({
-  scope, ownerId, value, onUploaded, onClear,
-}: {
-  scope: UploadScope;
-  ownerId?: string;
-  value?: string;
-  onUploaded: (key: string) => void;
-  onClear: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  function pick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file
-    if (!file) return;
-    setBusy(true);
-    setErr(null);
-    uploadFile(file, scope, ownerId)
-      .then((key) => onUploaded(key))
-      .catch((ex) => setErr(ex?.response?.data?.error?.message ?? ex?.message ?? "Tải tệp thất bại, thử lại."))
-      .finally(() => setBusy(false));
-  }
-
+/**
+ * Ô nhập ĐƯỜNG DẪN tệp.
+ *
+ * Backend lưu `fileUrl` như một chuỗi tham chiếu và KHÔNG có endpoint tải tệp
+ * lên (`/uploads/*` không tồn tại), nên UI nhận link tới nơi lưu thật (Drive,
+ * SharePoint, object storage của công ty) thay vì giả vờ upload được.
+ */
+function FileUrlField({ value, onChange }: { value?: string; onChange: (url: string) => void }) {
   return (
     <div>
-      {value ? (
-        <div className="flex h-9 items-center justify-between rounded-lg border border-input bg-card px-3 text-[13px]">
-          <span className="flex items-center gap-1.5 truncate text-emerald-600">
-            <Check className="size-3.5 shrink-0" /> Đã đính kèm tệp
-          </span>
-          <button type="button" onClick={onClear} className="ml-2 cursor-pointer text-muted-foreground hover:text-rose-600">
-            <X className="size-3.5" />
-          </button>
-        </div>
-      ) : (
-        <label className={cn(inputCls, "cursor-pointer items-center gap-1.5 text-muted-foreground", busy && "opacity-60")}>
-          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Paperclip className="size-3.5" />}
-          <span className="truncate">{busy ? "Đang tải lên…" : "Chọn tệp để tải lên"}</span>
-          <input type="file" accept={UPLOAD_RULES[scope].accept} className="hidden" disabled={busy} onChange={pick} />
-        </label>
-      )}
-      {!value && !busy && !err && <div className="mt-1 text-[11px] text-muted-foreground">PDF, Word hoặc ảnh · tối đa {Math.round(UPLOAD_RULES[scope].maxBytes / (1024 * 1024))}MB</div>}
-      {err && <div className="mt-1 text-[11px] text-rose-600">{err}</div>}
+      <div className="flex items-center gap-2">
+        <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+        <input
+          className={inputCls}
+          placeholder="https://… (link tới tệp đã lưu)"
+          defaultValue={value ?? ""}
+          onBlur={(event) => onChange(event.target.value.trim())}
+        />
+      </div>
+      <div className="mt-1 text-[11px] text-muted-foreground">Dán link tệp; hệ thống lưu đường dẫn, không lưu nội dung tệp.</div>
     </div>
   );
 }
 
-// Opens a stored object via a short-lived signed URL.
-function DownloadLink({ fileKey, label }: { fileKey: string; label?: string }) {
-  const [busy, setBusy] = useState(false);
-  function open() {
-    setBusy(true);
-    signDownload(fileKey)
-      .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
-      .catch(() => {})
-      .finally(() => setBusy(false));
-  }
+/** Mở tệp bằng chính đường dẫn đã lưu. */
+function DownloadLink({ fileUrl, label }: { fileUrl: string; label?: string }) {
   return (
-    <button type="button" onClick={open} disabled={busy}
-      className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium text-primary-600 hover:underline disabled:opacity-60">
-      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-      {label ?? "Tải tệp"}
-    </button>
+    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+      className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium text-primary-600 hover:underline">
+      <Download className="size-3.5" /> {label ?? "Mở tệp"}
+    </a>
   );
 }
 
 const PREVIEW_IMG = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 
-/** Inline preview of an uploaded file (image / PDF) via a short-lived signed URL. */
-function FilePreview({ fileKey }: { fileKey: string }) {
+/** Xem trước tệp (ảnh / PDF) ngay từ đường dẫn đã lưu. */
+function FilePreview({ fileUrl }: { fileUrl: string }) {
   const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const ext = (fileKey.split(".").pop() ?? "").toLowerCase();
+  const ext = (fileUrl.split("?")[0]?.split(".").pop() ?? "").toLowerCase();
   const isImg = PREVIEW_IMG.includes(ext);
   const isPdf = ext === "pdf";
 
-  function view() {
-    setOpen(true);
-    if (url) return;
-    setBusy(true);
-    signDownload(fileKey).then(setUrl).catch(() => {}).finally(() => setBusy(false));
-  }
-
   return (
     <>
-      <button type="button" onClick={view}
+      <button type="button" onClick={() => setOpen(true)}
         className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium text-primary-600 hover:underline">
         <Eye className="size-3.5" /> Xem trước
       </button>
@@ -402,16 +371,14 @@ function FilePreview({ fileKey }: { fileKey: string }) {
               <button type="button" onClick={() => setOpen(false)} className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="size-4" /></button>
             </div>
             <div className="flex min-h-[320px] flex-1 items-center justify-center overflow-auto bg-muted/30 p-3">
-              {busy || !url ? (
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              ) : isImg ? (
-                <img src={url} alt="preview" className="max-h-[76vh] max-w-full object-contain" />
+              {isImg ? (
+                <img src={fileUrl} alt="preview" className="max-h-[76vh] max-w-full object-contain" />
               ) : isPdf ? (
-                <iframe src={url} title="preview" className="h-[76vh] w-full rounded-lg bg-white" />
+                <iframe src={fileUrl} title="preview" className="h-[76vh] w-full rounded-lg bg-white" />
               ) : (
                 <div className="flex flex-col items-center gap-2 text-[13px] text-muted-foreground">
-                  Không thể xem trước định dạng này.
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 hover:underline">Tải xuống để xem</a>
+                  Không xem trước được định dạng này.
+                  <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 hover:underline">Mở ở tab mới</a>
                 </div>
               )}
             </div>
@@ -422,7 +389,7 @@ function FilePreview({ fileKey }: { fileKey: string }) {
   );
 }
 
-// Header avatar with inline upload (resolves the stored key to a signed URL for display).
+/** Ảnh đại diện: nhận ĐƯỜNG DẪN ảnh (backend lưu `avatarUrl` dạng chuỗi). */
 function AvatarUploader({
   employeeId, avatarKey, initials, canManage, onChanged,
 }: {
@@ -432,27 +399,17 @@ function AvatarUploader({
   canManage: boolean;
   onChanged: () => void;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const url = avatarKey ?? null;
 
-  useEffect(() => {
-    if (!avatarKey) return;
-    let cancelled = false;
-    signDownload(avatarKey)
-      .then((u) => { if (!cancelled) setUrl(u); })
-      .catch(() => { if (!cancelled) setUrl(null); });
-    return () => { cancelled = true; };
-  }, [avatarKey]);
+  function pick() {
+    const next = window.prompt("Đường dẫn ảnh đại diện (URL):", avatarKey ?? "")?.trim();
+    if (next == null) return;
 
-  function pick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
     setBusy(true);
-    uploadFile(file, "avatar", employeeId)
-      .then((key) => employeeService.updateProfile(employeeId, { avatarUrl: key }))
+    employeeService.updateProfile(employeeId, { avatarUrl: next })
       .then(() => onChanged())
-      .catch(() => {})
+      .catch((error) => fail(error, "Không cập nhật được ảnh đại diện."))
       .finally(() => setBusy(false));
   }
 
@@ -463,13 +420,12 @@ function AvatarUploader({
         <AvatarFallback className="bg-transparent text-white">{initials}</AvatarFallback>
       </Avatar>
       {canManage && (
-        <label className={cn(
+        <button type="button" onClick={pick} title="Đổi ảnh đại diện (dán URL)" className={cn(
           "absolute -bottom-1 -right-1 flex size-6 cursor-pointer items-center justify-center rounded-full bg-white text-secondary-900 shadow ring-2 ring-[#163985] transition hover:bg-white/90",
           busy && "pointer-events-none opacity-60",
-        )} title="Đổi ảnh đại diện">
+        )}>
           {busy ? <Loader2 className="size-3 animate-spin" /> : <Camera className="size-3" />}
-          <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={pick} />
-        </label>
+        </button>
       )}
     </div>
   );
@@ -578,7 +534,7 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
   function run(p: Promise<unknown>, ok: string) {
     setBusy(true); setMsg(null); setError(null);
     p.then(() => { setMsg(ok); setReloadKey((k) => k + 1); })
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Thao tác thất bại."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Thao tác thất bại."))
       .finally(() => setBusy(false));
   }
 
@@ -598,7 +554,7 @@ function AccountTab({ view, canManage, onGranted }: { view: EmployeeView; canMan
           ? "Đã cấp lại tài khoản với mật khẩu mới & gửi lời mời."
           : "Đã cấp tài khoản & gửi lời mời.");
       })
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không thể cấp tài khoản."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Không thể cấp tài khoản."))
       .finally(() => setBusy(false));
   }
 
@@ -744,7 +700,7 @@ function ContactsTab({ employeeId, canManage }: { employeeId: string; canManage:
     employeeService
       .deleteContact(employeeId, contactId)
       .then(() => setRk((k) => k + 1))
-      .catch(() => {})
+      .catch((error) => fail(error, "Không xoá được người liên hệ."))
       .finally(() => setRemoving(null));
   }
 
@@ -768,7 +724,7 @@ function ContactsTab({ employeeId, canManage }: { employeeId: string; canManage:
       : employeeService.addContact(employeeId, payload);
     req
       .then(() => { closeForm(); setRk((k) => k + 1); })
-      .catch(() => {})
+      .catch((error) => fail(error, "Không lưu được người liên hệ."))
       .finally(() => setBusy(false));
   }
 
@@ -823,10 +779,6 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
   const [rk, setRk] = useState(0);
   const [adding, setAdding] = useState(false);
   const { loading, items, error } = useResource<EmployeeBankAccountRecord>(() => employeeService.bankAccounts(employeeId), `${employeeId}:${rk}`);
-  const [banks, setBanks] = useState<Bank[]>([]);
-  useEffect(() => {
-    bankService.list().then((bs) => setBanks(bs.filter((b) => b.status === "active"))).catch(() => {});
-  }, []);
   const emptyForm = { bankName: "", branch: "", accountNumber: "", accountHolder: "", isPrimary: false };
   const [f, setF] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -837,7 +789,7 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
     setRemoving(accountId);
     employeeService.deleteBankAccount(employeeId, accountId)
       .then(() => setRk((k) => k + 1))
-      .catch(() => {})
+      .catch((error) => fail(error, "Không xoá được tài khoản ngân hàng."))
       .finally(() => setRemoving(null));
   }
   function startEdit(b: EmployeeBankAccountRecord) {
@@ -848,7 +800,9 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
   function closeForm() { setAdding(false); setEditingId(null); setF(emptyForm); }
   function setPrimary(b: EmployeeBankAccountRecord) {
     if (b.isPrimary) return;
-    employeeService.updateBankAccount(employeeId, b._id, { isPrimary: true }).then(() => setRk((k) => k + 1)).catch(() => {});
+    employeeService.updateBankAccount(employeeId, b._id, { isPrimary: true })
+      .then(() => setRk((k) => k + 1))
+      .catch((error) => fail(error, "Không đặt được tài khoản nhận lương chính."));
   }
   function save() {
     setBusy(true);
@@ -862,7 +816,10 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
     const req = editingId
       ? employeeService.updateBankAccount(employeeId, editingId, payload)
       : employeeService.addBankAccount(employeeId, payload);
-    req.then(() => { closeForm(); setRk((k) => k + 1); }).catch(() => {}).finally(() => setBusy(false));
+    req
+      .then(() => { closeForm(); setRk((k) => k + 1); })
+      .catch((error) => fail(error, "Không lưu được tài khoản ngân hàng."))
+      .finally(() => setBusy(false));
   }
   const valid = f.bankName.trim() && f.accountNumber.trim().length >= 4 && f.accountHolder.trim();
 
@@ -870,13 +827,10 @@ function BankAccountsTab({ employeeId, canManage }: { employeeId: string; canMan
     <Panel title="Tài khoản ngân hàng" action={canManage && <Button variant="outline" size="sm" onClick={() => (adding ? closeForm() : setAdding(true))} className="h-8 gap-1.5 rounded-lg text-[12.5px]"><Plus className="size-3.5" /> Thêm</Button>}>
       {adding && (
         <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-3.5">
+          {/* Backend lưu tên ngân hàng dạng chuỗi tự do, không có danh mục ngân hàng. */}
           <LabeledInput label="Ngân hàng">
-            <select className={inputCls} value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })}>
-              <option value="">— Chọn ngân hàng —</option>
-              {f.bankName && !banks.some((b) => b.name === f.bankName) && <option value={f.bankName}>{f.bankName}</option>}
-              {banks.map((b) => <option key={b._id} value={b.name}>{b.name}{b.code ? ` (${b.code})` : ""}</option>)}
-            </select>
-            {banks.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">Chưa có ngân hàng. Tạo trong Cài đặt → Ngân hàng.</p>}
+            <input className={inputCls} value={f.bankName} placeholder="VD: Vietcombank"
+              onChange={(e) => setF({ ...f, bankName: e.target.value })} />
           </LabeledInput>
           <LabeledInput label="Chi nhánh"><input className={inputCls} value={f.branch} onChange={(e) => setF({ ...f, branch: e.target.value })} placeholder="VD: CN Hà Nội" /></LabeledInput>
           <LabeledInput label="Số tài khoản"><input className={cn(inputCls, "font-mono")} value={f.accountNumber} onChange={(e) => setF({ ...f, accountNumber: e.target.value.replace(/[^\d]/g, "") })} inputMode="numeric" /></LabeledInput>
@@ -932,7 +886,7 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
     employeeService
       .deleteDocument(employeeId, docId)
       .then(() => setRk((k) => k + 1))
-      .catch(() => {})
+      .catch((error) => fail(error, "Không xoá được giấy tờ."))
       .finally(() => setRemoving(null));
   }
 
@@ -970,7 +924,7 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
       : employeeService.addDocument(employeeId, payload);
     req
       .then(() => { closeForm(); setRk((k) => k + 1); })
-      .catch(() => {})
+      .catch((error) => fail(error, "Không lưu được giấy tờ."))
       .finally(() => setBusy(false));
   }
 
@@ -989,9 +943,7 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
           <LabeledInput label="Nơi cấp"><input className={inputCls} value={f.issuedBy} onChange={(e) => setF({ ...f, issuedBy: e.target.value })} /></LabeledInput>
           <div className="col-span-2">
             <LabeledInput label="Tệp đính kèm">
-              <FileUploadField scope="document" ownerId={employeeId} value={f.fileUrl}
-                onUploaded={(key) => setF((s) => ({ ...s, fileUrl: key }))}
-                onClear={() => setF((s) => ({ ...s, fileUrl: "" }))} />
+              <FileUrlField value={f.fileUrl} onChange={(url) => setF((s) => ({ ...s, fileUrl: url }))} />
             </LabeledInput>
           </div>
           <div className="col-span-2 flex items-end justify-end gap-2">
@@ -1012,7 +964,7 @@ function DocumentsTab({ employeeId, canManage }: { employeeId: string; canManage
                     Số: <span className="font-mono">{d.documentNumber}</span>
                     {d.issuedDate ? ` · Cấp ${formatDate(d.issuedDate)}` : ""}{d.expiryDate ? ` · HH ${formatDate(d.expiryDate)}` : ""}
                   </div>
-                  {d.fileUrl && <div className="mt-1.5 flex items-center gap-4"><FilePreview fileKey={d.fileUrl} /><DownloadLink fileKey={d.fileUrl} /></div>}
+                  {d.fileUrl && <div className="mt-1.5 flex items-center gap-4"><FilePreview fileUrl={d.fileUrl} /><DownloadLink fileUrl={d.fileUrl} /></div>}
                 </div>
                 {canManage && (
                   <>
@@ -1074,7 +1026,9 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
       : employeeService.addContract(employeeId, payload);
     req
       .then(() => { closeForm(); setRk((k) => k + 1); })
-      .catch(() => {})
+      // Trùng khoảng hợp đồng trả 409 EMPLOYEE_CONTRACT_OVERLAP — phải hiện ra,
+      // nếu không HR tưởng đã lưu và bảng lương thiếu đoạn hợp đồng.
+      .catch((error) => fail(error, "Không lưu được hợp đồng."))
       .finally(() => setBusy(false));
   }
 
@@ -1097,9 +1051,7 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
           <LabeledInput label="Kết thúc"><DateField className={inputCls} value={f.endDate} onChange={(iso) => setF({ ...f, endDate: iso })} /></LabeledInput>
           <LabeledInput label="Lương cơ bản (₫)"><input type="number" className={cn(inputCls, "font-mono")} value={f.baseSalary} onChange={(e) => setF({ ...f, baseSalary: e.target.value })} /></LabeledInput>
           <LabeledInput label="Tệp hợp đồng">
-            <FileUploadField scope="contract" ownerId={employeeId} value={f.fileUrl}
-              onUploaded={(key) => setF((s) => ({ ...s, fileUrl: key }))}
-              onClear={() => setF((s) => ({ ...s, fileUrl: "" }))} />
+            <FileUrlField value={f.fileUrl} onChange={(url) => setF((s) => ({ ...s, fileUrl: url }))} />
           </LabeledInput>
           <div className="col-span-2 flex items-end justify-end gap-2">
             <Button variant="outline" size="sm" onClick={closeForm} className="rounded-lg">Huỷ</Button>
@@ -1138,7 +1090,7 @@ function ContractsTab({ employeeId, canManage }: { employeeId: string; canManage
                   <Field label="Bắt đầu" value={formatDate(c.startDate)} />
                   <Field label="Kết thúc" value={c.endDate ? formatDate(c.endDate) : "Không thời hạn"} />
                 </div>
-                {c.fileUrl && <div className="mt-3"><DownloadLink fileKey={c.fileUrl} label="Tải hợp đồng" /></div>}
+                {c.fileUrl && <div className="mt-3"><DownloadLink fileUrl={c.fileUrl} label="Mở hợp đồng" /></div>}
               </div>
             ))}
           </div>
@@ -1163,7 +1115,7 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
     employeeService
       .returnAsset(employeeId, assetId, {})
       .then(() => setRk((k) => k + 1))
-      .catch(() => {})
+      .catch((error) => fail(error, "Không ghi nhận được việc trả tài sản."))
       .finally(() => setActingId(null));
   }
 
@@ -1173,7 +1125,7 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
     employeeService
       .updateAsset(employeeId, assetId, { returnedDate: null })
       .then(() => setRk((k) => k + 1))
-      .catch(() => {})
+      .catch((error) => fail(error, "Không cấp lại được tài sản."))
       .finally(() => setActingId(null));
   }
 
@@ -1182,7 +1134,7 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
     employeeService
       .deleteAsset(employeeId, assetId)
       .then(() => setRk((k) => k + 1))
-      .catch(() => {})
+      .catch((error) => fail(error, "Không xoá được tài sản."))
       .finally(() => setActingId(null));
   }
 
@@ -1218,7 +1170,7 @@ function AssetsTab({ employeeId, canManage }: { employeeId: string; canManage: b
       : employeeService.addAsset(employeeId, payload);
     req
       .then(() => { closeForm(); setRk((k) => k + 1); })
-      .catch(() => {})
+      .catch((error) => fail(error, "Không lưu được tài sản."))
       .finally(() => setBusy(false));
   }
 
@@ -1305,31 +1257,25 @@ const TIME_RANGES: { id: string; label: string; days: number | null }[] = [
 function HistoryTab({ employeeId }: { employeeId: string }) {
   const { loading, items, error } = useResource<EmployeeHistoryRecord>(() => employeeService.history(employeeId), employeeId);
   const [range, setRange] = useState("all");
+  const [cutoff, setCutoff] = useState<number | null>(null);
   const [action, setAction] = useState("all");
   const [dataCat, setDataCat] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Filter option sets derived from the loaded records.
   const actionTypes = Array.from(new Set(items.map((h) => h.eventType)));
-  const dataKeys = Array.from(
-    new Set(items.flatMap((h) => [...Object.keys(h.fromValue ?? {}), ...Object.keys(h.toValue ?? {})])),
-  );
+  const dataKeys = Array.from(new Set(items.flatMap(historyTouchedKeys)));
 
-  const cutoff = (() => {
-    const days = TIME_RANGES.find((r) => r.id === range)?.days;
-    if (!days) return null;
-    return Date.now() - days * 86_400_000;
-  })();
+  // Mốc cắt được tính LÚC NGƯỜI DÙNG CHỌN khoảng thời gian, không tính trong
+  // render: `Date.now()` trong render là hàm không thuần — mỗi lần re-render ra
+  // một mốc khác, danh sách lọc đổi mà không có tương tác nào (react-hooks/purity).
+  function pickRange(nextRange: string) {
+    setRange(nextRange);
+    const days = TIME_RANGES.find((r) => r.id === nextRange)?.days;
+    setCutoff(days == null ? null : Date.now() - days * 86_400_000);
+  }
 
-  const filtered = items.filter((h) => {
-    if (cutoff && new Date(h.effectiveDate).getTime() < cutoff) return false;
-    if (action !== "all" && h.eventType !== action) return false;
-    if (dataCat !== "all") {
-      const keys = [...Object.keys(h.fromValue ?? {}), ...Object.keys(h.toValue ?? {})];
-      if (!keys.includes(dataCat)) return false;
-    }
-    return true;
-  });
+  const filtered = filterHistory(items, { cutoff, action, dataCat });
 
   const selCls = "h-9 rounded-lg border border-input bg-card px-2.5 text-[12.5px] focus-visible:outline-none focus-visible:border-primary-500";
 
@@ -1338,7 +1284,7 @@ function HistoryTab({ employeeId }: { employeeId: string }) {
       {/* Minimal filter bar */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground"><Filter className="size-3.5" /> Lọc:</span>
-        <select className={selCls} value={range} onChange={(e) => setRange(e.target.value)}>
+        <select className={selCls} value={range} onChange={(e) => pickRange(e.target.value)}>
           {TIME_RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
         </select>
         <select className={selCls} value={action} onChange={(e) => setAction(e.target.value)}>

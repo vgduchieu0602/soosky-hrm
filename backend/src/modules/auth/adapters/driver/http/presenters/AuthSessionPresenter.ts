@@ -9,6 +9,8 @@ export interface AuthSessionDTO {
     accessToken:     string;
     refreshToken:    string;
     accessExpiresAt: string;
+    /** true → client phải điều hướng sang trang đổi mật khẩu trước khi làm gì khác. */
+    mustChangePassword: boolean;
 }
 
 const AuthSessionPresenter = {
@@ -17,6 +19,7 @@ const AuthSessionPresenter = {
             accessToken:     tokens.accessToken,
             refreshToken:    tokens.refreshToken,
             accessExpiresAt: tokens.accessTokenExpiresAt.toISOString(),
+            mustChangePassword: tokens.mustChangePassword,
         };
     },
 };

@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import LeaveRequest from "@modules/attendance/core/domain/entities/LeaveRequest";
 import LeaveType from "@modules/attendance/core/domain/value-objects/LeaveType";
 import { describe, expect, it } from "vitest";

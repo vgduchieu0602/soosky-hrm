@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { buildHolidayChecker, carryoverWindow, countWorkingDays, poolAnnualRemaining } from "@modules/attendance/core/domain/services/leave-calc";
 import { describe, expect, it } from "vitest";
 

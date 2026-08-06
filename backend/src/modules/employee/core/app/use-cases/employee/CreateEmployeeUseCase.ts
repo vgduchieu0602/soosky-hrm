@@ -11,7 +11,7 @@ import EmployeeHistory from "@modules/employee/core/domain/entities/EmployeeHist
 import EmployeeCode from "@modules/employee/core/domain/value-objects/EmployeeCode";
 import EmployeeType from "@modules/employee/core/domain/value-objects/EmployeeType";
 import PersonName from "@modules/employee/core/domain/value-objects/PersonName";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -72,7 +72,7 @@ export default class CreateEmployeeUseCase {
         }
 
         const employee = Employee.create({
-            id:           UUIDv7(),
+            id:           createUuidV7(),
             code,
             name:         PersonName.create(input.name),
             email:        input.email ?? null,
@@ -90,7 +90,7 @@ export default class CreateEmployeeUseCase {
         await this._employeeRepo.save(employee);
 
         await this._historyRepo.save(EmployeeHistory.create({
-            id:              UUIDv7(),
+            id:              createUuidV7(),
             employeeId:      employee.id,
             eventType:       "hired",
             fromValue:       null,

@@ -1,5 +1,14 @@
 # 🚀 Hướng dẫn Deploy Soosky HRM bằng Docker lên VPS Contabo
 
+> **CẬP NHẬT — đọc [RUNBOOK.md](RUNBOOK.md) trước.** Cấu trúc compose đã đổi:
+> `docker-compose.yml` là BASE (không publish cổng nào), chọn thêm đúng một overlay
+> `docker-compose.https.yml` (có tên miền, Caddy lo TLS) hoặc `docker-compose.expose.yml`
+> (chưa có tên miền, mở cổng `WEB_PORT`). Mẫu biến môi trường không còn là
+> `.env.docker.example` mà là `.env.production.example` / `.env.staging.example`.
+> Package manager duy nhất là **pnpm**. Các bước VPS/Docker bên dưới vẫn đúng về
+> tư tưởng; lệnh cụ thể lấy theo RUNBOOK.
+
+
 > ⚠️ **Chạy nhiều dự án trên 1 VPS?** Đọc [DEPLOY-MULTI-PROJECT.md](DEPLOY-MULTI-PROJECT.md)
 > trước. `docker-compose.yml` hiện đã theo chuẩn dùng chung Caddy proxy: frontend
 > **không** còn mở cổng 80 trực tiếp mà gắn vào mạng `web` + nhãn domain. Vì vậy

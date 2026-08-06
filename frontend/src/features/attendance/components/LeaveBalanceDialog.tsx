@@ -76,7 +76,7 @@ export function LeaveBalanceDialog({ open, onOpenChange }: Props) {
       ),
     )
       .then(() => setMsg("Đã lưu hạn mức phép."))
-      .catch((e) => setError(e?.response?.data?.error?.message ?? "Không lưu được."))
+      .catch((e) => setError(e?.response?.data?.message ?? "Không lưu được."))
       .finally(() => setSaving(false));
   }
 

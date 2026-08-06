@@ -39,8 +39,8 @@ export function DeleteDepartmentDialog({
       onOpenChange(false);
     } catch (err) {
       const message =
-        (err as { response?: { data?: { error?: { message?: string } } } })
-          ?.response?.data?.error?.message ??
+        (err as { response?: { data?: { message?: string } } })
+          ?.response?.data?.message ??
         "Không thể xóa phòng ban. Vui lòng thử lại.";
       setError(message);
     } finally {

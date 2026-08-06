@@ -120,7 +120,7 @@ export function ImportEmployeesDialog({ open, onOpenChange, onDone }: Props) {
     setSubmitting(true);
     employeeService.importEmployees(rows)
       .then((r) => { setResult(r); if (r.created > 0) onDone(); })
-      .catch((e) => setParseError(e?.response?.data?.error?.message ?? "Import thất bại."))
+      .catch((e) => setParseError(e?.response?.data?.message ?? "Import thất bại."))
       .finally(() => setSubmitting(false));
   }
 

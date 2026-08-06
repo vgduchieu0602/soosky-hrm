@@ -6,7 +6,7 @@ import Department from "@modules/department/core/domain/entities/Department";
 import DepartmentCode from "@modules/department/core/domain/value-objects/DepartmentCode";
 import DepartmentName from "@modules/department/core/domain/value-objects/DepartmentName";
 import Description from "@modules/department/core/domain/value-objects/Description";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "department:manage";
 
@@ -52,7 +52,7 @@ export default class CreateDepartmentUseCase {
         }
 
         const department = Department.create({
-            id:                 UUIDv7(),
+            id:                 createUuidV7(),
             code,
             name:               DepartmentName.create(input.name),
             description:        Description.create(input.description),

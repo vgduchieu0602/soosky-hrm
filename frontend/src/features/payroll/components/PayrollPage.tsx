@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Search, Wallet, ChevronDown, Check, ChevronRight, Loader2, BadgeDollarSign,
-  FilePlus2, Settings2, Calculator, Lock, LockOpen, Download, RotateCcw,
+  FilePlus2, Settings2, Calculator, Lock, LockOpen, Download, RotateCcw, Scale, Landmark,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,12 @@ import { CompensationManagerDialog } from "@features/payroll/components/Compensa
 import { GrossUpCalculatorDialog } from "@features/payroll/components/GrossUpCalculatorDialog";
 import { AttendanceLockDialog } from "@features/payroll/components/AttendanceLockDialog";
 import { PayrollPreflightDialog } from "@features/payroll/components/PayrollPreflightDialog";
+import { ReconciliationDialog } from "@features/payroll/components/ReconciliationDialog";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@shared/utils/apiError";
 import { PayslipDrawer, type EmpInfo } from "@features/payroll/components/PayslipDrawer";
 import type {
-  PayrollPeriod, PayrollRecord, PayrollStatus,
+  PayrollPeriod, PayrollPeriodStage, PayrollRecord, PayrollStatus,
 } from "@features/payroll/types/payroll.types";
 
 type BadgeVariant = "slate" | "amber" | "emerald" | "blue" | "violet" | "rose";
@@ -40,6 +42,39 @@ const PERIOD_STATUS: Record<string, { label: string; variant: BadgeVariant }> = 
   closed: { label: "Đã khóa", variant: "blue" },
   paid: { label: "Đã chi", variant: "emerald" },
 };
+
+/** Quy trình 7 bước của kỳ lương, hiển thị đúng thứ tự backend enforce. */
+const STAGE_STEPS: { stage: PayrollPeriodStage; label: string }[] = [
+  { stage: "open", label: "Mở kỳ" },
+  { stage: "reconciling", label: "Đối soát" },
+  { stage: "trial", label: "Tính thử" },
+  { stage: "hr_reviewed", label: "HR soát" },
+  { stage: "approved", label: "Đã duyệt" },
+  { stage: "paid", label: "Đã chi" },
+  { stage: "closed", label: "Chốt kỳ" },
+];
+
+/** Thanh bước: bước đã qua sáng, bước chưa tới mờ. */
+function StageTrail({ stage }: { stage: PayrollPeriodStage }) {
+  const current = STAGE_STEPS.findIndex((step) => step.stage === stage);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {STAGE_STEPS.map((step, index) => (
+        <span key={step.stage} className="flex items-center gap-1.5">
+          <span className={cn(
+            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            index < current && "bg-white/15 text-white/70",
+            index === current && "bg-white text-secondary-800",
+            index > current && "bg-white/5 text-white/35",
+          )}>
+            {step.label}
+          </span>
+          {index < STAGE_STEPS.length - 1 && <ChevronRight className="size-3 text-white/25" />}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 const ALL = "Tất cả";
 
@@ -118,6 +153,7 @@ export default function Payroll() {
   const [compDlg, setCompDlg] = useState(false);
   const [manageDlg, setManageDlg] = useState(false);
   const [grossUpDlg, setGrossUpDlg] = useState(false);
+  const [reconcileDlg, setReconcileDlg] = useState(false);
   const [lockDlg, setLockDlg] = useState(false);
   const [preflightOpen, setPreflightOpen] = useState(false);
 
@@ -247,6 +283,13 @@ export default function Payroll() {
     setTimeout(() => setReloadKey((n) => n + 1), 4000);
   }
 
+  // Kỳ cũ (ghi trước khi có `stage`) không có trường này -> suy từ `status` để UI
+  // không hiện thanh bước rỗng.
+  const stage: PayrollPeriodStage = period?.stage
+    ?? (period?.status === "paid" ? "paid"
+      : period?.status === "closed" ? "closed"
+      : period?.status === "processing" ? "approved" : "open");
+
   const attLocked = !!period?.attendanceLockedAt;
   async function lockAtt(lock: boolean) {
     if (!periodId) return;
@@ -259,13 +302,16 @@ export default function Payroll() {
         toast.success("Đã chốt chấm công");
         notifyAutoRun(autoRunning);
       } else {
-        const updated = await payrollService.unlockAttendance(periodId);
+        // Lý do là bắt buộc phía backend (ghi audit) — không tự bịa chuỗi rỗng.
+        const reason = window.prompt("Lý do mở chốt chấm công? (bắt buộc, sẽ ghi vào nhật ký)")?.trim();
+        if (reason == null || reason === "") { setBusy(false); return; }
+
+        const updated = await payrollService.unlockAttendance(periodId, reason);
         setPeriods((ps) => ps.map((p) => (p._id === updated._id ? updated : p)));
         toast.success("Đã mở chốt chấm công");
       }
     } catch (e) {
-      const d = (e as { response?: { data?: { error?: { message?: string }; message?: string } } })?.response?.data;
-      const msg = d?.error?.message ?? d?.message ?? "Thao tác thất bại.";
+      const msg = apiErrorMessage(e, "Thao tác thất bại.");
       setErr(msg); toast.error(msg);
     } finally {
       setBusy(false);
@@ -403,8 +449,59 @@ export default function Payroll() {
                   className="h-9 gap-2 rounded-full text-[13px]">
                   {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" strokeWidth={1.9} />} Tính lương
                 </Button>
-                {period?.status !== "paid" && (
+                {period && (stage === "approved" || stage === "paid" || stage === "closed") && (
                   <Button size="sm" variant="outline" disabled={busy || !periodId}
+                    title="Tải file chuyển khoản theo mẫu ngân hàng đã cấu hình trong Cài đặt"
+                    onClick={() => {
+                      setBusy(true); setErr(null);
+                      payrollService.bankTransferFile(periodId)
+                        .then((file) => {
+                          const blob = new Blob([file.content], { type: "text/csv;charset=utf-8" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url; a.download = file.fileName; a.click();
+                          URL.revokeObjectURL(url);
+
+                          toast.success(`Đã xuất ${file.rowCount} lệnh chi · ${file.bankName}`);
+                          // Bị loại khỏi lệnh chi là thứ kế toán PHẢI biết, không chỉ nằm trong file.
+                          if (file.skipped.length > 0) {
+                            toast.warning(`${file.skipped.length} nhân viên không vào file: ${file.skipped[0]?.reason ?? ""}`);
+                          }
+                        })
+                        .catch((e: unknown) => {
+                          const d = (e as { response?: { data?: { message?: string } } })?.response?.data;
+                          const msg = d?.message ?? "Không xuất được file ngân hàng.";
+                          setErr(msg); toast.error(msg);
+                        })
+                        .finally(() => setBusy(false));
+                    }}
+                    className="h-9 gap-2 rounded-full text-[13px]">
+                    <Landmark className="size-3.5" strokeWidth={1.9} /> File ngân hàng
+                  </Button>
+                )}
+                {period && (stage === "trial" || stage === "hr_reviewed") && (
+                  <Button size="sm" variant="outline" disabled={busy || !periodId}
+                    title="Chạy song song phiên bản công thức cũ và ký xác nhận từng chênh lệch"
+                    onClick={() => setReconcileDlg(true)}
+                    className="h-9 gap-2 rounded-full text-[13px]">
+                    <Scale className="size-3.5" strokeWidth={1.9} /> Đối soát
+                  </Button>
+                )}
+                {period && stage === "trial" && (
+                  <Button size="sm" variant="outline" disabled={busy || !periodId}
+                    title="HR xác nhận đã soát bảng lương thử — bắt buộc trước khi người có thẩm quyền duyệt"
+                    onClick={() => act(async () => {
+                      const updated = await payrollService.hrReview(periodId);
+                      setPeriods((ps) => ps.map((x) => (x._id === updated._id ? updated : x)));
+                    }, "Đã ghi nhận HR soát bảng lương")}
+                    className="h-9 gap-2 rounded-full text-[13px]">
+                    <Check className="size-3.5" strokeWidth={2.2} /> Xác nhận đã soát
+                  </Button>
+                )}
+                {period?.status !== "paid" && (
+                  <Button size="sm" variant="outline"
+                    disabled={busy || !periodId || stage !== "approved"}
+                    title={stage !== "approved" ? "Chỉ đánh dấu đã chi sau khi lương được duyệt" : undefined}
                     onClick={() => act(() => payrollService.markPaid(periodId), "Đã đánh dấu kỳ đã chi")}
                     className="h-9 gap-2 rounded-full text-[13px]">
                     <BadgeDollarSign className="size-3.5" strokeWidth={1.9} /> Đánh dấu đã chi
@@ -433,7 +530,8 @@ export default function Payroll() {
                     {attLocked && <Badge variant="emerald" className="border border-white/10">Đã chốt chấm công</Badge>}
                     {evalLocked && <Badge variant="emerald" className="border border-white/10">Đã chốt đánh giá</Badge>}
                   </div>
-                  <div className="mt-2 text-[12px] font-medium uppercase tracking-wider text-white/45">Tổng chi thực nhận (Net)</div>
+                  <div className="mt-3"><StageTrail stage={stage} /></div>
+                  <div className="mt-3 text-[12px] font-medium uppercase tracking-wider text-white/45">Tổng chi thực nhận (Net)</div>
                   <div className="mt-1 flex items-baseline gap-2">
                     <span className="text-[34px] font-bold tracking-tight tabular-nums">{fmtVND(k.net)}</span>
                     <span className="text-[15px] font-medium text-white/60">₫</span>
@@ -565,6 +663,16 @@ export default function Payroll() {
         />
       )}
       {grossUpDlg && <GrossUpCalculatorDialog open onOpenChange={setGrossUpDlg} />}
+      {reconcileDlg && period && (
+        <ReconciliationDialog
+          open
+          onOpenChange={setReconcileDlg}
+          periodId={period._id}
+          periodName={fmtPeriodName(period.name)}
+          nameOf={(employeeId) => empMap[employeeId]?.name ?? employeeId}
+          onSigned={() => setReloadKey((n) => n + 1)}
+        />
+      )}
       {preflightOpen && period && (
         <PayrollPreflightDialog
           open

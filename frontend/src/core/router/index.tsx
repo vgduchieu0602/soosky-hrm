@@ -4,28 +4,38 @@ import AuthLayout from "@layouts/AuthLayout";
 import LoginPage from "@pages/LoginPage";
 import SetPasswordPage from "@pages/SetPasswordPage";
 import ChangePasswordPage from "@pages/ChangePasswordPage";
-import DashboardByRole from "./DashboardByRole";
-import EmployeesPage from "@pages/EmployeesPage";
-import DepartmentsPage from "@pages/DepartmentsPage";
-import MyAttendancePage from "@features/attendance/components/MyAttendancePage";
-import MyPayslipsPage from "@features/payroll/components/MyPayslipsPage";
-import MyEvaluationsPage from "@features/performance/components/MyEvaluationsPage";
-import LeavePage from "@pages/LeavePage";
-import AttendanceByRole from "./AttendanceByRole";
-import PayrollPage from "@pages/PayrollPage";
-import PerformancePage from "@pages/PerformancePage";
-import SettingsPage from "@pages/SettingsPage";
-import SystemSettingsPage from "@features/settings/components/SystemSettingsPage";
 import NotFoundPage from "@pages/NotFoundPage";
+import DashboardByRole from "./DashboardByRole";
+import AttendanceByRole from "./AttendanceByRole";
+import { LazyRoute } from "./LazyRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { MustChangePasswordRoute } from "./MustChangePasswordRoute";
 import { RoleRoute } from "./RoleRoute";
+import {
+  AccountSettingsPage,
+  DepartmentsPage,
+  EmployeesPage,
+  LeavePage,
+  MyAttendancePage,
+  MyEvaluationsPage,
+  MyPayslipsPage,
+  PayrollPage,
+  PerformancePage,
+  SystemSettingsPage,
+} from "./lazyPages";
 
+/**
+ * Mỗi trang nặng được bọc `LazyRoute` (Suspense + fallback lỗi chunk). Bọc ở
+ * TỪNG route thay vì một lần ở layout để trang này lỗi/đang tải không làm trắng
+ * cả khung ứng dụng, và để thứ tự guard giữ nguyên:
+ * `ProtectedRoute` → `MustChangePasswordRoute` → `MainLayout` → `RoleRoute`.
+ */
 export const router = createBrowserRouter([
   {
     path: "/auth",
     element: <AuthLayout />,
     children: [
+      // Ba trang này KHÔNG lazy: là màn hình đầu tiên người dùng thấy.
       { path: "login", element: <LoginPage /> },
       { path: "set-password", element: <SetPasswordPage /> },
       { path: "change-password", element: <ChangePasswordPage /> },
@@ -38,30 +48,30 @@ export const router = createBrowserRouter([
       {
         element: <MustChangePasswordRoute />,
         children: [
-      {
-        element: <MainLayout />,
-        children: [
-          { index: true, element: <Navigate to="/dashboard" replace /> },
-          { path: "dashboard", element: <DashboardByRole /> },
-          { path: "attendance", element: <AttendanceByRole /> },
-          { path: "me/attendance", element: <MyAttendancePage /> },
-          { path: "me/payslips", element: <MyPayslipsPage /> },
-          { path: "me/evaluations", element: <MyEvaluationsPage /> },
-          { path: "leave", element: <LeavePage /> },
-          { path: "settings/account", element: <SettingsPage /> },
-          // HR / Admin only — employees are redirected to the dashboard.
           {
-            element: <RoleRoute roles={["admin", "hr_manager"]} />,
+            element: <MainLayout />,
             children: [
-              { path: "employees", element: <EmployeesPage /> },
-              { path: "departments", element: <DepartmentsPage /> },
-              { path: "payroll", element: <PayrollPage /> },
-              { path: "performance", element: <PerformancePage /> },
-              { path: "settings", element: <SystemSettingsPage /> },
+              { index: true, element: <Navigate to="/dashboard" replace /> },
+              { path: "dashboard", element: <DashboardByRole /> },
+              { path: "attendance", element: <AttendanceByRole /> },
+              { path: "me/attendance", element: <LazyRoute><MyAttendancePage /></LazyRoute> },
+              { path: "me/payslips", element: <LazyRoute><MyPayslipsPage /></LazyRoute> },
+              { path: "me/evaluations", element: <LazyRoute><MyEvaluationsPage /></LazyRoute> },
+              { path: "leave", element: <LazyRoute><LeavePage /></LazyRoute> },
+              { path: "settings/account", element: <LazyRoute><AccountSettingsPage /></LazyRoute> },
+              // HR / Admin only — nhân viên bị đưa về dashboard.
+              {
+                element: <RoleRoute roles={["admin", "hr_manager"]} />,
+                children: [
+                  { path: "employees", element: <LazyRoute><EmployeesPage /></LazyRoute> },
+                  { path: "departments", element: <LazyRoute><DepartmentsPage /></LazyRoute> },
+                  { path: "payroll", element: <LazyRoute><PayrollPage /></LazyRoute> },
+                  { path: "performance", element: <LazyRoute><PerformancePage /></LazyRoute> },
+                  { path: "settings", element: <LazyRoute><SystemSettingsPage /></LazyRoute> },
+                ],
+              },
             ],
           },
-        ],
-      },
         ],
       },
     ],

@@ -1,3 +1,4 @@
+import BankTransferProfileController, { BankTransferProfileControllerUseCases } from "@modules/setting/adapters/driver/http/controllers/BankTransferProfileController";
 import CompanyProfileController, { CompanyProfileControllerUseCases } from "@modules/setting/adapters/driver/http/controllers/CompanyProfileController";
 import SystemSettingController, { SystemSettingControllerUseCases } from "@modules/setting/adapters/driver/http/controllers/SystemSettingController";
 import authenticate from "@shared/adapters/driver/http/middlewares/authenticate";
@@ -10,7 +11,8 @@ import { json, Router } from "express";
  */
 export type SettingHttpUseCases =
     & CompanyProfileControllerUseCases
-    & SystemSettingControllerUseCases;
+    & SystemSettingControllerUseCases
+    & BankTransferProfileControllerUseCases;
 
 /**
  * Driver adapter HTTP của module Setting. Giữ danh sách route duy nhất —
@@ -23,6 +25,7 @@ export function createSettingHttpRouter(
 ): Router {
     const companyProfileController = new CompanyProfileController(useCases);
     const systemSettingController  = new SystemSettingController(useCases);
+    const bankProfileController    = new BankTransferProfileController(useCases);
 
     const router = Router();
 
@@ -36,6 +39,13 @@ export function createSettingHttpRouter(
     // SystemSetting
     router.get  ("/system", systemSettingController.getSystemSettings);
     router.patch("/system", systemSettingController.updateSystemSettings);
+
+    // BankTransferProfile (mẫu file chuyển lương theo ngân hàng)
+    router.get   ("/bank-profiles",                       bankProfileController.listBankTransferProfiles);
+    router.post  ("/bank-profiles",                       bankProfileController.createBankTransferProfile);
+    router.patch ("/bank-profiles/:profileId",            bankProfileController.updateBankTransferProfile);
+    router.post  ("/bank-profiles/:profileId/activate",   bankProfileController.activateBankTransferProfile);
+    router.delete("/bank-profiles/:profileId",            bankProfileController.deleteBankTransferProfile);
 
     router.use(errorHandler);
 

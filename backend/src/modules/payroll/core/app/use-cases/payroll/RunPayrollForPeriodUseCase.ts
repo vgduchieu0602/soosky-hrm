@@ -3,14 +3,14 @@ import EmployeeDirectory from "@modules/payroll/core/app/ports/EmployeeDirectory
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import RunPayrollForEmployeeUseCase from "@modules/payroll/core/app/use-cases/payroll/RunPayrollForEmployeeUseCase";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 /**
  * Chạy lương cho TOÀN BỘ nhân viên đang hoạt động trong một kỳ. Lỗi của từng
  * nhân viên được gom lại trong kết quả, không chặn cả kỳ (một người thiếu hợp
  * đồng/chính sách không cản người khác được tính).
  *
- * @throws {AccessDeniedError} Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError} Actor không có quyền `payroll:prepare`.
  */
 export default class RunPayrollForPeriodUseCase {
     public constructor(

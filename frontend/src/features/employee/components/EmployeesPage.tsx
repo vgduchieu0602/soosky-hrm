@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, UserPlus, Download, ChevronRight, ChevronLeft, ChevronDown, Check,
   Users, UserCheck, CalendarDays, RefreshCw, UserX, X, Upload, type LucideIcon,
@@ -18,7 +18,11 @@ import { EmployeeDetail } from "@features/employee/components/EmployeeDetail";
 import { CreateEmployeeModal } from "@features/employee/components/CreateEmployeeModal";
 import { BulkTerminateDialog } from "@features/employee/components/BulkTerminateDialog";
 import { ContractRemindersCard } from "@features/employee/components/ContractRemindersCard";
-import { ImportEmployeesDialog } from "@features/employee/components/ImportEmployeesDialog";
+// `xlsx` nặng ~450 kB và CHỈ dùng khi HR mở hộp thoại import -> nạp theo nhu cầu
+// để nó không nằm trong chunk của trang danh sách nhân viên.
+const ImportEmployeesDialog = lazy(() =>
+  import("@features/employee/components/ImportEmployeesDialog")
+    .then((m) => ({ default: m.ImportEmployeesDialog })));
 import { SavedFilters, type FilterState } from "@features/employee/components/SavedFilters";
 import { EMP_STATUS, EMP_TYPE, formatDate, toEmployeeView } from "@features/employee/constants";
 import type {
@@ -462,11 +466,13 @@ export default function EmployeesPage() {
         />
       )}
       {importOpen && (
-        <ImportEmployeesDialog
-          open
-          onOpenChange={setImportOpen}
-          onDone={reloadAll}
-        />
+        <Suspense fallback={null}>
+          <ImportEmployeesDialog
+            open
+            onOpenChange={setImportOpen}
+            onDone={reloadAll}
+          />
+        </Suspense>
       )}
     </div>
   );

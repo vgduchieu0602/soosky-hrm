@@ -32,8 +32,8 @@ export function DeletePositionDialog({ open, onOpenChange, target, onConfirm }: 
       onOpenChange(false);
     } catch (err) {
       const message =
-        (err as { response?: { data?: { error?: { message?: string } } } })
-          ?.response?.data?.error?.message ?? "Không thể lưu trữ chức vụ. Vui lòng thử lại.";
+        (err as { response?: { data?: { message?: string } } })
+          ?.response?.data?.message ?? "Không thể lưu trữ chức vụ. Vui lòng thử lại.";
       setError(message);
     } finally {
       setSubmitting(false);

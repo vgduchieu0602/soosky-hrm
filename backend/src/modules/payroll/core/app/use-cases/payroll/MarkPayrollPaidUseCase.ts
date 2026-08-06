@@ -2,12 +2,13 @@ import NothingToPayError from "@modules/payroll/core/app/errors/NothingToPayErro
 import PayrollPeriodDraftRemainingError from "@modules/payroll/core/app/errors/PayrollPeriodDraftRemainingError";
 import PayrollPeriodLockedError from "@modules/payroll/core/app/errors/PayrollPeriodLockedError";
 import PayrollPeriodNotFoundError from "@modules/payroll/core/app/errors/PayrollPeriodNotFoundError";
+import SelfApprovalForbiddenError from "@modules/payroll/core/app/errors/SelfApprovalForbiddenError";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import UnitOfWork from "@modules/payroll/core/app/ports/UnitOfWork";
 import { PayrollPaidEvent } from "@modules/payroll/core/domain/events/PayrollPaidEvent";
 import EventBus from "@shared/core/domain/EventBus";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:approve";
 
 export interface MarkPayrollPaidOutput {
     periodId: string;
@@ -19,11 +20,12 @@ export interface MarkPayrollPaidOutput {
  * kỳ (`paid`). Từ chối nếu còn phiếu `draft` (phải duyệt hết trước). Phát
  * `payroll.paid`.
  *
- * @throws {AccessDeniedError}                Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}                Actor không có quyền `payroll:approve`.
  * @throws {PayrollPeriodNotFoundError}       Không tìm thấy kỳ lương.
  * @throws {PayrollPeriodLockedError}         Kỳ đã thanh toán.
  * @throws {PayrollPeriodDraftRemainingError} Còn phiếu lương draft.
  * @throws {NothingToPayError}                Không có phiếu approved nào để thanh toán.
+ * @throws {SelfApprovalForbiddenError}       Người chi trả chính là người đã lập lương kỳ này.
  */
 export default class MarkPayrollPaidUseCase {
     public constructor(
@@ -39,6 +41,9 @@ export default class MarkPayrollPaidUseCase {
             const period = await ctx.periodRepo.getById(input.periodId);
             if (period == undefined) throw new PayrollPeriodNotFoundError();
             if (period.status === "paid") throw new PayrollPeriodLockedError(`Period ${period.name.value} is already paid`);
+            if (period.preparedBy != null && period.preparedBy === input.payerUserId) {
+                throw new SelfApprovalForbiddenError("mark as paid");
+            }
 
             const draftCount = await ctx.payslipRepo.countByStatus(input.periodId, "draft");
             if (draftCount > 0) throw new PayrollPeriodDraftRemainingError(draftCount);

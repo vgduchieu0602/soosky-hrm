@@ -5,7 +5,7 @@ import PayslipRepo from "@modules/payroll/core/app/ports/PayslipRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import PayrollPeriod from "@modules/payroll/core/domain/entities/PayrollPeriod";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export default class UnlockEvaluationsUseCase {
     public constructor(

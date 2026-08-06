@@ -4,7 +4,7 @@ import LeaveBalanceRepo from "@modules/attendance/core/app/ports/LeaveBalanceRep
 import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChecker";
 import LeaveBalance from "@modules/attendance/core/domain/entities/LeaveBalance";
 import LeaveType from "@modules/attendance/core/domain/value-objects/LeaveType";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "attendance:manage";
 
@@ -42,7 +42,7 @@ export default class AdjustLeaveBalanceUseCase {
 
         if (balance == undefined) {
             balance = LeaveBalance.create({
-                id:         UUIDv7(),
+                id:         createUuidV7(),
                 employeeId: input.employeeId,
                 leaveType,
                 year:       input.year,

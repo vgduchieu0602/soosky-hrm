@@ -7,4 +7,7 @@
 export default interface OrgDirectory {
     departmentExists(departmentId: string): Promise<boolean>;
     positionExists(positionId: string): Promise<boolean>;
+    /** Id theo MA nghiep vu — dung boi CSV import (file mang ma, khong mang UUID). */
+    findDepartmentIdByCode(code: string): Promise<string | undefined>;
+    findPositionIdByCode(code: string): Promise<string | undefined>;
 }

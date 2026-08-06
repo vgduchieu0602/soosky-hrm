@@ -1,11 +1,13 @@
 import LeaveOverlapError from "@modules/attendance/core/app/errors/LeaveOverlapError";
 import LeaveRequestNotFoundError from "@modules/attendance/core/app/errors/LeaveRequestNotFoundError";
 import LeaveRequestNotPendingError from "@modules/attendance/core/app/errors/LeaveRequestNotPendingError";
+import AttendancePeriodLockedError from "@modules/attendance/core/app/errors/AttendancePeriodLockedError";
+import AttendancePeriodLockDirectory from "@modules/attendance/core/app/ports/AttendancePeriodLockDirectory";
 import AttendanceRepo from "@modules/attendance/core/app/ports/AttendanceRepo";
 import HolidayRepo from "@modules/attendance/core/app/ports/HolidayRepo";
 import LeaveBalanceRepo from "@modules/attendance/core/app/ports/LeaveBalanceRepo";
 import LeaveRequestRepo from "@modules/attendance/core/app/ports/LeaveRequestRepo";
-import PermissionChecker from "@modules/attendance/core/app/ports/PermissionChecker";
+import LeaveDecisionAuthorizer from "@modules/attendance/core/app/services/LeaveDecisionAuthorizer";
 import LeaveEntitlementService from "@modules/attendance/core/app/services/LeaveEntitlementService";
 import { LeaveRequestDecidedEvent } from "@modules/attendance/core/domain/events/LeaveRequestDecidedEvent";
 import Attendance from "@modules/attendance/core/domain/entities/Attendance";
@@ -14,9 +16,8 @@ import { buildHolidayChecker, leaveDays } from "@modules/attendance/core/domain/
 import AttendanceSession from "@modules/attendance/core/domain/value-objects/AttendanceSession";
 import AttendanceStatus from "@modules/attendance/core/domain/value-objects/AttendanceStatus";
 import EventBus from "@shared/core/domain/EventBus";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "attendance:manage";
 const OVERLAP_STATUSES = ["approved"];
 
 export interface ApproveLeaveRequestInput {
@@ -32,28 +33,34 @@ export interface ApproveLeaveRequestInput {
  * Chặn duyệt hai đơn chồng lấn ngày (một đơn khác đã APPROVED trước đó trên
  * cùng khoảng sẽ tính trùng số dư và ghi đè chấm công).
  *
- * @throws {AccessDeniedError}           Actor không có quyền `attendance:manage`.
+ * @throws {AccessDeniedError}           Actor không được quyết định đơn của nhân viên này
+ *                                   (HR duyệt mọi đơn, Manager chỉ đơn cấp dưới).
  * @throws {LeaveRequestNotFoundError}   Không tìm thấy đơn.
  * @throws {LeaveRequestNotPendingError} Đơn đã được xử lý.
  * @throws {LeaveOverlapError}           Một đơn khác đã duyệt trùng khoảng ngày.
  * @throws {LeaveQuotaExceededError}     Vượt hạn mức phép khả dụng.
+ * @throws {AttendancePeriodLockedError} Khoảng nghỉ chạm vào kỳ đã chốt chấm công.
  */
 export default class ApproveLeaveRequestUseCase {
     public constructor(
-        private readonly _permissions: PermissionChecker,
+        private readonly _decisionAuthorizer: LeaveDecisionAuthorizer,
         private readonly _leaveRequestRepo: LeaveRequestRepo,
         private readonly _leaveBalanceRepo: LeaveBalanceRepo,
         private readonly _attendanceRepo: AttendanceRepo,
         private readonly _holidayRepo: HolidayRepo,
         private readonly _entitlement: LeaveEntitlementService,
         private readonly _eventBus: EventBus,
+        private readonly _periodLocks: AttendancePeriodLockDirectory,
     ) {}
 
     public async execute(input: ApproveLeaveRequestInput): Promise<void> {
-        await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
-
         const leaveRequest = await this._leaveRequestRepo.getById(input.leaveRequestId);
         if (leaveRequest == undefined) throw new LeaveRequestNotFoundError();
+
+        // Kiểm quyền SAU khi đọc đơn: phải biết đơn của ai mới xét được phạm vi
+        // team. Đơn không tồn tại thì 404 chứ không 403 — không tiết lộ gì thêm.
+        await this._decisionAuthorizer.assertCanDecide(input.actorUserId, leaveRequest.employeeId);
+
         if (!leaveRequest.status.isPending) throw new LeaveRequestNotPendingError();
 
         const overlapping = await this._leaveRequestRepo.listOverlapping(
@@ -61,6 +68,11 @@ export default class ApproveLeaveRequestUseCase {
         );
         const conflict = overlapping.some(other => other.id !== leaveRequest.id);
         if (conflict) throw new LeaveOverlapError();
+
+        // Duyệt đơn SINH bản ghi chấm công, nên cũng là thao tác ghi bảng công:
+        // kỳ đã chốt thì phải chặn ở đây, nếu không số công sẽ đổi sau khi lương
+        // đã tính. Chặn TRƯỚC khi trừ số dư để không có trạng thái nửa vời.
+        await this._assertPeriodOpen(leaveRequest.startDate, leaveRequest.endDate);
 
         const year = leaveRequest.startDate.getUTCFullYear();
         await this._entitlement.assertAvailable(leaveRequest.employeeId, leaveRequest.leaveType, year, leaveRequest.days);
@@ -71,7 +83,7 @@ export default class ApproveLeaveRequestUseCase {
         let balance = await this._leaveBalanceRepo.getOne(leaveRequest.employeeId, leaveRequest.leaveType.value, year);
         if (balance == undefined) {
             balance = LeaveBalance.create({
-                id:         UUIDv7(),
+                id:         createUuidV7(),
                 employeeId: leaveRequest.employeeId,
                 leaveType:  leaveRequest.leaveType,
                 year,
@@ -87,6 +99,17 @@ export default class ApproveLeaveRequestUseCase {
         await this._eventBus.publish([
             new LeaveRequestDecidedEvent(leaveRequest.id, leaveRequest.employeeId, true),
         ]);
+    }
+
+    /**
+     * Đơn có thể trải qua nhiều kỳ; chỉ cần MỘT ngày nằm trong kỳ đã chốt là
+     * không duyệt được.
+     */
+    private async _assertPeriodOpen(start: Date, end: Date): Promise<void> {
+        for (const day of [start, end]) {
+            const locked = await this._periodLocks.findLockedPeriodCovering(day);
+            if (locked != undefined) throw new AttendancePeriodLockedError(locked.name);
+        }
     }
 
     private async _syncLeaveAttendance(
@@ -105,7 +128,7 @@ export default class ApproveLeaveRequestUseCase {
 
         for (const day of days) {
             const attendance = Attendance.create({
-                id:             UUIDv7(),
+                id:             createUuidV7(),
                 employeeId,
                 date:           day,
                 shiftId:        "",

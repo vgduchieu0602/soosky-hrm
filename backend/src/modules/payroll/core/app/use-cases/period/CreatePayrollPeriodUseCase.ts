@@ -3,9 +3,9 @@ import PayrollPeriodRepo from "@modules/payroll/core/app/ports/PayrollPeriodRepo
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import PayrollPeriod from "@modules/payroll/core/domain/entities/PayrollPeriod";
 import PeriodName from "@modules/payroll/core/domain/value-objects/PeriodName";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface CreatePayrollPeriodInput {
     name:             string;
@@ -23,7 +23,7 @@ export interface CreatePayrollPeriodOutput {
 /**
  * Tạo mới một kỳ lương — dùng chung cho chấm công, đánh giá và bảng lương.
  *
- * @throws {AccessDeniedError}              Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}              Actor không có quyền `payroll:prepare`.
  * @throws {PayrollPeriodNameConflictError}  Tên kỳ đã tồn tại.
  * @throws {PayrollPeriodNameInvalidError}   Tên không hợp lệ.
  */
@@ -41,7 +41,7 @@ export default class CreatePayrollPeriodUseCase {
         if (duplicate != undefined) throw new PayrollPeriodNameConflictError(name.value);
 
         const period = PayrollPeriod.create({
-            id:               UUIDv7(),
+            id:               createUuidV7(),
             name,
             startDate:        input.startDate,
             endDate:          input.endDate,

@@ -51,7 +51,7 @@ export default class EmployeeDocumentController {
     };
 
     public listEmployeeDocuments = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const documents = await this._useCases.listEmployeeDocuments.execute({ employeeId: req.params.employeeId });
+        const documents = await this._useCases.listEmployeeDocuments.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json({ documents: documents.map(EmployeeDocumentPresenter.toDTO) });
     };
 

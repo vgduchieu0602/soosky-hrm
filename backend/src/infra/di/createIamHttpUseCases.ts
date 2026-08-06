@@ -9,8 +9,10 @@ import ListPermissionsUseCase from "@modules/iam/core/app/use-cases/permission/L
 import CreateRoleUseCase from "@modules/iam/core/app/use-cases/role/CreateRoleUseCase";
 import DeleteRoleUseCase from "@modules/iam/core/app/use-cases/role/DeleteRoleUseCase";
 import GetRoleUseCase from "@modules/iam/core/app/use-cases/role/GetRoleUseCase";
+import ListRolePermissionsUseCase from "@modules/iam/core/app/use-cases/role/ListRolePermissionsUseCase";
 import ListRolesUseCase from "@modules/iam/core/app/use-cases/role/ListRolesUseCase";
 import UpdateRoleUseCase from "@modules/iam/core/app/use-cases/role/UpdateRoleUseCase";
+import GetMyPermissionsUseCase from "@modules/iam/core/app/use-cases/user/GetMyPermissionsUseCase";
 import GetUserPermissionsUseCase from "@modules/iam/core/app/use-cases/user/GetUserPermissionsUseCase";
 import GetUserUseCase from "@modules/iam/core/app/use-cases/user/GetUserUseCase";
 import ListUsersUseCase from "@modules/iam/core/app/use-cases/user/ListUsersUseCase";
@@ -44,6 +46,7 @@ export default function createIamHttpUseCases(
         listUsers:          new ListUsersUseCase(accessControl, userRepo),
         getUser:            new GetUserUseCase(accessControl, userRepo),
         getUserPermissions: new GetUserPermissionsUseCase(accessControl, userRepo),
+        getMyPermissions:   new GetMyPermissionsUseCase(accessControl),
 
         // Role
         listRoles:  new ListRolesUseCase(accessControl, roleRepo),
@@ -60,6 +63,7 @@ export default function createIamHttpUseCases(
         assignRoleToUser:   new AssignRoleToUserUseCase(accessControl, userRepo, roleRepo, userRoleRepo, auditRepo),
         revokeRoleFromUser: new RevokeRoleFromUserUseCase(accessControl, userRoleRepo, auditRepo),
         setRolePermissions: new SetRolePermissionsUseCase(accessControl, uow),
+        listRolePermissions: new ListRolePermissionsUseCase(accessControl, roleRepo, rolePermissionRepo),
 
         // Audit
         listAuditLogs: new ListAuditLogsUseCase(accessControl, auditRepo),

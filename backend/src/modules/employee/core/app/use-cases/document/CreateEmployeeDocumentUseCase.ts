@@ -1,9 +1,10 @@
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import EmployeeNotFoundError from "@modules/employee/core/app/errors/EmployeeNotFoundError";
 import EmployeeDocumentRepo from "@modules/employee/core/app/ports/EmployeeDocumentRepo";
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import EmployeeDocument, { DocumentType } from "@modules/employee/core/domain/entities/EmployeeDocument";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -34,6 +35,7 @@ export default class CreateEmployeeDocumentUseCase {
         private readonly _permissions:  PermissionChecker,
         private readonly _employeeRepo: EmployeeRepo,
         private readonly _documentRepo: EmployeeDocumentRepo,
+        private readonly _auditTrail:   AuditTrail,
     ) {}
 
     public async execute(input: CreateEmployeeDocumentInput): Promise<CreateEmployeeDocumentOutput> {
@@ -43,7 +45,7 @@ export default class CreateEmployeeDocumentUseCase {
         if (employee == undefined) throw new EmployeeNotFoundError();
 
         const document = EmployeeDocument.create({
-            id:             UUIDv7(),
+            id:             createUuidV7(),
             employeeId:     input.employeeId,
             documentType:   input.documentType,
             documentNumber: input.documentNumber,
@@ -54,6 +56,21 @@ export default class CreateEmployeeDocumentUseCase {
         });
 
         await this._documentRepo.save(document);
+
+        await this._auditTrail.record({
+            actorUserId: input.actorUserId,
+            resource:    "employee_document",
+            action:      "create",
+            resourceId:  document.id,
+            changes:     {
+                employeeId:     document.employeeId,
+                documentType:   document.documentType,
+                documentNumber: document.documentNumber,
+                issuedDate:     document.issuedDate,
+                expiryDate:     document.expiryDate,
+                issuedBy:       document.issuedBy,
+            },
+        });
 
         return { documentId: document.id };
     }

@@ -11,7 +11,8 @@ import EmployeeHistory from "@modules/employee/core/domain/entities/EmployeeHist
 import EmployeeCode from "@modules/employee/core/domain/value-objects/EmployeeCode";
 import EmployeeType from "@modules/employee/core/domain/value-objects/EmployeeType";
 import PersonName from "@modules/employee/core/domain/value-objects/PersonName";
-import { v7 as UUIDv7 } from "uuid";
+import ManagerChain from "@modules/employee/core/app/services/ManagerChain";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -40,6 +41,7 @@ export interface UpdateEmployeeInput {
  * @throws {EmployeeDepartmentNotFoundError} Phòng ban mới không tồn tại.
  * @throws {EmployeePositionNotFoundError}   Vị trí mới không tồn tại.
  * @throws {ManagerNotFoundError}            Quản lý mới không tồn tại.
+ * @throws {ManagerCycleError}               Gán quản lý này tạo vòng trong chuỗi báo cáo.
  */
 export default class UpdateEmployeeUseCase {
     public constructor(
@@ -47,6 +49,7 @@ export default class UpdateEmployeeUseCase {
         private readonly _employeeRepo: EmployeeRepo,
         private readonly _historyRepo:  EmployeeHistoryRepo,
         private readonly _orgDirectory: OrgDirectory,
+        private readonly _managerChain: ManagerChain,
     ) {}
 
     public async execute(input: UpdateEmployeeInput): Promise<void> {
@@ -91,6 +94,7 @@ export default class UpdateEmployeeUseCase {
             if (input.managerId != undefined) {
                 const manager = await this._employeeRepo.getById(input.managerId);
                 if (manager == undefined) throw new ManagerNotFoundError();
+                await this._managerChain.assertNoCycle(employee.id, input.managerId);
             }
             employee.assignManager(input.managerId);
         }
@@ -102,7 +106,7 @@ export default class UpdateEmployeeUseCase {
 
         if (previousDepartmentId !== employee.departmentId) {
             await this._historyRepo.save(EmployeeHistory.create({
-                id:              UUIDv7(),
+                id:              createUuidV7(),
                 employeeId:      employee.id,
                 eventType:       "transfer",
                 fromValue:       { departmentId: previousDepartmentId },

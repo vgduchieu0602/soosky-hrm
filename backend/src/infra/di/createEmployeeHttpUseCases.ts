@@ -22,14 +22,21 @@ import ListEmployeeDocumentsUseCase from "@modules/employee/core/app/use-cases/d
 import UpdateEmployeeDocumentUseCase from "@modules/employee/core/app/use-cases/document/UpdateEmployeeDocumentUseCase";
 import CreateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/CreateEmployeeUseCase";
 import GetEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/GetEmployeeUseCase";
+import GrantEmployeeLoginUseCase from "@modules/employee/core/app/use-cases/employee/GrantEmployeeLoginUseCase";
 import ListEmployeesUseCase from "@modules/employee/core/app/use-cases/employee/ListEmployeesUseCase";
 import TerminateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/TerminateEmployeeUseCase";
 import UpdateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/UpdateEmployeeUseCase";
 import ListEmployeeHistoryUseCase from "@modules/employee/core/app/use-cases/history/ListEmployeeHistoryUseCase";
+import AccountProvisioner from "@modules/employee/core/app/ports/AccountProvisioner";
+import EmployeeAccessScope from "@modules/employee/core/app/services/EmployeeAccessScope";
+import EmployeeImportValidator from "@modules/employee/core/app/services/EmployeeImportValidator";
+import ManagerChain from "@modules/employee/core/app/services/ManagerChain";
+import CommitEmployeeImportUseCase from "@modules/employee/core/app/use-cases/import/CommitEmployeeImportUseCase";
+import PreviewEmployeeImportUseCase from "@modules/employee/core/app/use-cases/import/PreviewEmployeeImportUseCase";
 import GetEmployeeProfileUseCase from "@modules/employee/core/app/use-cases/profile/GetEmployeeProfileUseCase";
 import UpdateEmployeeProfileUseCase from "@modules/employee/core/app/use-cases/profile/UpdateEmployeeProfileUseCase";
 import { createDepartmentDirectory } from "@modules/department";
-import { createIamAccessControl } from "@modules/iam";
+import { createIamAccessControl, createIamAuditTrail } from "@modules/iam";
 import { Db as MongoDb } from "mongodb";
 
 /**
@@ -41,7 +48,10 @@ import { Db as MongoDb } from "mongodb";
  * (`assertPermission(actorUserId, permissionKey)`) nên dùng thẳng;
  * `createDepartmentDirectory` khớp hình dạng `OrgDirectory`.
  */
-export default function createEmployeeHttpUseCases(mongoDb: MongoDb): EmployeeHttpUseCases {
+export default function createEmployeeHttpUseCases(
+    mongoDb: MongoDb,
+    accountProvisioner: AccountProvisioner,
+): EmployeeHttpUseCases {
     const employeeRepo    = new MongoEmployeeRepo(mongoDb);
     const profileRepo     = new MongoEmployeeProfileRepo(mongoDb);
     const contactRepo     = new MongoEmployeeContactRepo(mongoDb);
@@ -54,49 +64,67 @@ export default function createEmployeeHttpUseCases(mongoDb: MongoDb): EmployeeHt
     const permissionCheck = createIamAccessControl(mongoDb);
     const orgDirectory    = createDepartmentDirectory(mongoDb);
 
+    // Phân giải phạm vi đọc (all/team/self) — dùng chung cho MỌI use-case đọc
+    // của module, kể cả các sub-resource, để không nơi nào lọt kiểm tra.
+    const accessScope = new EmployeeAccessScope(permissionCheck, employeeRepo);
+
+    // Nhat ky thao tac dung chung so cua IAM -> tra cuu mot cho cho toan he thong.
+    const auditTrail  = createIamAuditTrail(mongoDb);
+    const managerChain = new ManagerChain(employeeRepo);
+
+    // Nhap CSV dung LAI CreateEmployeeUseCase -> mot duong tao nhan vien duy nhat,
+    // khong co nhanh rieng cho import de lech quy tac.
+    const importValidator = new EmployeeImportValidator(employeeRepo, orgDirectory);
+    const createEmployee  = new CreateEmployeeUseCase(permissionCheck, employeeRepo, historyRepo, orgDirectory);
+
     return {
         // Employee
-        createEmployee:    new CreateEmployeeUseCase(permissionCheck, employeeRepo, historyRepo, orgDirectory),
-        updateEmployee:    new UpdateEmployeeUseCase(permissionCheck, employeeRepo, historyRepo, orgDirectory),
-        getEmployee:       new GetEmployeeUseCase(employeeRepo),
-        listEmployees:     new ListEmployeesUseCase(employeeRepo),
-        terminateEmployee: new TerminateEmployeeUseCase(permissionCheck, employeeRepo, historyRepo),
+        createEmployee,
+        updateEmployee:    new UpdateEmployeeUseCase(permissionCheck, employeeRepo, historyRepo, orgDirectory, managerChain),
+        getEmployee:       new GetEmployeeUseCase(accessScope, employeeRepo),
+        listEmployees:     new ListEmployeesUseCase(accessScope, employeeRepo),
+        terminateEmployee: new TerminateEmployeeUseCase(permissionCheck, employeeRepo, historyRepo, auditTrail),
+        grantEmployeeLogin: new GrantEmployeeLoginUseCase(permissionCheck, employeeRepo, historyRepo, accountProvisioner, auditTrail),
 
         // Profile
-        getEmployeeProfile:    new GetEmployeeProfileUseCase(profileRepo),
+        getEmployeeProfile:    new GetEmployeeProfileUseCase(accessScope, profileRepo),
         updateEmployeeProfile: new UpdateEmployeeProfileUseCase(permissionCheck, employeeRepo, profileRepo),
 
         // Contact
         createEmployeeContact: new CreateEmployeeContactUseCase(permissionCheck, employeeRepo, contactRepo),
         updateEmployeeContact: new UpdateEmployeeContactUseCase(permissionCheck, contactRepo),
         deleteEmployeeContact: new DeleteEmployeeContactUseCase(permissionCheck, contactRepo),
-        listEmployeeContacts:  new ListEmployeeContactsUseCase(contactRepo),
+        listEmployeeContacts:  new ListEmployeeContactsUseCase(accessScope, contactRepo),
 
         // Bank account
-        createEmployeeBankAccount: new CreateEmployeeBankAccountUseCase(permissionCheck, employeeRepo, bankAccountRepo),
-        updateEmployeeBankAccount: new UpdateEmployeeBankAccountUseCase(permissionCheck, bankAccountRepo),
-        deleteEmployeeBankAccount: new DeleteEmployeeBankAccountUseCase(permissionCheck, bankAccountRepo),
-        listEmployeeBankAccounts:  new ListEmployeeBankAccountsUseCase(bankAccountRepo),
+        createEmployeeBankAccount: new CreateEmployeeBankAccountUseCase(permissionCheck, employeeRepo, bankAccountRepo, auditTrail),
+        updateEmployeeBankAccount: new UpdateEmployeeBankAccountUseCase(permissionCheck, bankAccountRepo, auditTrail),
+        deleteEmployeeBankAccount: new DeleteEmployeeBankAccountUseCase(permissionCheck, bankAccountRepo, auditTrail),
+        listEmployeeBankAccounts:  new ListEmployeeBankAccountsUseCase(accessScope, bankAccountRepo),
 
         // Document
-        createEmployeeDocument: new CreateEmployeeDocumentUseCase(permissionCheck, employeeRepo, documentRepo),
-        updateEmployeeDocument: new UpdateEmployeeDocumentUseCase(permissionCheck, documentRepo),
-        deleteEmployeeDocument: new DeleteEmployeeDocumentUseCase(permissionCheck, documentRepo),
-        listEmployeeDocuments:  new ListEmployeeDocumentsUseCase(documentRepo),
+        createEmployeeDocument: new CreateEmployeeDocumentUseCase(permissionCheck, employeeRepo, documentRepo, auditTrail),
+        updateEmployeeDocument: new UpdateEmployeeDocumentUseCase(permissionCheck, documentRepo, auditTrail),
+        deleteEmployeeDocument: new DeleteEmployeeDocumentUseCase(permissionCheck, documentRepo, auditTrail),
+        listEmployeeDocuments:  new ListEmployeeDocumentsUseCase(accessScope, documentRepo),
 
         // Contract
-        createEmployeeContract: new CreateEmployeeContractUseCase(permissionCheck, employeeRepo, contractRepo, historyRepo),
-        updateEmployeeContract: new UpdateEmployeeContractUseCase(permissionCheck, contractRepo),
-        deleteEmployeeContract: new DeleteEmployeeContractUseCase(permissionCheck, contractRepo),
-        listEmployeeContracts:  new ListEmployeeContractsUseCase(contractRepo),
+        createEmployeeContract: new CreateEmployeeContractUseCase(permissionCheck, employeeRepo, contractRepo, historyRepo, auditTrail),
+        updateEmployeeContract: new UpdateEmployeeContractUseCase(permissionCheck, contractRepo, auditTrail),
+        deleteEmployeeContract: new DeleteEmployeeContractUseCase(permissionCheck, contractRepo, auditTrail),
+        listEmployeeContracts:  new ListEmployeeContractsUseCase(accessScope, contractRepo),
 
         // Asset
         createEmployeeAsset: new CreateEmployeeAssetUseCase(permissionCheck, employeeRepo, assetRepo),
         updateEmployeeAsset: new UpdateEmployeeAssetUseCase(permissionCheck, assetRepo),
         deleteEmployeeAsset: new DeleteEmployeeAssetUseCase(permissionCheck, assetRepo),
-        listEmployeeAssets:  new ListEmployeeAssetsUseCase(assetRepo),
+        listEmployeeAssets:  new ListEmployeeAssetsUseCase(accessScope, assetRepo),
 
         // History
-        listEmployeeHistory: new ListEmployeeHistoryUseCase(historyRepo),
+        listEmployeeHistory: new ListEmployeeHistoryUseCase(accessScope, historyRepo),
+
+        // Import CSV
+        previewEmployeeImport: new PreviewEmployeeImportUseCase(permissionCheck, importValidator),
+        commitEmployeeImport:  new CommitEmployeeImportUseCase(permissionCheck, importValidator, createEmployee, auditTrail),
     };
 }

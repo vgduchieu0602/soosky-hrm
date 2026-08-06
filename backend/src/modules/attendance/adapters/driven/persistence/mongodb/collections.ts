@@ -6,4 +6,5 @@ export const ATTENDANCE_COLLECTIONS = {
     attendances:     "att_attendances",
     leaveRequests:   "att_leave_requests",
     leaveBalances:   "att_leave_balances",
+    correctionRequests: "att_correction_requests",
 } as const;

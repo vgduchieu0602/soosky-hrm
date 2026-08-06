@@ -18,9 +18,13 @@ const ACTION_VARIANT: Record<string, string> = {
   logout: "slate",
 };
 
+/**
+ * Backend chỉ trả id người thực hiện (không join sang user), nên hiện id rút gọn
+ * thay vì tên. `null` = hệ thống tự làm (job / event handler).
+ */
 function actorName(e: AuditLogEntry): string {
-  if (e.userId && typeof e.userId === "object") return e.userId.username;
-  return "Hệ thống";
+  if (e.userId == null || e.userId === "") return "Hệ thống";
+  return e.userId.length > 12 ? `${e.userId.slice(0, 8)}…` : e.userId;
 }
 
 export function AuditLogSettings() {

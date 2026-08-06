@@ -8,7 +8,15 @@ import EmployeeHistoryRepo from "@modules/employee/core/app/ports/EmployeeHistor
 import EmployeeProfileRepo from "@modules/employee/core/app/ports/EmployeeProfileRepo";
 import EmployeeRepo, { EmployeeListFilter } from "@modules/employee/core/app/ports/EmployeeRepo";
 import OrgDirectory from "@modules/employee/core/app/ports/OrgDirectory";
+import AccountProvisioner from "@modules/employee/core/app/ports/AccountProvisioner";
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
+import EmployeeAccessScope from "@modules/employee/core/app/services/EmployeeAccessScope";
+import EmployeeImportValidator from "@modules/employee/core/app/services/EmployeeImportValidator";
+import ManagerChain from "@modules/employee/core/app/services/ManagerChain";
+import GrantEmployeeLoginUseCase from "@modules/employee/core/app/use-cases/employee/GrantEmployeeLoginUseCase";
+import CommitEmployeeImportUseCase from "@modules/employee/core/app/use-cases/import/CommitEmployeeImportUseCase";
+import PreviewEmployeeImportUseCase from "@modules/employee/core/app/use-cases/import/PreviewEmployeeImportUseCase";
 import CreateEmployeeAssetUseCase from "@modules/employee/core/app/use-cases/asset/CreateEmployeeAssetUseCase";
 import DeleteEmployeeAssetUseCase from "@modules/employee/core/app/use-cases/asset/DeleteEmployeeAssetUseCase";
 import ListEmployeeAssetsUseCase from "@modules/employee/core/app/use-cases/asset/ListEmployeeAssetsUseCase";
@@ -54,10 +62,13 @@ class InMemoryEmployeeRepo implements EmployeeRepo {
     private readonly _store = new Map<string, Employee>();
     async getById(id: string) { return this._store.get(id); }
     async getByCode(code: string) { return [...this._store.values()].find(e => e.code.value === code); }
+    async getByAccountId(accountId: string) { return [...this._store.values()].find(e => e.accountId === accountId); }
+    async listDirectReportIds(managerId: string) { return [...this._store.values()].filter(e => e.managerId === managerId).map(e => e.id); }
     async list(filter: EmployeeListFilter) {
         return [...this._store.values()].filter(e =>
             (filter.departmentId == undefined || e.departmentId === filter.departmentId) &&
-            (filter.status == undefined || e.status.value === filter.status));
+            (filter.status == undefined || e.status.value === filter.status) &&
+            (filter.ids == undefined || filter.ids.includes(e.id)));
     }
     async save(e: Employee) { this._store.set(e.id, e); }
     async deleteById(id: string) { this._store.delete(id); }
@@ -117,11 +128,24 @@ class InMemoryHistoryRepo implements EmployeeHistoryRepo {
 
 const allowAllPermissions: PermissionChecker = {
     async assertPermission() { /* allow all in test */ },
+    async resolveScope() { return "all"; },
 };
 
 const allowAllOrgDirectory: OrgDirectory = {
     async departmentExists() { return true; },
     async positionExists() { return true; },
+    async findDepartmentIdByCode() { return "dept-1"; },
+    async findPositionIdByCode() { return "pos-1"; },
+};
+
+/** Audit khong phai doi tuong kiem thu o day — chi can khong no. */
+const noopAuditTrail: AuditTrail = {
+    async record() { /* no-op in test */ },
+};
+
+/** Thay cho module Auth: tra ve account gia, khong gui mail thuc. */
+const fakeAccountProvisioner: AccountProvisioner = {
+    async provisionAccount(input) { return { accountId: `acc-${input.email}`, email: input.email }; },
 };
 
 function buildUseCases(): EmployeeHttpUseCases {
@@ -134,42 +158,52 @@ function buildUseCases(): EmployeeHttpUseCases {
     const assetRepo       = new InMemoryAssetRepo();
     const historyRepo     = new InMemoryHistoryRepo();
 
-    return {
-        createEmployee:    new CreateEmployeeUseCase(allowAllPermissions, employeeRepo, historyRepo, allowAllOrgDirectory),
-        updateEmployee:    new UpdateEmployeeUseCase(allowAllPermissions, employeeRepo, historyRepo, allowAllOrgDirectory),
-        getEmployee:       new GetEmployeeUseCase(employeeRepo),
-        listEmployees:     new ListEmployeesUseCase(employeeRepo),
-        terminateEmployee: new TerminateEmployeeUseCase(allowAllPermissions, employeeRepo, historyRepo),
+    // Actor trong test la HR (phạm vi `all`) nen scope khong loc gi.
+    const accessScope  = new EmployeeAccessScope(allowAllPermissions, employeeRepo);
+    const managerChain = new ManagerChain(employeeRepo);
+    const importValidator = new EmployeeImportValidator(employeeRepo, allowAllOrgDirectory);
+    const createEmployee  = new CreateEmployeeUseCase(allowAllPermissions, employeeRepo, historyRepo, allowAllOrgDirectory);
 
-        getEmployeeProfile:    new GetEmployeeProfileUseCase(profileRepo),
+    return {
+        createEmployee,
+        updateEmployee:    new UpdateEmployeeUseCase(allowAllPermissions, employeeRepo, historyRepo, allowAllOrgDirectory, managerChain),
+        getEmployee:       new GetEmployeeUseCase(accessScope, employeeRepo),
+        listEmployees:     new ListEmployeesUseCase(accessScope, employeeRepo),
+        terminateEmployee: new TerminateEmployeeUseCase(allowAllPermissions, employeeRepo, historyRepo, noopAuditTrail),
+        grantEmployeeLogin: new GrantEmployeeLoginUseCase(allowAllPermissions, employeeRepo, historyRepo, fakeAccountProvisioner, noopAuditTrail),
+
+        getEmployeeProfile:    new GetEmployeeProfileUseCase(accessScope, profileRepo),
         updateEmployeeProfile: new UpdateEmployeeProfileUseCase(allowAllPermissions, employeeRepo, profileRepo),
 
         createEmployeeContact: new CreateEmployeeContactUseCase(allowAllPermissions, employeeRepo, contactRepo),
         updateEmployeeContact: new UpdateEmployeeContactUseCase(allowAllPermissions, contactRepo),
         deleteEmployeeContact: new DeleteEmployeeContactUseCase(allowAllPermissions, contactRepo),
-        listEmployeeContacts:  new ListEmployeeContactsUseCase(contactRepo),
+        listEmployeeContacts:  new ListEmployeeContactsUseCase(accessScope, contactRepo),
 
-        createEmployeeBankAccount: new CreateEmployeeBankAccountUseCase(allowAllPermissions, employeeRepo, bankAccountRepo),
-        updateEmployeeBankAccount: new UpdateEmployeeBankAccountUseCase(allowAllPermissions, bankAccountRepo),
-        deleteEmployeeBankAccount: new DeleteEmployeeBankAccountUseCase(allowAllPermissions, bankAccountRepo),
-        listEmployeeBankAccounts:  new ListEmployeeBankAccountsUseCase(bankAccountRepo),
+        createEmployeeBankAccount: new CreateEmployeeBankAccountUseCase(allowAllPermissions, employeeRepo, bankAccountRepo, noopAuditTrail),
+        updateEmployeeBankAccount: new UpdateEmployeeBankAccountUseCase(allowAllPermissions, bankAccountRepo, noopAuditTrail),
+        deleteEmployeeBankAccount: new DeleteEmployeeBankAccountUseCase(allowAllPermissions, bankAccountRepo, noopAuditTrail),
+        listEmployeeBankAccounts:  new ListEmployeeBankAccountsUseCase(accessScope, bankAccountRepo),
 
-        createEmployeeDocument: new CreateEmployeeDocumentUseCase(allowAllPermissions, employeeRepo, documentRepo),
-        updateEmployeeDocument: new UpdateEmployeeDocumentUseCase(allowAllPermissions, documentRepo),
-        deleteEmployeeDocument: new DeleteEmployeeDocumentUseCase(allowAllPermissions, documentRepo),
-        listEmployeeDocuments:  new ListEmployeeDocumentsUseCase(documentRepo),
+        createEmployeeDocument: new CreateEmployeeDocumentUseCase(allowAllPermissions, employeeRepo, documentRepo, noopAuditTrail),
+        updateEmployeeDocument: new UpdateEmployeeDocumentUseCase(allowAllPermissions, documentRepo, noopAuditTrail),
+        deleteEmployeeDocument: new DeleteEmployeeDocumentUseCase(allowAllPermissions, documentRepo, noopAuditTrail),
+        listEmployeeDocuments:  new ListEmployeeDocumentsUseCase(accessScope, documentRepo),
 
-        createEmployeeContract: new CreateEmployeeContractUseCase(allowAllPermissions, employeeRepo, contractRepo, historyRepo),
-        updateEmployeeContract: new UpdateEmployeeContractUseCase(allowAllPermissions, contractRepo),
-        deleteEmployeeContract: new DeleteEmployeeContractUseCase(allowAllPermissions, contractRepo),
-        listEmployeeContracts:  new ListEmployeeContractsUseCase(contractRepo),
+        createEmployeeContract: new CreateEmployeeContractUseCase(allowAllPermissions, employeeRepo, contractRepo, historyRepo, noopAuditTrail),
+        updateEmployeeContract: new UpdateEmployeeContractUseCase(allowAllPermissions, contractRepo, noopAuditTrail),
+        deleteEmployeeContract: new DeleteEmployeeContractUseCase(allowAllPermissions, contractRepo, noopAuditTrail),
+        listEmployeeContracts:  new ListEmployeeContractsUseCase(accessScope, contractRepo),
 
         createEmployeeAsset: new CreateEmployeeAssetUseCase(allowAllPermissions, employeeRepo, assetRepo),
         updateEmployeeAsset: new UpdateEmployeeAssetUseCase(allowAllPermissions, assetRepo),
         deleteEmployeeAsset: new DeleteEmployeeAssetUseCase(allowAllPermissions, assetRepo),
-        listEmployeeAssets:  new ListEmployeeAssetsUseCase(assetRepo),
+        listEmployeeAssets:  new ListEmployeeAssetsUseCase(accessScope, assetRepo),
 
-        listEmployeeHistory: new ListEmployeeHistoryUseCase(historyRepo),
+        listEmployeeHistory: new ListEmployeeHistoryUseCase(accessScope, historyRepo),
+
+        previewEmployeeImport: new PreviewEmployeeImportUseCase(allowAllPermissions, importValidator),
+        commitEmployeeImport:  new CommitEmployeeImportUseCase(allowAllPermissions, importValidator, createEmployee, noopAuditTrail),
     };
 }
 

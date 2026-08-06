@@ -1,56 +1,76 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, X } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { Check, Loader2, MessageSquareWarning } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/shared/utils/cn";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import Sidebar from "@features/dashboard/components/Sidebar";
 import { TopBar } from "@features/dashboard/components/TopBar";
-import { settingsService } from "@features/settings/services/settings.service";
 import { performanceService } from "@features/performance/services/performance.service";
+import type { Criterion, PerformanceReview, ReviewStatus } from "@features/performance/types/performance.types";
+import { buildCriteriaIndex, KIND_LABEL } from "@features/performance/utils/criteria-index";
 import { scoreBand } from "@features/performance/utils/score-band";
-import type { Evaluation, EvaluationStatus } from "@features/performance/types/performance.types";
-import type { PerformanceCriterion } from "@features/settings/types/settings.types";
 
 type BadgeVariant = "slate" | "amber" | "emerald" | "blue" | "violet" | "rose";
-const STATUS: Record<EvaluationStatus, { label: string; variant: BadgeVariant }> = {
-  draft: { label: "Đang đánh giá", variant: "slate" },
-  approved: { label: "Đã duyệt — chờ bạn xác nhận", variant: "blue" },
-  acknowledged: { label: "Bạn đã xác nhận", variant: "emerald" },
-};
-/** Employees only see finalized results, not in-progress scoring. */
-const VISIBLE: EvaluationStatus[] = ["approved", "acknowledged"];
 
+const STATUS: Record<ReviewStatus, { label: string; variant: BadgeVariant }> = {
+  draft:        { label: "Quản lý đang chấm", variant: "slate" },
+  submitted:    { label: "Chờ HR duyệt", variant: "amber" },
+  approved:     { label: "Đã duyệt — chờ bạn xác nhận", variant: "blue" },
+  acknowledged: { label: "Bạn đã xác nhận", variant: "emerald" },
+  appealed:     { label: "Bạn đang khiếu nại", variant: "rose" },
+  locked:       { label: "Đã khoá điểm", variant: "violet" },
+};
+
+/**
+ * Trang tự phục vụ: phiếu đánh giá của CHÍNH nhân viên.
+ *
+ * Backend đã thu hẹp theo phạm vi `performance:read:self`, nên trang này không
+ * gửi employeeId và cũng không thể xem của người khác.
+ *
+ * Phiếu ở `draft`/`submitted` vẫn ẩn: điểm chưa được HR duyệt thì chưa phải kết
+ * quả, hiện ra chỉ gây tranh cãi về con số còn đang sửa.
+ */
 export default function MyEvaluations() {
-  const [evals, setEvals] = useState<Evaluation[]>([]);
-  const [criteria, setCriteria] = useState<PerformanceCriterion[]>([]);
+  const [reviews, setReviews] = useState<PerformanceReview[]>([]);
+  const [criteriaOf, setCriteriaOf] = useState<(setId: string, version: number) => Criterion[]>(() => () => []);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [appealFor, setAppealFor] = useState<string | null>(null);
+  const [appealReason, setAppealReason] = useState("");
 
   useEffect(() => {
     let active = true;
-    Promise.all([performanceService.mine(), settingsService.listCriteria(true)])
-      .then(([rows, crit]) => { if (active) { setEvals(rows); setCriteria(crit); setLoading(false); } })
-      .catch(() => { if (active) { setEvals([]); setLoading(false); } });
+    Promise.all([performanceService.myReviews(), performanceService.criteriaSets()])
+      .then(([rows, sets]) => {
+        if (!active) return;
+        setReviews(rows);
+        setCriteriaOf(() => buildCriteriaIndex(sets));
+        setLoading(false);
+      })
+      .catch(() => { if (active) { setReviews([]); setLoading(false); } });
     return () => { active = false; };
   }, [reloadKey]);
 
-  const metaOf = useMemo(() => {
-    const m = new Map(criteria.map((c) => [c._id, { label: c.label, type: c.type }]));
-    return (id: string) => m.get(id) ?? { label: "Tiêu chí", type: "performance" as const };
-  }, [criteria]);
+  const visible = reviews.filter((r) => r.status !== "draft" && r.status !== "submitted");
+  const detail  = detailId != null ? visible.find((r) => r.id === detailId) ?? null : null;
 
-  const visible = evals.filter((e) => VISIBLE.includes(e.status));
-  const detail = detailId ? evals.find((e) => e._id === detailId) ?? null : null;
-
-  function acknowledge(ev: Evaluation, disputeNote?: string) {
+  function acknowledge(review: PerformanceReview) {
     setBusy(true); setErr(null);
-    performanceService.acknowledge(ev._id, disputeNote)
+    performanceService.acknowledge(review.id)
       .then(() => { setReloadKey((k) => k + 1); setDetailId(null); })
       .catch((e) => setErr(e?.response?.data?.message ?? "Xác nhận thất bại."))
+      .finally(() => setBusy(false));
+  }
+
+  function appeal() {
+    if (appealFor == null || appealReason.trim() === "") return;
+    setBusy(true); setErr(null);
+    performanceService.appeal(appealFor, appealReason.trim())
+      .then(() => { setReloadKey((k) => k + 1); setAppealFor(null); setAppealReason(""); setDetailId(null); })
+      .catch((e) => setErr(e?.response?.data?.message ?? "Gửi khiếu nại thất bại."))
       .finally(() => setBusy(false));
   }
 
@@ -58,140 +78,120 @@ export default function MyEvaluations() {
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar active="myeval" />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar crumbs={["Trang chủ", "Đánh giá của tôi"]} />
-        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          <div className="mx-auto flex max-w-[860px] flex-col gap-6">
-            <div>
-              <h1 className="text-[26px] font-bold tracking-tight text-foreground">Đánh giá của tôi</h1>
-              <p className="mt-1 text-[13.5px] text-muted-foreground">Kết quả đánh giá hiệu suất do quản lý / HR thực hiện.</p>
+        <TopBar />
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">
+          <h1 className="mb-1 text-xl font-semibold text-slate-900">Đánh giá của tôi</h1>
+          <p className="mb-5 text-sm text-slate-500">
+            Kết quả đánh giá sau khi HR duyệt. Bạn xác nhận, hoặc khiếu nại kèm lý do.
+          </p>
+
+          {err != null && <p className="mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{err}</p>}
+
+          {loading ? (
+            <p className="text-sm text-slate-500">Đang tải…</p>
+          ) : visible.length === 0 ? (
+            <Card className="p-6 text-sm text-slate-500">Chưa có kết quả đánh giá nào được duyệt.</Card>
+          ) : (
+            <div className="grid gap-3">
+              {visible.map((review) => {
+                const band = review.totals != null ? scoreBand(review.totals.performanceScore) : null;
+                return (
+                  <Card key={review.id} className="p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">
+                          Kỳ đánh giá · bộ tiêu chí v{review.criteriaVersion}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {review.totals != null
+                            ? `Hiệu suất ${review.totals.performanceScore} · Mục tiêu ${review.totals.goalScore} · KPI ${review.totals.kpiScore}`
+                            : "Chưa có điểm"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {band != null && <Badge variant={band.tone}>{band.label}</Badge>}
+                        <Badge variant={STATUS[review.status].variant}>{STATUS[review.status].label}</Badge>
+                        <Button
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => setDetailId(review.id === detailId ? null : review.id)}
+                        >
+                          Chi tiết
+                        </Button>
+                      </div>
+                    </div>
+
+                    {detail?.id === review.id && (
+                      <div className="mt-4 border-t border-slate-200 pt-4">
+                        <div className="grid gap-2">
+                          {criteriaOf(review.criteriaSetId, review.criteriaVersion).map((criterion) => (
+                            <div key={criterion.id} className="flex items-center justify-between text-sm">
+                              <span className="text-slate-700">
+                                {criterion.name}
+                                <span className="ml-2 text-xs text-slate-400">
+                                  {KIND_LABEL[criterion.kind] ?? criterion.kind} · {criterion.weight}%
+                                </span>
+                              </span>
+                              <span className="font-medium text-slate-900">
+                                {review.scores.find((s) => s.criterionId === criterion.id)?.score ?? "—"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {review.managerNote != null && (
+                          <p className="mt-3 text-sm text-slate-600"><strong>Nhận xét:</strong> {review.managerNote}</p>
+                        )}
+                        {review.appealNote != null && (
+                          <p className="mt-2 text-sm text-rose-700"><strong>Khiếu nại của bạn:</strong> {review.appealNote}</p>
+                        )}
+                        {review.hrNote != null && (
+                          <p className="mt-2 text-sm text-blue-700"><strong>Phản hồi HR:</strong> {review.hrNote}</p>
+                        )}
+
+                        {review.status === "approved" && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Button onClick={() => acknowledge(review)} disabled={busy} className="cursor-pointer">
+                              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                              Xác nhận
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="cursor-pointer"
+                              onClick={() => setAppealFor(appealFor === review.id ? null : review.id)}
+                            >
+                              <MessageSquareWarning className="mr-2 h-4 w-4" />
+                              Khiếu nại
+                            </Button>
+                          </div>
+                        )}
+
+                        {appealFor === review.id && (
+                          <div className="mt-3">
+                            <textarea
+                              rows={3}
+                              value={appealReason}
+                              onChange={(e) => setAppealReason(e.target.value)}
+                              placeholder="Nêu rõ lý do khiếu nại (bắt buộc)"
+                              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm transition-colors focus:border-cyan-500 focus:outline-none"
+                            />
+                            <Button
+                              onClick={appeal}
+                              disabled={busy || appealReason.trim() === ""}
+                              className="mt-2 cursor-pointer"
+                            >
+                              Gửi khiếu nại
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
-
-            {err && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700">{err}</div>}
-
-            <Card className="overflow-hidden">
-              {loading && <div className="px-5 py-16 text-center text-[13px] text-muted-foreground">Đang tải…</div>}
-              {!loading && visible.length === 0 && (
-                <div className="px-5 py-16 text-center text-[13px] text-muted-foreground">Chưa có kết quả đánh giá nào được duyệt.</div>
-              )}
-              {!loading && visible.map((ev) => (
-                <button key={ev._id} onClick={() => setDetailId(ev._id)}
-                  className="group flex w-full items-center gap-4 border-b border-border/40 px-5 py-4 text-left transition-colors last:border-0 hover:bg-slate-50">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-foreground">Kỳ đánh giá</div>
-                    <div className="mt-0.5 text-[12px] text-muted-foreground">Hiệu suất {Math.round(ev.performanceRatio)}% · Mục tiêu {Math.round(ev.goalRatio)}%</div>
-                  </div>
-                  <Badge variant={STATUS[ev.status].variant}>{STATUS[ev.status].label}</Badge>
-                  <ChevronRight className="size-4 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-                </button>
-              ))}
-            </Card>
-          </div>
+          )}
         </main>
-      </div>
-
-      {detail && (
-        <DetailDrawer ev={detail} metaOf={metaOf} busy={busy} onAcknowledge={(note) => acknowledge(detail, note)} onClose={() => setDetailId(null)} />
-      )}
-    </div>
-  );
-}
-
-function DetailDrawer({ ev, metaOf, busy, onAcknowledge, onClose }: {
-  ev: Evaluation;
-  metaOf: (id: string) => { label: string; type: "performance" | "goal" };
-  busy: boolean; onAcknowledge: (disputeNote?: string) => void; onClose: () => void;
-}) {
-  const [dispute, setDispute] = useState("");
-  const perfScores = ev.criteriaScores.filter((s) => metaOf(s.criterionId).type === "performance");
-  const goalScores = ev.criteriaScores.filter((s) => metaOf(s.criterionId).type === "goal");
-
-  const scoreRows = (rows: typeof ev.criteriaScores) => (
-    <div className="flex flex-col gap-2.5">
-      {rows.length === 0 && <p className="text-[13px] text-muted-foreground">Không có chỉ số.</p>}
-      {rows.map((s) => (
-        <div key={s.criterionId} className="flex items-center gap-3 text-[13px]">
-          <span className="min-w-0 flex-1 truncate text-muted-foreground" title={metaOf(s.criterionId).label}>{metaOf(s.criterionId).label}</span>
-          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-secondary-500" style={{ width: `${s.score}%` }} />
-          </div>
-          <span className="w-12 text-right font-semibold tabular-nums text-foreground">{s.score}%</span>
-        </div>
-      ))}
-    </div>
-  );
-
-  const note = (label: string, value?: string | null) =>
-    value ? (
-      <div>
-        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">{label}</div>
-        <p className="mt-1 whitespace-pre-wrap text-[13px] text-foreground">{value}</p>
-      </div>
-    ) : null;
-
-  return (
-    <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-secondary-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative flex h-full w-[520px] max-w-[94vw] flex-col bg-background shadow-2xl animate-[slideOver_.28s_cubic-bezier(.2,.8,.2,1)]">
-        <div className="relative shrink-0 overflow-hidden px-6 pb-5 pt-6 text-white" style={{ background: "linear-gradient(135deg,#1B3A74,#163985 55%,#11295C)" }}>
-          <button onClick={onClose} className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white"><X className="size-4" /></button>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Kết quả đánh giá</div>
-          <div className="mt-3 flex gap-8">
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-white/45">Hiệu suất</div>
-              <div className="text-[28px] font-bold tabular-nums">{Math.round(ev.performanceRatio)}%</div>
-              <div className="text-[12px] font-medium text-white/70">{scoreBand(ev.performanceRatio).label}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-white/45">Mục tiêu</div>
-              <div className="text-[28px] font-bold tabular-nums">{Math.round(ev.goalRatio)}%</div>
-              <div className="text-[12px] font-medium text-white/70">{scoreBand(ev.goalRatio).label}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="flex flex-col gap-5">
-            <Card className="p-5">
-              <h3 className="mb-3 text-[14px] font-semibold text-foreground">Chỉ số Hiệu suất (60%)</h3>
-              {scoreRows(perfScores)}
-            </Card>
-            <Card className="p-5">
-              <h3 className="mb-3 text-[14px] font-semibold text-foreground">Chỉ số Mục tiêu (20%)</h3>
-              {scoreRows(goalScores)}
-            </Card>
-
-            {(ev.strengths || ev.improvements || ev.developmentPlan || ev.note) && (
-              <Card className="flex flex-col gap-4 p-5">
-                <h3 className="text-[14px] font-semibold text-foreground">Nhận xét</h3>
-                {note("Điểm mạnh", ev.strengths)}
-                {note("Cần cải thiện", ev.improvements)}
-                {note("Kế hoạch phát triển", ev.developmentPlan)}
-                {note("Ghi chú", ev.note)}
-              </Card>
-            )}
-
-            {ev.status === "acknowledged" ? (
-              <div className={cn("flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-5 py-3 text-[13px] font-semibold text-emerald-700")}>
-                <Check className="size-4" strokeWidth={2.4} /> Bạn đã xác nhận kết quả này
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <label className="text-[12.5px] font-medium text-foreground">Ý kiến / khiếu nại (nếu có)</label>
-                <textarea
-                  value={dispute}
-                  onChange={(e) => setDispute(e.target.value)}
-                  rows={2}
-                  maxLength={1000}
-                  placeholder="Để trống nếu bạn đồng ý với kết quả…"
-                  className="w-full rounded-lg border border-input bg-card px-3 py-2 text-[13px] focus-visible:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20"
-                />
-                <Button disabled={busy} onClick={() => onAcknowledge(dispute.trim() || undefined)} className="w-full gap-2 rounded-xl">
-                  <Check className="size-4" strokeWidth={2.4} /> {dispute.trim() ? "Xác nhận & gửi khiếu nại" : "Xác nhận đã xem"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

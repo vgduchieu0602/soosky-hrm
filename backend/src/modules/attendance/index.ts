@@ -5,3 +5,5 @@ export { createAttendanceHttpRouter } from "@modules/attendance/adapters/driver/
 export type { AttendanceHttpUseCases } from "@modules/attendance/adapters/driver/http";
 export { createAttendanceDirectory } from "@modules/attendance/composition";
 export type { AttendanceDirectory, WorkdaySummary } from "@modules/attendance/composition";
+export { createAttendanceReportDirectory } from "@modules/attendance/composition";
+export type { AttendanceDayStatusCount, AttendanceReportDirectory, PendingLeaveSummary } from "@modules/attendance/composition";

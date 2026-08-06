@@ -35,7 +35,7 @@ export function BulkTerminateDialog({ open, onOpenChange, employeeIds, onDone }:
       onOpenChange(false);
     } catch (err) {
       setError(
-        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
           "Không thể cho nghỉ việc hàng loạt. Vui lòng thử lại.",
       );
     } finally {

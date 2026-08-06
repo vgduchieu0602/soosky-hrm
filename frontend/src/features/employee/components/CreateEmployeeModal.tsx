@@ -160,7 +160,7 @@ export function CreateEmployeeModal({ onClose, onCreated }: Props) {
       })
       .then(() => { onCreated(); })
       .catch((e) => {
-        const msg = e?.response?.data?.error?.message;
+        const msg = e?.response?.data?.message;
         if (createdIdRef.current) {
           // Employee saved, but provisioning/email failed.
           setError(

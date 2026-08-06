@@ -12,6 +12,8 @@ export interface AccountDTO {
     status:     string;
     verifiedAt: string | null;
     createdAt:  string;
+    /** Còn dùng mật khẩu tạm → client phải đưa người dùng đi đổi mật khẩu. */
+    mustChangePassword: boolean;
 }
 
 const AccountPresenter = {
@@ -24,6 +26,7 @@ const AccountPresenter = {
             status:     account.status,
             verifiedAt: account.verifiedAt?.toISOString() ?? null,
             createdAt:  account.createdAt.toISOString(),
+            mustChangePassword: account.mustChangePassword,
         };
     },
 };

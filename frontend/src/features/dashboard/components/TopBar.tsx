@@ -1,7 +1,6 @@
 import { Fragment } from "react";
 import { Search, ChevronRight, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { NotificationBell } from "@features/notification/NotificationBell";
 import { useUiStore } from "@core/store/ui.store";
 import { useAuthStore } from "@core/store/auth.store";
 
@@ -49,7 +48,6 @@ export function TopBar({ crumbs = ["Trang chủ", "Tổng quan"] }: TopBarProps)
       </div>
 
       <div className="ml-auto md:ml-0">
-        <NotificationBell />
       </div>
     </header>
   );

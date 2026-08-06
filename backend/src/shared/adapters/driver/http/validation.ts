@@ -45,6 +45,8 @@ export const field = {
     optionalNumber: optionalField("a number", castNumber),
     date:           requiredField("an ISO-8601 date string", castDate),
     optionalDate:   optionalField("an ISO-8601 date string", castDate),
+    boolean:         requiredField("a boolean", castBoolean),
+    optionalBoolean: optionalField("a boolean", castBoolean),
 };
 
 /**
@@ -131,6 +133,15 @@ function castString(value: unknown): string | undefined {
 
 function castNumber(value: unknown): number | undefined {
     return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * CHỈ nhận boolean thật, không nhận "true"/1. Body là JSON nên client gửi được
+ * boolean đúng kiểu; nhận thêm chuỗi chỉ mở đường cho lỗi âm thầm (chuỗi
+ * "false" là truthy).
+ */
+function castBoolean(value: unknown): boolean | undefined {
+    return typeof value === "boolean" ? value : undefined;
 }
 
 function castDate(value: unknown): Date | undefined {

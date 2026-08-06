@@ -2,6 +2,7 @@ import AttendancePresenter from "@modules/attendance/adapters/driver/http/presen
 import DeleteAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/DeleteAttendanceUseCase";
 import GetAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/GetAttendanceUseCase";
 import ListAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/ListAttendanceUseCase";
+import ListVisibleAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/ListVisibleAttendanceUseCase";
 import UpsertAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/UpsertAttendanceUseCase";
 import ActorContext from "@shared/adapters/driver/http/ActorContext";
 import { bodySchema, field, requiredQueryString } from "@shared/adapters/driver/http/validation";
@@ -11,6 +12,7 @@ export interface AttendanceControllerUseCases {
     upsertAttendance: UpsertAttendanceUseCase;
     getAttendance:    GetAttendanceUseCase;
     listAttendance:   ListAttendanceUseCase;
+    listVisibleAttendance: ListVisibleAttendanceUseCase;
     deleteAttendance: DeleteAttendanceUseCase;
 }
 
@@ -41,15 +43,38 @@ export default class AttendanceController {
     };
 
     public listAttendance = async (req: Request, res: Response): Promise<void> => {
-        const employeeId = requiredQueryString(req.query.employeeId, "employeeId");
+        // `employeeId` tuỳ chọn: bỏ trống = bảng công của chính người đang đăng nhập.
+        const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
         const start = new Date(requiredQueryString(req.query.start, "start"));
         const end   = new Date(requiredQueryString(req.query.end, "end"));
-        const records = await this._useCases.listAttendance.execute({ employeeId, start, end });
+        const records = await this._useCases.listAttendance.execute({
+            ...(employeeId != undefined ? { employeeId } : {}),
+            start,
+            end,
+            actorUserId: ActorContext.get(res),
+        });
+        res.status(200).json({ records: records.map(AttendancePresenter.toDTO) });
+    };
+
+    /**
+     * Bảng công của MỌI nhân viên trong phạm vi actor — nguồn dữ liệu cho lưới
+     * chấm công. Tách khỏi `GET /records` vì ở đó bỏ trống `employeeId` nghĩa là
+     * "của chính tôi" (tự phục vụ), không phải "của tất cả".
+     */
+    public listVisibleAttendance = async (req: Request, res: Response): Promise<void> => {
+        const start = new Date(requiredQueryString(req.query.start, "start"));
+        const end   = new Date(requiredQueryString(req.query.end, "end"));
+        const records = await this._useCases.listVisibleAttendance.execute({
+            start, end, actorUserId: ActorContext.get(res),
+        });
         res.status(200).json({ records: records.map(AttendancePresenter.toDTO) });
     };
 
     public getAttendance = async (req: Request<{ attendanceId: string }>, res: Response): Promise<void> => {
-        const attendance = await this._useCases.getAttendance.execute({ attendanceId: req.params.attendanceId });
+        const attendance = await this._useCases.getAttendance.execute({
+            attendanceId: req.params.attendanceId,
+            actorUserId:  ActorContext.get(res),
+        });
         res.status(200).json(AttendancePresenter.toDTO(attendance));
     };
 

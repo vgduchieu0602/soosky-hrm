@@ -3,12 +3,12 @@ import PayslipNotFoundError from "@modules/payroll/core/app/errors/PayslipNotFou
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import PayslipRepo from "@modules/payroll/core/app/ports/PayslipRepo";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 /**
  * Hoàn tác một phiếu lương `approved` về `draft` để tính lại.
  *
- * @throws {AccessDeniedError}         Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}         Actor không có quyền `payroll:prepare`.
  * @throws {PayslipNotFoundError}      Không tìm thấy phiếu lương.
  * @throws {PayslipNotApprovedError}   Phiếu không ở trạng thái `approved`.
  */

@@ -47,7 +47,7 @@ export default class EmployeeAssetController {
     };
 
     public listEmployeeAssets = async (req: Request<{ employeeId: string }>, res: Response): Promise<void> => {
-        const assets = await this._useCases.listEmployeeAssets.execute({ employeeId: req.params.employeeId });
+        const assets = await this._useCases.listEmployeeAssets.execute({ employeeId: req.params.employeeId, actorUserId: ActorContext.get(res) });
         res.status(200).json({ assets: assets.map(EmployeeAssetPresenter.toDTO) });
     };
 

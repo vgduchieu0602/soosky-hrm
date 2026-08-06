@@ -7,4 +7,6 @@ export const PAYROLL_COLLECTIONS = {
     deductions:   "pay_deductions",
     taxProfiles:  "pay_tax_profiles",
     policies:     "pay_policies",
+    retroAdjustments: "pay_retro_adjustments",
+    variances:        "pay_variances",
 } as const;

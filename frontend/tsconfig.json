@@ -12,7 +12,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["vite/client"],
+    // `node` cần cho test hợp đồng API (đọc bản kê route từ share-docs).
+    "types": ["vite/client", "node"],
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],

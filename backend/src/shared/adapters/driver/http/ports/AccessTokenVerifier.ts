@@ -3,7 +3,12 @@
  */
 export class AuthenticatedActor {
     constructor(
-        public readonly userId: string
+        public readonly userId: string,
+        /**
+         * Account đang dùng mật khẩu TẠM → `authenticate` chặn mọi endpoint trừ
+         * nhóm được phép (đổi mật khẩu, xem chính mình, đăng xuất).
+         */
+        public readonly mustChangePassword: boolean = false,
     ) {}
 }
 

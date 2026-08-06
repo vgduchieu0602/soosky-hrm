@@ -1,5 +1,6 @@
 import { MongoAccountRepo, MongoRefreshTokenStore, MongoUnitOfWork, MongoVerificationTokenStore } from "@modules/auth/adapters/driven/persistence/mongodb";
 import ScryptPasswordHasher from "@modules/auth/adapters/driven/security/ScryptPasswordHasher";
+import CryptoRandomSecretGenerator from "@modules/auth/adapters/driven/security/CryptoRandomSecretGenerator";
 import AccessTokenIssuer from "@modules/auth/core/app/ports/AccessTokenIssuer";
 import VerificationMailer from "@modules/auth/core/app/ports/VerificationMailer";
 import ChangeAccountRoleUseCase from "@modules/auth/core/app/use-cases/account/ChangeAccountRoleUseCase";
@@ -42,6 +43,7 @@ export default function createAuthHttpUseCases(
     const refreshTokenStore      = new MongoRefreshTokenStore(mongoDb);
     const verificationTokenStore = new MongoVerificationTokenStore(mongoDb);
     const passwordHasher         = new ScryptPasswordHasher();
+    const secretGenerator        = new CryptoRandomSecretGenerator();
 
     return {
         // Account + Account Lifecycle
@@ -52,7 +54,7 @@ export default function createAuthHttpUseCases(
         getMyAccount:          new GetMyAccountUseCase(accountRepo),
         listAccounts:          new ListAccountsUseCase(accountRepo),
         reactivateAccount:     new ReactivateAccountUseCase(accountRepo, eventBus),
-        registerMemberAccount: new RegisterMemberAccountUseCase(uow, passwordHasher, verificationMailer),
+        registerMemberAccount: new RegisterMemberAccountUseCase(uow, passwordHasher, verificationMailer, secretGenerator),
         updateProfile:         new UpdateProfileUseCase(accountRepo, eventBus),
         verifyAccount:         new VerifyAccountUseCase(uow, eventBus),
 

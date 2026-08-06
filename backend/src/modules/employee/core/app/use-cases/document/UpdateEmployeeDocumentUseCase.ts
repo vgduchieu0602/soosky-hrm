@@ -1,3 +1,4 @@
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import EmployeeSubResourceNotFoundError from "@modules/employee/core/app/errors/EmployeeSubResourceNotFoundError";
 import EmployeeDocumentRepo from "@modules/employee/core/app/ports/EmployeeDocumentRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
@@ -26,6 +27,7 @@ export default class UpdateEmployeeDocumentUseCase {
     public constructor(
         private readonly _permissions:  PermissionChecker,
         private readonly _documentRepo: EmployeeDocumentRepo,
+        private readonly _auditTrail:   AuditTrail,
     ) {}
 
     public async execute(input: UpdateEmployeeDocumentInput): Promise<void> {
@@ -33,6 +35,15 @@ export default class UpdateEmployeeDocumentUseCase {
 
         const document = await this._documentRepo.getById(input.documentId);
         if (document == undefined) throw new EmployeeSubResourceNotFoundError();
+
+        const before = {
+            documentType:   document.documentType,
+            documentNumber: document.documentNumber,
+            fileUrl:        document.fileUrl,
+            issuedDate:     document.issuedDate,
+            expiryDate:     document.expiryDate,
+            issuedBy:       document.issuedBy,
+        };
 
         document.update({
             documentType:   input.documentType,
@@ -44,5 +55,24 @@ export default class UpdateEmployeeDocumentUseCase {
         });
 
         await this._documentRepo.save(document);
+
+        await this._auditTrail.record({
+            actorUserId: input.actorUserId,
+            resource:    "employee_document",
+            action:      "update",
+            resourceId:  document.id,
+            changes:     {
+                employeeId: document.employeeId,
+                before,
+                after: {
+                    documentType:   document.documentType,
+                    documentNumber: document.documentNumber,
+                    fileUrl:        document.fileUrl,
+                    issuedDate:     document.issuedDate,
+                    expiryDate:     document.expiryDate,
+                    issuedBy:       document.issuedBy,
+                },
+            },
+        });
     }
 }

@@ -33,6 +33,12 @@ export function createAuthHttpRouter(
     const router   = Router();
     const withAuth = authenticate(accessTokenVerifier);
 
+    // Nhóm endpoint tối thiểu vẫn mở khi account còn phải đổi mật khẩu tạm:
+    // đổi mật khẩu (việc phải làm), xem hồ sơ chính mình (để hiện tên trên
+    // giao diện) và đăng xuất (để thoát ra). Thiếu ngoại lệ này thì người dùng
+    // bị kẹt hoàn toàn.
+    const withAuthPendingPassword = authenticate(accessTokenVerifier, { allowPendingPasswordChange: true });
+
     router.use(json());
 
     // Account + Account Lifecycle (docs/api.html § Account, § Account Lifecycle)
@@ -45,14 +51,14 @@ export function createAuthHttpRouter(
     router.delete("/accounts/:accountId",              withAuth, accounts.deletePendingAccount);
 
     // Self account
-    router.get   ("/me",                               withAuth, accounts.getMyAccount);
+    router.get   ("/me",                               withAuthPendingPassword, accounts.getMyAccount);
     router.patch ("/me/profile",                       withAuth, accounts.updateProfile);
-    router.put   ("/me/password",                      withAuth, accounts.changePassword);
+    router.put   ("/me/password",                      withAuthPendingPassword, accounts.changePassword);
 
     // Session (docs/api.html § Session)
     router.post  ("/sessions",                                   sessions.login);
     router.post  ("/sessions/refresh",                           sessions.refreshSession);
-    router.post  ("/sessions/logout",                  withAuth, sessions.logout);
+    router.post  ("/sessions/logout",                  withAuthPendingPassword, sessions.logout);
 
     router.use(errorHandler);
 

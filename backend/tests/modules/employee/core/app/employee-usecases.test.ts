@@ -3,6 +3,7 @@ import EmployeeDepartmentNotFoundError from "@modules/employee/core/app/errors/E
 import EmployeeHistoryRepo from "@modules/employee/core/app/ports/EmployeeHistoryRepo";
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import OrgDirectory from "@modules/employee/core/app/ports/OrgDirectory";
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import CreateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/CreateEmployeeUseCase";
 import TerminateEmployeeUseCase from "@modules/employee/core/app/use-cases/employee/TerminateEmployeeUseCase";
@@ -113,7 +114,7 @@ describe("TerminateEmployeeUseCase", () => {
         const target        = employee("e1", "NV001");
         employeeRepo.getById.mockResolvedValue(target);
 
-        const useCase = new TerminateEmployeeUseCase(permissions, employeeRepo, historyRepo);
+        const useCase = new TerminateEmployeeUseCase(permissions, employeeRepo, historyRepo, mock<AuditTrail>());
         const terminationDate = new Date("2026-06-01");
 
         await useCase.execute({ employeeId: "e1", terminationDate, actorUserId: "u1" });

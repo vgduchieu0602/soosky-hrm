@@ -5,6 +5,7 @@ import EmployeeContractController, { EmployeeContractControllerUseCases } from "
 import EmployeeController, { EmployeeControllerUseCases } from "@modules/employee/adapters/driver/http/controllers/EmployeeController";
 import EmployeeDocumentController, { EmployeeDocumentControllerUseCases } from "@modules/employee/adapters/driver/http/controllers/EmployeeDocumentController";
 import EmployeeHistoryController, { EmployeeHistoryControllerUseCases } from "@modules/employee/adapters/driver/http/controllers/EmployeeHistoryController";
+import EmployeeImportController, { EmployeeImportControllerUseCases } from "@modules/employee/adapters/driver/http/controllers/EmployeeImportController";
 import EmployeeProfileController, { EmployeeProfileControllerUseCases } from "@modules/employee/adapters/driver/http/controllers/EmployeeProfileController";
 import authenticate from "@shared/adapters/driver/http/middlewares/authenticate";
 import errorHandler from "@shared/adapters/driver/http/middlewares/errorHandler";
@@ -20,7 +21,8 @@ export type EmployeeHttpUseCases =
     & EmployeeDocumentControllerUseCases
     & EmployeeContractControllerUseCases
     & EmployeeAssetControllerUseCases
-    & EmployeeHistoryControllerUseCases;
+    & EmployeeHistoryControllerUseCases
+    & EmployeeImportControllerUseCases;
 
 /**
  * Driver adapter HTTP của module Employee. Giữ danh sách route duy nhất —
@@ -39,10 +41,13 @@ export function createEmployeeHttpRouter(
     const contractController    = new EmployeeContractController(useCases);
     const assetController       = new EmployeeAssetController(useCases);
     const historyController     = new EmployeeHistoryController(useCases);
+    const importController      = new EmployeeImportController(useCases);
 
     const router = Router();
 
-    router.use(json());
+    // CSV nhap nhan vien di trong JSON body -> gioi han mac dinh 100kb cua
+    // express.json() qua nho. 4mb du cho vai chuc nghin dong.
+    router.use(json({ limit: "4mb" }));
     router.use(authenticate(accessTokenVerifier));
 
     // Employee
@@ -51,6 +56,11 @@ export function createEmployeeHttpRouter(
     router.get   ("/employees/:employeeId",           employeeController.getEmployee);
     router.patch ("/employees/:employeeId",           employeeController.updateEmployee);
     router.post  ("/employees/:employeeId/terminate", employeeController.terminateEmployee);
+    router.post  ("/employees/:employeeId/grant-login", employeeController.grantEmployeeLogin);
+
+    // Import CSV: 2 buoc stateless preview -> commit (commit gui lai csv + checksum)
+    router.post  ("/imports/preview", importController.previewImport);
+    router.post  ("/imports/commit",  importController.commitImport);
 
     // Profile (1-1)
     router.get   ("/employees/:employeeId/profile", profileController.getEmployeeProfile);

@@ -8,8 +8,8 @@ import AccountRole from "@modules/auth/core/domain/value-objects/AccountRole";
 import FullName from "@modules/auth/core/domain/value-objects/FullName";
 import PlainPassword from "@modules/auth/core/domain/value-objects/PlainPassword";
 import EventBus from "@shared/core/domain/EventBus";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 import Email from "@shared/core/domain/value-objects/email/Email";
-import { v7 as UUIDv7 } from "uuid";
 
 export interface RegisterSuperAdminAccountInput {
     email:    string;
@@ -66,11 +66,13 @@ export default class RegisterSuperAdminAccountUseCase {
         }
 
         const account = Account.register({
-            id:           UUIDv7(),
+            id:           createUuidV7(),
             email:        email,
             passwordHash: await this._passwordHasher.hash(password.value),
             fullName:     fullName,
             role:         AccountRole.SUPER_ADMIN,
+            // Mật khẩu do người vận hành tự nhập ở CLI, không phải mật khẩu tạm.
+            mustChangePassword: false,
         });
         account.verify();
 

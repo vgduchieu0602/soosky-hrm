@@ -1,9 +1,9 @@
 import AllowanceRepo from "@modules/payroll/core/app/ports/AllowanceRepo";
 import PermissionChecker from "@modules/payroll/core/app/ports/PermissionChecker";
 import Allowance, { AllowanceType } from "@modules/payroll/core/domain/entities/Allowance";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
-const PERMISSION_KEY = "payroll:manage";
+const PERMISSION_KEY = "payroll:prepare";
 
 export interface CreateAllowanceInput {
     employeeId:      string;
@@ -20,7 +20,7 @@ export interface CreateAllowanceInput {
 /**
  * Tạo phụ cấp định kỳ cho nhân viên.
  *
- * @throws {AccessDeniedError}                 Actor không có quyền `payroll:manage`.
+ * @throws {AccessDeniedError}                 Actor không có quyền `payroll:prepare`.
  * @throws {CompensationCatalogInvalidError}    Tên/số tiền không hợp lệ.
  */
 export default class CreateAllowanceUseCase {
@@ -33,7 +33,7 @@ export default class CreateAllowanceUseCase {
         await this._permissions.assertPermission(input.actorUserId, PERMISSION_KEY);
 
         const allowance = Allowance.create({
-            id: UUIDv7(),
+            id: createUuidV7(),
             employeeId: input.employeeId,
             name: input.name,
             type: input.type,

@@ -1,4 +1,4 @@
-import { MongoAttendanceRepo, MongoAttendanceSymbolRepo, MongoHolidayRepo, MongoLeaveBalanceRepo, MongoLeaveRequestRepo, MongoShiftRepo } from "@modules/attendance/adapters/driven/persistence/mongodb";
+import { MongoAttendanceCorrectionRequestRepo, MongoAttendanceRepo, MongoAttendanceSymbolRepo, MongoHolidayRepo, MongoLeaveBalanceRepo, MongoLeaveRequestRepo, MongoShiftRepo } from "@modules/attendance/adapters/driven/persistence/mongodb";
 import { AttendanceHttpUseCases } from "@modules/attendance/adapters/driver/http";
 import LeaveEntitlementService from "@modules/attendance/core/app/services/LeaveEntitlementService";
 import ArchiveShiftUseCase from "@modules/attendance/core/app/use-cases/shift/ArchiveShiftUseCase";
@@ -20,6 +20,7 @@ import UpdateAttendanceSymbolUseCase from "@modules/attendance/core/app/use-case
 import DeleteAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/DeleteAttendanceUseCase";
 import GetAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/GetAttendanceUseCase";
 import ListAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/ListAttendanceUseCase";
+import ListVisibleAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/ListVisibleAttendanceUseCase";
 import UpsertAttendanceUseCase from "@modules/attendance/core/app/use-cases/attendance/UpsertAttendanceUseCase";
 import ApproveLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/leave/ApproveLeaveRequestUseCase";
 import CancelLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/leave/CancelLeaveRequestUseCase";
@@ -30,8 +31,18 @@ import SubmitLeaveRequestUseCase from "@modules/attendance/core/app/use-cases/le
 import AdjustLeaveBalanceUseCase from "@modules/attendance/core/app/use-cases/leave-balance/AdjustLeaveBalanceUseCase";
 import GetLeaveBalanceUseCase from "@modules/attendance/core/app/use-cases/leave-balance/GetLeaveBalanceUseCase";
 import ListLeaveBalancesUseCase from "@modules/attendance/core/app/use-cases/leave-balance/ListLeaveBalancesUseCase";
+import ApproveAttendanceCorrectionUseCase from "@modules/attendance/core/app/use-cases/correction/ApproveAttendanceCorrectionUseCase";
+import ListAttendanceCorrectionsUseCase from "@modules/attendance/core/app/use-cases/correction/ListAttendanceCorrectionsUseCase";
+import RejectAttendanceCorrectionUseCase from "@modules/attendance/core/app/use-cases/correction/RejectAttendanceCorrectionUseCase";
+import SubmitAttendanceCorrectionUseCase from "@modules/attendance/core/app/use-cases/correction/SubmitAttendanceCorrectionUseCase";
+import AttendanceAccessScope from "@modules/attendance/core/app/services/AttendanceAccessScope";
+import AttendanceDayWriter from "@modules/attendance/core/app/services/AttendanceDayWriter";
+import LeaveAccessScope from "@modules/attendance/core/app/services/LeaveAccessScope";
+import LeaveDecisionAuthorizer from "@modules/attendance/core/app/services/LeaveDecisionAuthorizer";
 import { createEmployeeDirectory } from "@modules/employee";
-import { createIamAccessControl } from "@modules/iam";
+import { createIamAccessControl, createIamAuditTrail } from "@modules/iam";
+import { createPayrollPeriodLockDirectory } from "@modules/payroll";
+import { createCompanyCalendar } from "@modules/setting";
 import EventBus from "@shared/core/domain/EventBus";
 import { Db as MongoDb } from "mongodb";
 
@@ -50,9 +61,31 @@ export default function createAttendanceHttpUseCases(mongoDb: MongoDb, eventBus:
     const attendanceRepo    = new MongoAttendanceRepo(mongoDb);
     const leaveRequestRepo  = new MongoLeaveRequestRepo(mongoDb);
     const leaveBalanceRepo  = new MongoLeaveBalanceRepo(mongoDb);
+    const correctionRepo    = new MongoAttendanceCorrectionRequestRepo(mongoDb);
 
     const permissionCheck  = createIamAccessControl(mongoDb);
     const employeeDirectory = createEmployeeDirectory(mongoDb);
+
+    // Quyền quyết định đơn nghỉ phụ thuộc chuỗi quản lý, nên cần cả RBAC lẫn
+    // danh bạ nhân viên — gom vào một service để duyệt và từ chối dùng chung.
+    const leaveDecisionAuthorizer = new LeaveDecisionAuthorizer(permissionCheck, employeeDirectory);
+
+    // Nộp/huỷ/xem đơn nghỉ theo phạm vi: HR mọi người, Manager team, Employee
+    // chính mình. Dùng chung một service để ba nhóm hành động không lệch luật.
+    const leaveAccessScope = new LeaveAccessScope(permissionCheck, employeeDirectory);
+
+    // Bảng công + chỉnh công: đọc theo phạm vi, duyệt theo chuỗi quản lý.
+    const attendanceAccessScope = new AttendanceAccessScope(permissionCheck, employeeDirectory);
+
+    // Timezone lấy từ cấu hình công ty (Setting) và trạng thái chốt kỳ lấy từ
+    // Payroll — Attendance chỉ biết hai cổng, không import thẳng module nào.
+    const companyCalendar = createCompanyCalendar(mongoDb);
+    const periodLocks     = createPayrollPeriodLockDirectory(mongoDb);
+    const auditTrail      = createIamAuditTrail(mongoDb);
+
+    // MỘT đường duy nhất biến giờ vào/ra thành bản ghi chấm công — HR nhập tay
+    // và chỉnh công được duyệt đều đi qua đây.
+    const dayWriter = new AttendanceDayWriter(attendanceRepo, shiftRepo, holidayRepo, companyCalendar, periodLocks);
     const entitlement       = new LeaveEntitlementService(leaveBalanceRepo);
 
     return {
@@ -79,22 +112,29 @@ export default function createAttendanceHttpUseCases(mongoDb: MongoDb, eventBus:
         deleteAttendanceSymbol: new DeleteAttendanceSymbolUseCase(permissionCheck, symbolRepo),
 
         // Attendance
-        upsertAttendance: new UpsertAttendanceUseCase(permissionCheck, attendanceRepo, shiftRepo, employeeDirectory),
-        getAttendance:    new GetAttendanceUseCase(attendanceRepo),
-        listAttendance:   new ListAttendanceUseCase(attendanceRepo),
-        deleteAttendance: new DeleteAttendanceUseCase(permissionCheck, attendanceRepo),
+        upsertAttendance: new UpsertAttendanceUseCase(permissionCheck, employeeDirectory, dayWriter),
+        getAttendance:    new GetAttendanceUseCase(attendanceAccessScope, attendanceRepo),
+        listAttendance:   new ListAttendanceUseCase(attendanceAccessScope, attendanceRepo),
+        listVisibleAttendance: new ListVisibleAttendanceUseCase(attendanceAccessScope, attendanceRepo),
+        deleteAttendance: new DeleteAttendanceUseCase(permissionCheck, attendanceRepo, periodLocks),
 
         // LeaveRequest
-        submitLeaveRequest:  new SubmitLeaveRequestUseCase(permissionCheck, leaveRequestRepo, holidayRepo, employeeDirectory, entitlement, eventBus),
-        approveLeaveRequest: new ApproveLeaveRequestUseCase(permissionCheck, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, holidayRepo, entitlement, eventBus),
-        rejectLeaveRequest:  new RejectLeaveRequestUseCase(permissionCheck, leaveRequestRepo, eventBus),
-        cancelLeaveRequest:  new CancelLeaveRequestUseCase(permissionCheck, leaveRequestRepo, leaveBalanceRepo, attendanceRepo),
-        getLeaveRequest:     new GetLeaveRequestUseCase(leaveRequestRepo),
-        listLeaveRequests:   new ListLeaveRequestsUseCase(leaveRequestRepo),
+        submitLeaveRequest:  new SubmitLeaveRequestUseCase(leaveAccessScope, leaveRequestRepo, holidayRepo, employeeDirectory, entitlement, eventBus),
+        approveLeaveRequest: new ApproveLeaveRequestUseCase(leaveDecisionAuthorizer, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, holidayRepo, entitlement, eventBus, periodLocks),
+        rejectLeaveRequest:  new RejectLeaveRequestUseCase(leaveDecisionAuthorizer, leaveRequestRepo, eventBus),
+        cancelLeaveRequest:  new CancelLeaveRequestUseCase(leaveAccessScope, leaveRequestRepo, leaveBalanceRepo, attendanceRepo, periodLocks),
+        getLeaveRequest:     new GetLeaveRequestUseCase(leaveAccessScope, leaveRequestRepo),
+        listLeaveRequests:   new ListLeaveRequestsUseCase(leaveAccessScope, leaveRequestRepo),
 
         // LeaveBalance
         adjustLeaveBalance: new AdjustLeaveBalanceUseCase(permissionCheck, leaveBalanceRepo, employeeDirectory),
         getLeaveBalance:    new GetLeaveBalanceUseCase(leaveBalanceRepo, entitlement),
-        listLeaveBalances:  new ListLeaveBalancesUseCase(leaveBalanceRepo),
+        listLeaveBalances:  new ListLeaveBalancesUseCase(leaveAccessScope, leaveBalanceRepo, entitlement),
+
+        // Chỉnh công
+        submitAttendanceCorrection:  new SubmitAttendanceCorrectionUseCase(attendanceAccessScope, correctionRepo, employeeDirectory, companyCalendar, periodLocks, auditTrail),
+        listAttendanceCorrections:   new ListAttendanceCorrectionsUseCase(attendanceAccessScope, correctionRepo),
+        approveAttendanceCorrection: new ApproveAttendanceCorrectionUseCase(attendanceAccessScope, correctionRepo, dayWriter, auditTrail),
+        rejectAttendanceCorrection:  new RejectAttendanceCorrectionUseCase(attendanceAccessScope, correctionRepo, auditTrail),
     };
 }

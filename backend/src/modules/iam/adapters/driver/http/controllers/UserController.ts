@@ -3,6 +3,7 @@ import UserRolePresenter from "@modules/iam/adapters/driver/http/presenters/User
 import AssignRoleToUserUseCase from "@modules/iam/core/app/use-cases/assignment/AssignRoleToUserUseCase";
 import ListUserRolesUseCase from "@modules/iam/core/app/use-cases/assignment/ListUserRolesUseCase";
 import RevokeRoleFromUserUseCase from "@modules/iam/core/app/use-cases/assignment/RevokeRoleFromUserUseCase";
+import GetMyPermissionsUseCase from "@modules/iam/core/app/use-cases/user/GetMyPermissionsUseCase";
 import GetUserPermissionsUseCase from "@modules/iam/core/app/use-cases/user/GetUserPermissionsUseCase";
 import GetUserUseCase from "@modules/iam/core/app/use-cases/user/GetUserUseCase";
 import ListUsersUseCase from "@modules/iam/core/app/use-cases/user/ListUsersUseCase";
@@ -14,6 +15,7 @@ export interface UserControllerUseCases {
     listUsers:           ListUsersUseCase;
     getUser:             GetUserUseCase;
     getUserPermissions:  GetUserPermissionsUseCase;
+    getMyPermissions:    GetMyPermissionsUseCase;
     listUserRoles:       ListUserRolesUseCase;
     assignRoleToUser:    AssignRoleToUserUseCase;
     revokeRoleFromUser:  RevokeRoleFromUserUseCase;
@@ -49,6 +51,14 @@ export default class UserController {
             userId:      req.params.userId,
         });
         res.status(200).json({ user: UserPresenter.toDTO(user) });
+    };
+
+    /** Quyền hạn của chính actor — frontend dùng để hiện đúng menu/nút. */
+    public getMyPermissions = async (_req: Request, res: Response): Promise<void> => {
+        const permissions = await this._useCases.getMyPermissions.execute({
+            actorUserId: ActorContext.get(res),
+        });
+        res.status(200).json({ permissions });
     };
 
     public getUserPermissions = async (req: Request<{ userId: string }>, res: Response): Promise<void> => {

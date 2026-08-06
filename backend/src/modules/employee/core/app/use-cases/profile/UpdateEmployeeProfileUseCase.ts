@@ -3,7 +3,7 @@ import EmployeeProfileRepo from "@modules/employee/core/app/ports/EmployeeProfil
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import EmployeeProfile, { EmployeeProfileProps } from "@modules/employee/core/domain/entities/EmployeeProfile";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -35,7 +35,7 @@ export default class UpdateEmployeeProfileUseCase {
 
         if (existing == undefined) {
             const profile = EmployeeProfile.create({
-                id:                UUIDv7(),
+                id:                createUuidV7(),
                 employeeId:        input.employeeId,
                 firstName:         input.firstName ?? employee.name.value,
                 lastName:          input.lastName ?? "",

@@ -7,3 +7,5 @@ export { default as MongoDeductionRepo } from "@modules/payroll/adapters/driven/
 export { default as MongoTaxProfileRepo } from "@modules/payroll/adapters/driven/persistence/mongodb/repositories/MongoTaxProfileRepo";
 export { default as MongoSalaryPolicyRepo } from "@modules/payroll/adapters/driven/persistence/mongodb/repositories/MongoSalaryPolicyRepo";
 export { default as MongoUnitOfWork } from "@modules/payroll/adapters/driven/persistence/mongodb/MongoUnitOfWork";
+export { default as MongoRetroAdjustmentRepo } from "@modules/payroll/adapters/driven/persistence/mongodb/repositories/MongoRetroAdjustmentRepo";
+export { default as MongoPayrollVarianceRepo } from "@modules/payroll/adapters/driven/persistence/mongodb/repositories/MongoPayrollVarianceRepo";

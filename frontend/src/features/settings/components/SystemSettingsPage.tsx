@@ -9,7 +9,7 @@ import { TopBar } from "@features/dashboard/components/TopBar";
 import { CompanySettings } from "@features/settings/components/CompanySettings";
 import { SalaryPerformanceSettings } from "@features/settings/components/SalaryPerformanceSettings";
 import { AttendanceCatalogSettings } from "@features/settings/components/AttendanceCatalogSettings";
-import { BankCatalogSettings } from "@features/settings/components/BankCatalogSettings";
+import { BankTransferProfileSettings } from "@features/settings/components/BankTransferProfileSettings";
 import { UsersSettings, RolesSettings } from "@features/iam/components/UserAccessSettings";
 import { AuditLogSettings } from "@features/iam/components/AuditLogSettings";
 
@@ -90,7 +90,7 @@ export default function SystemSettingsPage() {
             {tab === "company" && <CompanySettings canManage={isAdmin} />}
             {tab === "salary" && <SalaryPerformanceSettings canManage={isHrOrAdmin} canManagePolicy={isAdmin} />}
             {tab === "attendance" && <AttendanceCatalogSettings canManage={isHrOrAdmin} />}
-            {tab === "banks" && <BankCatalogSettings canManage={isHrOrAdmin} />}
+            {tab === "banks" && <BankTransferProfileSettings canManage={isHrOrAdmin} />}
             {tab === "users" && <UsersSettings canManage={isAdmin} />}
             {tab === "roles" && isAdmin && <RolesSettings />}
             {tab === "audit" && isAdmin && <AuditLogSettings />}

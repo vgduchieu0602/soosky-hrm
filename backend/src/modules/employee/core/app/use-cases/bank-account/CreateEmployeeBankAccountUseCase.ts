@@ -1,9 +1,10 @@
+import AuditTrail from "@modules/employee/core/app/ports/AuditTrail";
 import EmployeeNotFoundError from "@modules/employee/core/app/errors/EmployeeNotFoundError";
 import EmployeeBankAccountRepo from "@modules/employee/core/app/ports/EmployeeBankAccountRepo";
 import EmployeeRepo from "@modules/employee/core/app/ports/EmployeeRepo";
 import PermissionChecker from "@modules/employee/core/app/ports/PermissionChecker";
 import EmployeeBankAccount from "@modules/employee/core/domain/entities/EmployeeBankAccount";
-import { v7 as UUIDv7 } from "uuid";
+import createUuidV7 from "@shared/core/domain/UuidV7";
 
 const PERMISSION_KEY = "employee:manage";
 
@@ -32,6 +33,7 @@ export default class CreateEmployeeBankAccountUseCase {
         private readonly _permissions:   PermissionChecker,
         private readonly _employeeRepo:  EmployeeRepo,
         private readonly _bankAccountRepo: EmployeeBankAccountRepo,
+        private readonly _auditTrail:      AuditTrail,
     ) {}
 
     public async execute(input: CreateEmployeeBankAccountInput): Promise<CreateEmployeeBankAccountOutput> {
@@ -41,7 +43,7 @@ export default class CreateEmployeeBankAccountUseCase {
         if (employee == undefined) throw new EmployeeNotFoundError();
 
         const account = EmployeeBankAccount.create({
-            id:            UUIDv7(),
+            id:            createUuidV7(),
             employeeId:    input.employeeId,
             bankName:      input.bankName,
             branch:        input.branch ?? null,
@@ -52,6 +54,35 @@ export default class CreateEmployeeBankAccountUseCase {
 
         await this._bankAccountRepo.save(account);
 
+        // "Tài khoản nhận lương chính" phải là DUY NHẤT: Payroll cần một câu trả
+        // lời rõ ràng cho câu hỏi "chuyển tiền vào đâu". Đặt cái mới làm chính thì
+        // hạ cờ ở những cái còn lại thay vì báo lỗi — đó là ý định của người dùng.
+        if (account.isPrimary) await this._demoteOtherPrimaries(input.employeeId, account.id);
+
+        await this._auditTrail.record({
+            actorUserId: input.actorUserId,
+            resource:    "employee_bank_account",
+            action:      "create",
+            resourceId:  account.id,
+            changes:     {
+                employeeId:    account.employeeId,
+                bankName:      account.bankName,
+                branch:        account.branch,
+                accountNumber: account.accountNumber,
+                accountHolder: account.accountHolder,
+                isPrimary:     account.isPrimary,
+            },
+        });
+
         return { bankAccountId: account.id };
+    }
+
+    private async _demoteOtherPrimaries(employeeId: string, keepId: string): Promise<void> {
+        const siblings = await this._bankAccountRepo.listByEmployeeId(employeeId);
+        for (const sibling of siblings) {
+            if (sibling.id === keepId || !sibling.isPrimary) continue;
+            sibling.update({ isPrimary: false });
+            await this._bankAccountRepo.save(sibling);
+        }
     }
 }

@@ -5,3 +5,4 @@ export { default as MongoAttendanceSymbolRepo } from "@modules/attendance/adapte
 export { default as MongoAttendanceRepo } from "@modules/attendance/adapters/driven/persistence/mongodb/repositories/MongoAttendanceRepo";
 export { default as MongoLeaveRequestRepo } from "@modules/attendance/adapters/driven/persistence/mongodb/repositories/MongoLeaveRequestRepo";
 export { default as MongoLeaveBalanceRepo } from "@modules/attendance/adapters/driven/persistence/mongodb/repositories/MongoLeaveBalanceRepo";
+export { default as MongoAttendanceCorrectionRequestRepo } from "@modules/attendance/adapters/driven/persistence/mongodb/repositories/MongoAttendanceCorrectionRequestRepo";

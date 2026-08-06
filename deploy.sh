@@ -1,41 +1,72 @@
 #!/usr/bin/env bash
 # =============================================================================
-# deploy.sh — Script deploy lại trên VPS sau khi bạn push code mới
+# deploy.sh — deploy lại trên VPS sau khi push code mới
 # -----------------------------------------------------------------------------
-# TƯ TƯỞNG:
-#   Mỗi lần sửa code, vòng đời là: (máy bạn) git push  ->  (VPS) chạy script này.
-#   Script gói gọn 3 việc bạn hay làm bằng tay thành 1 lệnh, và LÀM AN TOÀN:
-#     1. Kéo code mới về (git pull).
-#     2. Build lại image + khởi động lại container (chỉ service nào đổi).
-#     3. Dọn image cũ để VPS khỏi đầy ổ cứng.
+# Vòng đời: (máy bạn) git push -> CI xanh -> (VPS) chạy script này.
 #
-# CÁCH DÙNG (trên VPS, trong thư mục dự án):
+# CÁCH DÙNG (trên VPS, trong thư mục stack — /srv/hrm-prod hoặc /srv/hrm-staging):
 #     ./deploy.sh              # deploy toàn bộ
 #     ./deploy.sh backend      # chỉ build lại + restart backend
 #     ./deploy.sh frontend     # chỉ build lại + restart frontend
 #
-# Lần đầu nhớ cấp quyền chạy:  chmod +x deploy.sh
+# Môi trường (production/staging) do file .env trong THƯ MỤC HIỆN TẠI quyết
+# định — STACK_NAME, PUBLIC_DOMAIN và COMPOSE_FILE nằm cả trong đó. Không có
+# cờ --env: hai môi trường là hai thư mục, hai .env, hai stack Docker riêng.
+#
+# Lần đầu:  chmod +x deploy.sh
 # =============================================================================
 
 set -euo pipefail   # gặp lỗi là dừng ngay, không deploy nửa vời
 
 SERVICE="${1:-}"    # tham số đầu tiên (backend/frontend) — bỏ trống = tất cả
 
-echo "==> [1/4] Kéo code mới nhất từ git..."
-git pull --ff-only   # --ff-only: chỉ nhận khi không xung đột, tránh merge bậy trên server
+# --- [0] Kiểm tra tiền đề ----------------------------------------------------
+# Thiếu .env thì container backend sẽ chết vì thiếu AUTH_JWT_SECRET/SMTP_HOST —
+# chặn ngay ở đây để báo lỗi cho rõ ràng thay vì bắt người deploy đọc log.
+if [ ! -f .env ]; then
+    echo "LOI: khong tim thay .env trong $(pwd)" >&2
+    echo "     cp .env.production.example .env   (hoac .env.staging.example)" >&2
+    echo "     roi dien gia tri that va: chmod 600 .env" >&2
+    exit 1
+fi
 
-echo "==> [2/4] Build lại image..."
-# --build: build lại; nếu chỉ định SERVICE thì chỉ build cái đó cho nhanh.
-docker compose build $SERVICE
+# .env chứa secret: chỉ user chạy deploy được đọc.
+perms="$(stat -c '%a' .env)"
+if [ "${perms}" != "600" ]; then
+    echo "CANH BAO: .env dang co quyen ${perms}. Dang sua ve 600."
+    chmod 600 .env
+fi
 
-echo "==> [3/4] Khởi động lại container..."
-# up -d: áp dụng image mới. Docker tự thay container, MongoDB không bị đụng tới
-# (volume dữ liệu giữ nguyên). Chỉ container có image mới mới được tạo lại.
-docker compose up -d $SERVICE
+STACK_NAME="$(grep -E '^STACK_NAME=' .env | cut -d= -f2- | tr -d '"' || true)"
+echo "==> Stack: ${STACK_NAME:-hrm}   (thu muc: $(pwd))"
 
-echo "==> [4/4] Dọn image cũ không còn dùng..."
-docker image prune -f   # xoá layer mồ côi -> giải phóng ổ cứng VPS
+echo "==> [1/5] Keo code moi nhat tu git..."
+git pull --ff-only   # chỉ nhận khi không xung đột, tránh merge bậy trên server
+
+echo "==> [2/5] Build lai image..."
+docker compose build ${SERVICE}
+
+echo "==> [3/5] Khoi dong lai container..."
+# up -d áp dụng image mới. MongoDB không bị đụng tới (volume dữ liệu giữ nguyên);
+# chỉ container có image mới mới được tạo lại.
+docker compose up -d ${SERVICE}
+
+echo "==> [4/5] Cho backend bao healthy..."
+status=""
+for _ in $(seq 1 30); do
+    status="$(docker compose ps --format '{{.Service}} {{.Health}}' | awk '$1=="backend"{print $2}')"
+    [ "${status}" = "healthy" ] && break
+    sleep 5
+done
+if [ "${status}" != "healthy" ]; then
+    echo "LOI: backend khong healthy sau 150s. Log 50 dong cuoi:" >&2
+    docker compose logs --tail 50 backend >&2
+    exit 1
+fi
+
+echo "==> [5/5] Don image cu khong con dung..."
+docker image prune -f
 
 echo ""
-echo "✅ Deploy xong. Trạng thái hiện tại:"
+echo "Deploy xong. Trang thai hien tai:"
 docker compose ps

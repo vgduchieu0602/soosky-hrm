@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import AccessControl from "@modules/iam/core/app/services/AccessControl";
 import Permission from "@modules/iam/core/domain/entities/Permission";
 import RolePermission from "@modules/iam/core/domain/entities/RolePermission";

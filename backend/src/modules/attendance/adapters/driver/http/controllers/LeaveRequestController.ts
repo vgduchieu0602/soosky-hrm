@@ -18,8 +18,10 @@ export interface LeaveRequestControllerUseCases {
     listLeaveRequests:  ListLeaveRequestsUseCase;
 }
 
+// `employeeId` TUỲ CHỌN: bỏ trống = nhân viên tự nộp cho chính mình (backend
+// suy ra từ token). HR/Manager nộp thay thì truyền id của người xin nghỉ.
 const bodySchemaSubmitLeaveRequest = bodySchema({
-    employeeId:     field.string,
+    employeeId:     field.optionalString,
     leaveType:      field.string,
     startDate:      field.date,
     endDate:        field.date,
@@ -51,14 +53,18 @@ export default class LeaveRequestController {
 
     public listLeaveRequests = async (req: Request, res: Response): Promise<void> => {
         const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
-        const leaveRequests = await this._useCases.listLeaveRequests.execute(
-            employeeId != undefined ? { employeeId } : {},
-        );
+        const leaveRequests = await this._useCases.listLeaveRequests.execute({
+            ...(employeeId != undefined ? { employeeId } : {}),
+            actorUserId: ActorContext.get(res),
+        });
         res.status(200).json({ leaveRequests: leaveRequests.map(LeaveRequestPresenter.toDTO) });
     };
 
     public getLeaveRequest = async (req: Request<{ leaveRequestId: string }>, res: Response): Promise<void> => {
-        const leaveRequest = await this._useCases.getLeaveRequest.execute({ leaveRequestId: req.params.leaveRequestId });
+        const leaveRequest = await this._useCases.getLeaveRequest.execute({
+            leaveRequestId: req.params.leaveRequestId,
+            actorUserId:    ActorContext.get(res),
+        });
         res.status(200).json(LeaveRequestPresenter.toDTO(leaveRequest));
     };
 

@@ -1,4 +1,5 @@
 import AttendanceController, { AttendanceControllerUseCases } from "@modules/attendance/adapters/driver/http/controllers/AttendanceController";
+import AttendanceCorrectionController, { AttendanceCorrectionControllerUseCases } from "@modules/attendance/adapters/driver/http/controllers/AttendanceCorrectionController";
 import AttendanceSymbolController, { AttendanceSymbolControllerUseCases } from "@modules/attendance/adapters/driver/http/controllers/AttendanceSymbolController";
 import HolidayController, { HolidayControllerUseCases } from "@modules/attendance/adapters/driver/http/controllers/HolidayController";
 import LeaveBalanceController, { LeaveBalanceControllerUseCases } from "@modules/attendance/adapters/driver/http/controllers/LeaveBalanceController";
@@ -16,7 +17,8 @@ export type AttendanceHttpUseCases =
     & AttendanceSymbolControllerUseCases
     & AttendanceControllerUseCases
     & LeaveRequestControllerUseCases
-    & LeaveBalanceControllerUseCases;
+    & LeaveBalanceControllerUseCases
+    & AttendanceCorrectionControllerUseCases;
 
 /**
  * Driver adapter HTTP của module Attendance. Giữ danh sách route duy nhất —
@@ -31,6 +33,7 @@ export function createAttendanceHttpRouter(
     const holidayController         = new HolidayController(useCases);
     const symbolController          = new AttendanceSymbolController(useCases);
     const attendanceController      = new AttendanceController(useCases);
+    const correctionController      = new AttendanceCorrectionController(useCases);
     const leaveRequestController    = new LeaveRequestController(useCases);
     const leaveBalanceController    = new LeaveBalanceController(useCases);
 
@@ -64,8 +67,16 @@ export function createAttendanceHttpRouter(
     // Attendance
     router.post  ("/records",                attendanceController.upsertAttendance);
     router.get   ("/records",                attendanceController.listAttendance);
+    // Đặt TRƯỚC "/records/:attendanceId", nếu không "visible" bị bắt làm id.
+    router.get   ("/records/visible",        attendanceController.listVisibleAttendance);
     router.get   ("/records/:attendanceId",  attendanceController.getAttendance);
     router.delete("/records/:attendanceId",  attendanceController.deleteAttendance);
+
+    // Chỉnh công: nhân viên gửi yêu cầu, quản lý/HR duyệt (duyệt là áp dụng ngay).
+    router.post  ("/correction-requests",                             correctionController.submitCorrection);
+    router.get   ("/correction-requests",                             correctionController.listCorrections);
+    router.post  ("/correction-requests/:correctionRequestId/approve", correctionController.approveCorrection);
+    router.post  ("/correction-requests/:correctionRequestId/reject",  correctionController.rejectCorrection);
 
     // LeaveRequest
     router.post  ("/leave-requests",                       leaveRequestController.submitLeaveRequest);

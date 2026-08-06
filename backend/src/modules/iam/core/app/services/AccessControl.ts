@@ -2,9 +2,8 @@ import PermissionRepo from "@modules/iam/core/app/ports/PermissionRepo";
 import RolePermissionRepo from "@modules/iam/core/app/ports/RolePermissionRepo";
 import UserRoleRepo from "@modules/iam/core/app/ports/UserRoleRepo";
 import PermissionKey from "@modules/iam/core/domain/value-objects/PermissionKey";
+import { PermissionScope, resolvePermissionScope, WILDCARD_PERMISSION_KEY } from "@shared/core/app/authorization/PermissionScope";
 import AccessDeniedError from "@shared/core/app/errors/AccessDeniedError";
-
-const WILDCARD_PERMISSION_KEY = "*";
 
 /**
  * Dịch vụ trung tâm giải quyết quyền hạn hiệu lực của một user: role của
@@ -34,6 +33,26 @@ export default class AccessControl {
         if (!hasPermission) {
             throw new AccessDeniedError();
         }
+    }
+
+    /**
+     * Phân giải PHẠM VI dữ liệu mà actor được phép chạm tới trên một khoá gốc
+     * (vd `employee:read` → `all` cho HR, `team` cho Manager, `self` cho
+     * Employee). Quy ước hậu tố `:team`/`:self` xem
+     * {@link resolvePermissionScope}.
+     *
+     * Dùng cho các use-case ĐỌC nhiều bản ghi: không chỉ trả lời "được hay
+     * không" mà còn "được tới đâu", để use-case tự thu hẹp dữ liệu trả về.
+     *
+     * @throws {AccessDeniedError} Actor không giữ quyền nào trên khoá này.
+     */
+    public async resolveScope(actorUserId: string, baseKey: string): Promise<PermissionScope> {
+        // Vẫn qua PermissionKey để chuẩn hoá + validate như assertPermission.
+        const key   = PermissionKey.create(baseKey);
+        const scope = resolvePermissionScope(await this.listPermissionsOf(actorUserId), key.value);
+
+        if (scope == undefined) throw new AccessDeniedError();
+        return scope;
     }
 
     /**
