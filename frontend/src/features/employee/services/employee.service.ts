@@ -13,8 +13,20 @@ import type {
   EmployeeRecord,
   EmployeeStats,
   ExpiryReminders,
+  CsvSchema,
   ImportEmployeeRow,
+  ImportMode,
+  ImportPreview,
   ImportResult,
+  LifecycleEntry,
+  TransferDepartmentInput,
+  ChangePositionInput,
+  ChangeManagerInput,
+  CompleteProbationInput,
+  ExtendProbationInput,
+  ChangeSalaryInput,
+  EndEmploymentInput,
+  RehireInput,
   GrantLoginInput,
   GrantLoginResult,
   ProfileCompleteness,
@@ -86,9 +98,45 @@ export const employeeService = {
     return data.data;
   },
 
-  async importEmployees(rows: ImportEmployeeRow[]): Promise<ImportResult> {
-    const { data } = await api.post<ApiEnvelope<ImportResult>>("/admin/employees/import", { rows });
+  // ---- nhập từ CSV: xem trước rồi mới ghi ----
+
+  /** Đặc tả cột chuẩn — giao diện dựng bảng hướng dẫn và lưới sửa từ đây. */
+  async importSchema(): Promise<CsvSchema> {
+    const { data } = await api.get<ApiEnvelope<CsvSchema>>("/employees/import/schema");
     return data.data;
+  },
+
+  /** Bước xem trước: lỗi theo dòng/cột + tham chiếu đã tra. KHÔNG ghi gì. */
+  async previewImport(
+    rows: ImportEmployeeRow[],
+    headers: string[],
+    mode: ImportMode,
+    fileName?: string,
+  ): Promise<ImportPreview> {
+    const { data } = await api.post<ApiEnvelope<ImportPreview>>(
+      "/admin/employees/import/preview",
+      { rows, headers, mode, fileName },
+    );
+    return data.data;
+  },
+
+  /** Bước ghi thật — `importId` + `checksum` lấy từ bản xem trước gần nhất. */
+  async commitImport(input: {
+    importId: string;
+    checksum: string;
+    mode: ImportMode;
+    rows: ImportEmployeeRow[];
+    headers: string[];
+    fileName?: string;
+  }): Promise<ImportResult> {
+    const { data } = await api.post<ApiEnvelope<ImportResult>>("/admin/employees/import/commit", input);
+    return data.data;
+  },
+
+  /** Tệp mẫu CSV (chỉ header các cột nhập được). */
+  async importTemplate(): Promise<Blob> {
+    const res = await api.get("/employees/import/template", { responseType: "blob" });
+    return res.data as Blob;
   },
 
   async create(input: CreateEmployeeInput): Promise<EmployeeRecord> {
@@ -351,9 +399,67 @@ export const employeeService = {
     return data.data;
   },
 
+  // ---- vòng đời ----
+  async lifecycle(id: string): Promise<LifecycleEntry[]> {
+    const { data } = await api.get<ApiEnvelope<LifecycleEntry[]>>(`/employees/${id}/lifecycle`);
+    return data.data ?? [];
+  },
+
+  async transferDepartment(id: string, input: TransferDepartmentInput): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(`/admin/employees/${id}/transfer`, input);
+    return data.data;
+  },
+
+  async changePosition(id: string, input: ChangePositionInput): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(`/admin/employees/${id}/change-position`, input);
+    return data.data;
+  },
+
+  async changeManager(id: string, input: ChangeManagerInput): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(`/admin/employees/${id}/change-manager`, input);
+    return data.data;
+  },
+
+  async completeProbation(id: string, input: CompleteProbationInput): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(
+      `/admin/employees/${id}/probation/complete`,
+      input,
+    );
+    return data.data;
+  },
+
+  async extendProbation(id: string, input: ExtendProbationInput): Promise<EmployeeContractRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeContractRecord>>(
+      `/admin/employees/${id}/probation/extend`,
+      input,
+    );
+    return data.data;
+  },
+
+  async changeSalary(id: string, input: ChangeSalaryInput): Promise<EmployeeContractRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeContractRecord>>(
+      `/admin/employees/${id}/change-salary`,
+      input,
+    );
+    return data.data;
+  },
+
+  async endEmployment(id: string, input: EndEmploymentInput): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(`/admin/employees/${id}/end-employment`, input);
+    return data.data;
+  },
+
+  async rehire(id: string, input: RehireInput): Promise<EmployeeRecord> {
+    const { data } = await api.post<ApiEnvelope<EmployeeRecord>>(`/admin/employees/${id}/rehire`, input);
+    return data.data;
+  },
+
   // ---- export ----
-  async exportCsv(params: ListEmployeesParams = {}): Promise<Blob> {
-    const res = await api.get(`/employees/export${buildQuery(params)}`, { responseType: "blob" });
+  /** `format` mặc định là CSV đủ trường (nhập lại được); `xlsx` là bản báo cáo. */
+  async exportCsv(params: ListEmployeesParams = {}, format: "csv" | "xlsx" = "csv"): Promise<Blob> {
+    const qs = buildQuery(params);
+    const url = `/employees/export${qs ? `${qs}&` : "?"}format=${format}`;
+    const res = await api.get(url, { responseType: "blob" });
     return res.data as Blob;
   },
 };

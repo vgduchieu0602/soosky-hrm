@@ -39,9 +39,9 @@ const toObjectIdFields = (input: Record<string, unknown>): Record<string, unknow
 };
 
 export class MongooseEmployeeRepository implements EmployeeRepository {
-  async findById(id: Id): Promise<Doc | null> {
+  async findById(id: Id, tx?: Tx): Promise<Doc | null> {
     if (!valid(id)) return null;
-    return (await Employee.findById(id).lean()) as Doc | null;
+    return (await Employee.findById(id).session(sess(tx) ?? null).lean()) as Doc | null;
   }
   async findByIdJson(id: Id): Promise<Doc | null> {
     if (!valid(id)) return null;
@@ -163,6 +163,176 @@ export class MongooseEmployeeRepository implements EmployeeRepository {
     return { items: items as Doc[], total: countRes[0]?.total ?? 0 };
   }
 
+  /**
+   * Bản xuất CSV: đủ trường hồ sơ, không phân trang (có trần cứng). Dùng lại
+   * đúng bộ lọc/tìm kiếm của `paginate` để bản xuất khớp với thứ HR đang xem.
+   */
+  async listForExport(filter: ListEmployeesFilter, limit: number): Promise<Doc[]> {
+    const search = buildSearchMatch(filter.q);
+    const pipeline: PipelineStage[] = [
+      { $match: buildFilter(filter) },
+      { $lookup: { from: 'employeeProfiles', localField: '_id', foreignField: 'employeeId', as: 'profile' } },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'departments', localField: 'departmentId', foreignField: '_id', as: 'department' } },
+      { $unwind: { path: '$department', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'positions', localField: 'positionId', foreignField: '_id', as: 'position' } },
+      { $unwind: { path: '$position', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'employees',
+          let: { mgrId: '$managerId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$mgrId'] } } },
+            { $lookup: { from: 'employeeProfiles', localField: '_id', foreignField: 'employeeId', as: 'profile' } },
+            { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+            {
+              $project: {
+                employeeCode: 1,
+                'profile.firstName': 1, 'profile.middleName': 1, 'profile.lastName': 1,
+                'profile.workEmail': 1,
+              },
+            },
+          ],
+          as: 'manager',
+        },
+      },
+      { $unwind: { path: '$manager', preserveNullAndEmptyArrays: true } },
+      // Tài khoản ngân hàng CHÍNH và hợp đồng ĐANG HIỆU LỰC — mỗi nhân viên một
+      // dòng CSV nên chỉ lấy một bản ghi, không nhồi danh sách vào một ô.
+      {
+        $lookup: {
+          from: 'employeeBankAccounts',
+          let: { empId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$employeeId', '$$empId'] } } },
+            { $sort: { isPrimary: -1, created_at: 1 } },
+            { $limit: 1 },
+          ],
+          as: 'bankAccount',
+        },
+      },
+      { $unwind: { path: '$bankAccount', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'employeeContracts',
+          let: { empId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$employeeId', '$$empId'] }, { $eq: ['$status', 'active'] }] } } },
+            { $sort: { startDate: -1 } },
+            { $limit: 1 },
+          ],
+          as: 'contract',
+        },
+      },
+      { $unwind: { path: '$contract', preserveNullAndEmptyArrays: true } },
+      ...(search ? [{ $match: search }] : []),
+      { $sort: { employeeCode: 1 } },
+      { $limit: limit },
+      {
+        $project: {
+          employeeCode: 1,
+          fingerprintId: 1,
+          userId: 1,
+          employeeType: 1,
+          status: 1,
+          salaryZone: 1,
+          hireDate: 1,
+          terminationDate: 1,
+          departmentId: { _id: '$department._id', name: '$department.name', code: '$department.code' },
+          positionId: { _id: '$position._id', title: '$position.title', code: '$position.code' },
+          managerId: {
+            $cond: [
+              { $ifNull: ['$manager._id', false] },
+              { _id: '$manager._id', employeeCode: '$manager.employeeCode', profile: '$manager.profile' },
+              null,
+            ],
+          },
+          profile: 1,
+          bankAccount: 1,
+          contract: 1,
+        },
+      },
+    ];
+
+    const rows = (await Employee.aggregate(pipeline)) as Doc[];
+    // Decimal128 không tự chuyển thành chuỗi khi đi qua aggregate.
+    for (const row of rows) {
+      const contract = row.contract as Record<string, unknown> | undefined;
+      if (contract?.baseSalary != null) contract.baseSalary = String(contract.baseSalary);
+    }
+    return rows;
+  }
+
+  async findManyByCodes(codes: readonly string[]): Promise<Doc[]> {
+    if (codes.length === 0) return [];
+    return this._lookupEmployees({ employeeCode: { $in: [...codes] } });
+  }
+
+  /** Tra theo email công ty — dùng để phát hiện trùng email khi nhập CSV. */
+  async findManyByWorkEmails(emails: readonly string[]): Promise<Doc[]> {
+    if (emails.length === 0) return [];
+    return this._lookupEmployees({ 'profile.workEmail': { $in: emails.map((e) => e.toLowerCase()) } }, true);
+  }
+
+  private async _lookupEmployees(match: Record<string, unknown>, matchAfterLookup = false): Promise<Doc[]> {
+    const lookup: PipelineStage[] = [
+      { $lookup: { from: 'employeeProfiles', localField: '_id', foreignField: 'employeeId', as: 'profile' } },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+    ];
+    const project: PipelineStage = {
+      $project: {
+        employeeCode: 1, status: 1, departmentId: 1, positionId: 1, managerId: 1,
+        'profile.firstName': 1, 'profile.middleName': 1, 'profile.lastName': 1, 'profile.workEmail': 1,
+      },
+    };
+    const pipeline: PipelineStage[] = matchAfterLookup
+      ? [...lookup, { $match: match }, project]
+      : [{ $match: match }, ...lookup, project];
+    return Employee.aggregate(pipeline) as Promise<Doc[]>;
+  }
+
+  async listNamesByIds(ids: readonly string[]): Promise<{ id: string; code: string; name: string }[]> {
+    const valids = ids.filter(valid).map((id) => new Types.ObjectId(id));
+    if (valids.length === 0) return [];
+    const rows = await Employee.aggregate<{
+      _id: Types.ObjectId;
+      employeeCode: string;
+      profile?: { firstName?: string; middleName?: string; lastName?: string };
+    }>([
+      { $match: { _id: { $in: valids } } },
+      { $lookup: { from: 'employeeProfiles', localField: '_id', foreignField: 'employeeId', as: 'profile' } },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      { $project: { employeeCode: 1, 'profile.firstName': 1, 'profile.middleName': 1, 'profile.lastName': 1 } },
+    ]);
+    return rows.map((r) => ({
+      id: String(r._id),
+      code: r.employeeCode,
+      name:
+        [r.profile?.lastName, r.profile?.middleName, r.profile?.firstName].filter(Boolean).join(' ') ||
+        r.employeeCode,
+    }));
+  }
+
+  /**
+   * Đi ngược lên chuỗi quản lý. Có trần độ sâu VÀ tập id đã gặp, nên dữ liệu lỗi
+   * (vòng lặp sẵn có trong DB) cũng không làm treo tiến trình.
+   */
+  async managerChainUpwards(managerId: Id, maxDepth: number): Promise<string[]> {
+    const chain: string[] = [];
+    const visited = new Set<string>();
+    let cursor: string | null = valid(managerId) ? managerId : null;
+
+    while (cursor && chain.length < maxDepth && !visited.has(cursor)) {
+      visited.add(cursor);
+      chain.push(cursor);
+      const doc: { managerId?: Types.ObjectId | null } | null = await Employee.findById(cursor)
+        .select('managerId')
+        .lean();
+      cursor = doc?.managerId ? String(doc.managerId) : null;
+    }
+    return chain;
+  }
+
   async countByStatus(): Promise<{ _id: string; count: number }[]> {
     return Employee.aggregate<{ _id: string; count: number }>([
       { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -198,9 +368,11 @@ export class MongooseEmployeeRepository implements EmployeeRepository {
     return employee!.toJSON() as Doc;
   }
 
-  async updateById(id: Id, patch: Record<string, unknown>): Promise<Doc | null> {
+  async updateById(id: Id, patch: Record<string, unknown>, tx?: Tx): Promise<Doc | null> {
     if (!valid(id)) return null;
-    return json(await Employee.findByIdAndUpdate(id, toObjectIdFields(patch), { new: true }));
+    return json(
+      await Employee.findByIdAndUpdate(id, toObjectIdFields(patch), { new: true, session: sess(tx) }),
+    );
   }
 
   async linkUser(employeeId: Id, userId: Id, tx?: Tx): Promise<void> {
@@ -270,11 +442,11 @@ export class MongooseEmployeeProfileRepository implements EmployeeProfileReposit
   async create(employeeId: Id, data: Record<string, unknown>, tx: Tx): Promise<void> {
     await EmployeeProfile.create([{ employeeId: new Types.ObjectId(employeeId), ...data }], { session: sess(tx) });
   }
-  async upsertByEmployeeId(employeeId: Id, patch: Record<string, unknown>): Promise<Doc> {
+  async upsertByEmployeeId(employeeId: Id, patch: Record<string, unknown>, tx?: Tx): Promise<Doc> {
     const doc = await EmployeeProfile.findOneAndUpdate(
       { employeeId: new Types.ObjectId(employeeId) },
       { $set: patch },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { new: true, upsert: true, setDefaultsOnInsert: true, session: sess(tx) },
     );
     return doc.toJSON() as Doc;
   }
@@ -320,9 +492,12 @@ export class MongooseBankAccountRepository implements BankAccountRepository {
       .sort({ isPrimary: -1, created_at: -1 })
       .lean() as Promise<Doc[]>;
   }
-  async create(employeeId: Id, input: Record<string, unknown>): Promise<Doc> {
-    const doc = await EmployeeBankAccount.create({ ...input, employeeId: new Types.ObjectId(employeeId) });
-    return doc.toJSON() as Doc;
+  async create(employeeId: Id, input: Record<string, unknown>, tx?: Tx): Promise<Doc> {
+    const [doc] = await EmployeeBankAccount.create(
+      [{ ...input, employeeId: new Types.ObjectId(employeeId) }] as any[],
+      { session: sess(tx) },
+    );
+    return doc!.toJSON() as Doc;
   }
   async updateById(id: Id, patch: Record<string, unknown>): Promise<Doc | null> {
     if (!valid(id)) return null;
@@ -388,8 +563,36 @@ export class MongooseContractRepository implements ContractRepository {
     const rows = await EmployeeContractModel.find({ employeeId }).sort({ startDate: -1 }).lean();
     return rows.map((r) => ({ ...r, baseSalary: r.baseSalary != null ? String(r.baseSalary) : '0' })) as Doc[];
   }
+  async findActive(employeeId: Id): Promise<Doc | null> {
+    if (!valid(employeeId)) return null;
+    const row = await EmployeeContractModel.findOne({
+      employeeId: new Types.ObjectId(employeeId),
+      status: 'active',
+    })
+      .sort({ startDate: -1 })
+      .lean();
+    if (!row) return null;
+    return { ...row, baseSalary: row.baseSalary != null ? String(row.baseSalary) : '0' } as Doc;
+  }
   async findByNumber(contractNumber: string): Promise<Doc | null> {
     return (await EmployeeContractModel.findOne({ contractNumber })) as unknown as Doc | null;
+  }
+  async endActive(employeeId: Id, endDate: Date, status: string, tx: Tx): Promise<void> {
+    await EmployeeContractModel.updateMany(
+      { employeeId: new Types.ObjectId(employeeId), status: 'active' },
+      { $set: { status, endDate } },
+      { session: sess(tx) },
+    );
+  }
+  async setEndDate(contractId: Id, endDate: Date, tx: Tx): Promise<void> {
+    await EmployeeContractModel.updateOne({ _id: contractId }, { $set: { endDate } }, { session: sess(tx) });
+  }
+  async setEmploymentStatus(contractId: Id, employmentStatus: string, tx: Tx): Promise<void> {
+    await EmployeeContractModel.updateOne(
+      { _id: contractId },
+      { $set: { employmentStatus } },
+      { session: sess(tx) },
+    );
   }
   async employeeIdOf(contractId: Id): Promise<string | null> {
     if (!valid(contractId)) return null;
@@ -436,6 +639,73 @@ export class MongooseHistoryRepository implements HistoryRepository {
   async listByEmployee(employeeId: Id): Promise<Doc[]> {
     if (!valid(employeeId)) return [];
     return EmployeeHistory.find({ employeeId }).sort({ effectiveDate: -1 }).lean() as Promise<Doc[]>;
+  }
+
+  /**
+   * Kèm tên người thực hiện. `createdBy` trỏ tới `users`, nên tra qua đó rồi mới
+   * lấy hồ sơ nhân viên tương ứng — dòng thời gian hiện "Trần Thị B" thay vì một
+   * ObjectId.
+   */
+  async listByEmployeeWithActor(employeeId: Id): Promise<Doc[]> {
+    if (!valid(employeeId)) return [];
+    return EmployeeHistory.aggregate([
+      { $match: { employeeId: new Types.ObjectId(employeeId) } },
+      { $sort: { effectiveDate: -1, created_at: -1 } },
+      { $lookup: { from: 'users', localField: 'createdBy', foreignField: '_id', as: 'actorUser' } },
+      { $unwind: { path: '$actorUser', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'employees',
+          localField: 'actorUser._id',
+          foreignField: 'userId',
+          as: 'actorEmployee',
+        },
+      },
+      { $unwind: { path: '$actorEmployee', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'employeeProfiles',
+          localField: 'actorEmployee._id',
+          foreignField: 'employeeId',
+          as: 'actorProfile',
+        },
+      },
+      { $unwind: { path: '$actorProfile', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          eventType: 1,
+          fromValue: 1,
+          toValue: 1,
+          effectiveDate: 1,
+          note: 1,
+          created_at: 1,
+          // Hồ sơ trống thì `$trim` trả chuỗi rỗng (không phải null), nên phải so
+          // sánh tường minh mới rơi về username được.
+          performedBy: {
+            $let: {
+              vars: {
+                fullName: {
+                  $trim: {
+                    input: {
+                      $concat: [
+                        { $ifNull: ['$actorProfile.lastName', ''] },
+                        ' ',
+                        { $ifNull: ['$actorProfile.middleName', ''] },
+                        ' ',
+                        { $ifNull: ['$actorProfile.firstName', ''] },
+                      ],
+                    },
+                  },
+                },
+              },
+              in: {
+                $cond: [{ $eq: ['$$fullName', ''] }, { $ifNull: ['$actorUser.username', null] }, '$$fullName'],
+              },
+            },
+          },
+        },
+      },
+    ]) as Promise<Doc[]>;
   }
   async create(
     data: {

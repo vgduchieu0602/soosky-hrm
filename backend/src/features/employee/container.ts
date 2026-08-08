@@ -23,6 +23,7 @@ import {
   MongooseReminderRepository,
 } from '@features/employee/infrastructure/gateways.mongoose';
 import { XlsxEmployeeExporter } from '@features/employee/infrastructure/employee-exporter';
+import { CsvEmployeeExporter } from '@features/employee/infrastructure/employee-csv';
 import {
   SystemClock,
   AuditServiceAdapter,
@@ -43,6 +44,7 @@ import {
 } from '@features/employee/application/sub-resource.usecases';
 import { EmployeeCompletenessUseCases } from '@features/employee/application/employee-completeness.usecases';
 import { EmployeeImportUseCases } from '@features/employee/application/employee-import.usecases';
+import { EmployeeLifecycleUseCases } from '@features/employee/application/lifecycle.usecases';
 import { EmployeeReminderUseCases } from '@features/employee/application/employee-reminder.usecases';
 
 // --- infrastructure ---
@@ -63,6 +65,7 @@ const notificationGw = new NotificationServiceGateway();
 const completenessGw = new MongooseCompletenessGateway();
 const reminderRepo = new MongooseReminderRepository();
 const exporter = new XlsxEmployeeExporter();
+const csvExporter = new CsvEmployeeExporter();
 
 const clock = new SystemClock();
 const audit = new AuditServiceAdapter();
@@ -74,7 +77,10 @@ const history = new HistoryUseCases(historyRepo, clock);
 
 export const employeeHistoryService = history;
 export const employeeService = new EmployeeUseCases(
-  employeeRepo, profileRepo, orgGw, accountGw, history, seedGw, cascadeGw, exporter, audit, uow,
+  employeeRepo, profileRepo, orgGw, accountGw, history, seedGw, cascadeGw, exporter, csvExporter, audit, uow,
+);
+export const employeeLifecycleService = new EmployeeLifecycleUseCases(
+  employeeRepo, contractRepo, historyRepo, history, orgGw, accountGw, audit, clock, uow,
 );
 export const accountProvisioningService = new AccountProvisioningUseCases(
   employeeRepo, profileRepo, accountGw, events, uow,
@@ -86,5 +92,7 @@ export const employeeDocumentService = new DocumentUseCases(documentRepo, employ
 export const employeeAssetService = new AssetUseCases(assetRepo, employeeRepo, audit);
 export const employeeContractService = new ContractUseCases(contractRepo, employeeRepo, history, audit, uow);
 export const employeeCompletenessService = new EmployeeCompletenessUseCases(completenessGw);
-export const employeeImportService = new EmployeeImportUseCases(employeeService, orgGw);
+export const employeeImportService = new EmployeeImportUseCases(
+  employeeService, employeeRepo, contractRepo, bankRepo, orgGw, audit, uow,
+);
 export const employeeReminderService = new EmployeeReminderUseCases(reminderRepo, notificationGw, clock);

@@ -101,7 +101,9 @@
 |--------|------|------|------|---------|
 | GET | `/employees` | auth | `?page=&limit=&search=&departmentId=&status=` | List (paginated) |
 | GET | `/employees/stats` | auth | — | Headcount stats |
-| GET | `/employees/export` | auth | — | CSV export |
+| GET | `/employees/export` | hr/admin | `?format=csv\|xlsx` + bộ lọc như `/employees` | Xuất danh sách (CSV đủ trường, mặc định) |
+| GET | `/employees/import/template` | hr/admin | — | Tệp mẫu CSV (chỉ dòng header) |
+| GET | `/employees/import/schema` | hr/admin | — | Đặc tả cột CSV chuẩn |
 | GET | `/employees/me` | auth | — | Own employee record |
 | GET | `/employees/:id` | auth | — | Get employee |
 | GET | `/employees/:id/account` | auth | — | Linked account summary (`hasAccount`) |
@@ -112,7 +114,8 @@
 | GET | `/employees/:id/bank-accounts` | auth | — | List bank accounts |
 | GET | `/employees/:id/contracts` | auth | — | List contracts |
 | GET | `/employees/:id/assets` | auth | — | List assets |
-| GET | `/employees/:id/history` | auth | — | Change-history timeline |
+| GET | `/employees/:id/history` | auth | — | Change-history timeline (bản thô) |
+| GET | `/employees/:id/lifecycle` | auth (self/HR) | — | Dòng thời gian vòng đời đã diễn giải |
 | POST | `/employees/:id/documents` | auth | `{ documentType, documentNumber, fileUrl?, issuedDate?, expiryDate?, issuedBy? }` | Add document |
 | POST | `/employees/:id/contacts` | auth | `{ name, relationship, phone?, email?, address?, isPrimary? }` | Add contact |
 | PATCH | `/employees/:id/contacts/:contactId` | auth | contact fields | Update contact |
@@ -137,6 +140,93 @@
 | DELETE | `/admin/employees/:id/assets/:assetId` | hr/admin | — | Delete asset |
 
 **`profile` (create) fields:** `firstName`, `middleName?`, `lastName`, `dateOfBirth?`, `gender?`, `nationality?`, `maritalStatus?`, `email?` (personal — required to grant login), `workEmail?`, `phone?`, `address?`. Update profile additionally accepts `avatarUrl?`, `avatarId?`.
+
+### Employee lifecycle (HR/Admin)
+
+| Method | Path | Body | Purpose |
+|--------|------|------|---------|
+| POST | `/admin/employees/:id/transfer` | `{ newDepartmentId, newPositionId?, newManagerId?, effectiveDate, reason }` | Điều chuyển phòng ban |
+| POST | `/admin/employees/:id/change-position` | `{ newPositionId, changeType?('position_change'\|'promotion'), effectiveDate, reason }` | Đổi chức vụ / thăng chức |
+| POST | `/admin/employees/:id/change-manager` | `{ newManagerId\|null, effectiveDate, reason }` | Đổi quản lý trực tiếp |
+| POST | `/admin/employees/:id/probation/complete` | `{ effectiveDate, reason }` | Hợp đồng thử việc → chính thức |
+| POST | `/admin/employees/:id/probation/extend` | `{ newEndDate, reason }` | Gia hạn thử việc |
+| POST | `/admin/employees/:id/change-salary` | `{ newBaseSalary, contractNumber, contractType?, employmentStatus?, endDate?, effectiveDate, reason }` | Đổi lương (lập hợp đồng mới) — trả **201** |
+| POST | `/admin/employees/:id/end-employment` | `{ separationType('resignation'\|'termination'), noticeDate?, lastWorkingDate, reason, note? }` | Kết thúc hợp tác |
+| POST | `/admin/employees/:id/rehire` | `{ rehireDate, departmentId, positionId, managerId?, employeeType?, contract?, reason }` | Tái tuyển người đã nghỉ |
+
+**Luật chung của nhóm này**
+
+- `reason` **bắt buộc** (3–500 ký tự) và `effectiveDate` bắt buộc với mọi thao tác — lịch sử không có lý do là vô dụng.
+- `effectiveDate` được phép lùi hoặc tiến, nhưng không lệch quá **2 năm** so với hiện tại và không trước `hireDate` → `422 EMP_014`.
+- Không đổi gì so với hiện tại → `422 EMP_011` (không ghi bản ghi lịch sử rỗng nghĩa).
+- Quản lý mới phải tồn tại, còn làm việc, khác chính nhân viên và không tạo vòng lặp báo cáo → `422 EMP_015` / `EMP_016`.
+- Nhân viên đã `terminated` từ chối mọi thao tác vòng đời (`409 EMP_004`) trừ `rehire`; `rehire` trên người đang làm việc → `409 EMP_013`.
+- Mỗi thao tác chạy trong một giao dịch: cập nhật trạng thái hiện tại + ghi `employeeHistories` + ghi `auditLogs`. Dữ liệu cũ không bị ghi đè, nhân viên **không** bị xoá cứng.
+- `change-salary` đóng hợp đồng đang hiệu lực (`expired` + `endDate`) và lập hợp đồng mới; payroll đã tính vẫn giữ mức lương cũ theo ảnh chụp của kỳ.
+
+**`GET /employees/:id/lifecycle`** trả mảng đã diễn giải sẵn cho giao diện (không phải JSON thô):
+
+```json
+[{ "_id": "…", "eventType": "transfer", "effectiveDate": "2026-06-15T00:00:00.000Z",
+   "createdAt": "2026-06-10T…", "reason": "Tái cơ cấu", "performedBy": "Trần Thị B",
+   "changes": [{ "field": "departmentId", "label": "Phòng ban", "from": "Engineering", "to": "Product" }] }]
+```
+
+### Employee CSV import / export
+
+| Method | Path | Body | Purpose |
+|--------|------|------|---------|
+| GET | `/employees/import/schema` | — | Đặc tả cột CSV chuẩn (giao diện dựng bảng hướng dẫn từ đây) |
+| GET | `/employees/import/template` | — | Tải `employees-import-template.csv` (chỉ dòng header) |
+| POST | `/admin/employees/import/preview` | `{ mode?, rows[], headers[]?, fileName? }` | Kiểm tra khô: lỗi theo dòng/cột, KHÔNG ghi |
+| POST | `/admin/employees/import/commit` | `{ importId, checksum, mode, rows[], headers[]?, fileName? }` | Ghi thật trong MỘT giao dịch |
+| GET | `/employees/export` | `?format=csv\|xlsx` + bộ lọc như `/employees` | Xuất theo đúng bộ lọc đang xem |
+
+**Nguồn cột duy nhất.** Tệp mẫu, bản xuất, trình nhập, luật kiểm tra và bảng hướng dẫn trên giao diện đều sinh từ `EMPLOYEE_CSV_SCHEMA` (`backend/src/features/employee/domain/employee-csv-schema.ts`). Không có danh sách cột thứ hai ở bất kỳ đâu.
+
+**Cột** (snake_case, máy đọc; nhãn tiếng Việt nằm trong đặc tả):
+
+| Nhóm | Cột |
+|---|---|
+| Định danh | `employee_code`*, `last_name`*, `middle_name`, `first_name`*, `date_of_birth`, `gender`, `marital_status`, `nationality` |
+| Việc làm | `employment_type`*, `join_date`*, `department_code`*, `department_name`, `position_code`*, `position_name`, `manager_employee_code`, `manager_email`, `fingerprint_id`, `salary_zone`, `status`⁰, `termination_date`⁰, `has_login_account`⁰ |
+| Liên hệ | `work_email`, `personal_email`, `phone`, `address`, `tax_code`, `social_insurance_no`, `vehicle_plate` |
+| Ngân hàng | `bank_name`, `bank_branch`, `bank_account_number`, `bank_account_holder`, `bank_is_primary` |
+| Hợp đồng | `contract_number`, `contract_type`, `contract_employment_status`, `contract_start_date`, `contract_end_date`, `contract_base_salary`, `contract_status`⁰ |
+
+`*` bắt buộc khi tạo mới · `⁰` chỉ đọc (chỉ xuất, không nhập).
+
+**Quy ước dữ liệu**
+
+- Ngày: `YYYY-MM-DD`. Trình nhập chấp nhận thêm `DD/MM/YYYY`, `DD-MM-YYYY`; KHÔNG đoán định dạng nhập nhằng theo vùng.
+- Boolean: `true`/`false` (nhận thêm `1/0`, `yes/no`, `có/không`).
+- Enum kiểm tra theo enum thật của hệ thống; sai thì báo kèm danh sách giá trị hợp lệ.
+- Chuẩn hoá an toàn: cắt khoảng trắng, bỏ BOM, hạ chữ email/enum, viết hoa mã. KHÔNG dò gần đúng mã nhân viên / phòng ban / chức vụ / quản lý.
+- Tham chiếu giải bằng **mã** trước, dùng **tên/email** khi thiếu mã; nhiều bản ghi cùng tên ⇒ lỗi, không tự chọn.
+- Trần: 5.000 dòng/lần, body 8MB; vượt trần trả 413 kèm thông báo.
+
+**Preview** trả `{ importId, checksum, mode, headers{missing,unknown,duplicated}, summary{totalRows,validRows,invalidRows,createRows,updateRows,warningRows}, rows[] }`. Mỗi dòng: `{ index, rowNumber, action('create'|'update'|'skip'), valid, raw, normalized, resolved{employeeId,departmentId,departmentCode,departmentName,positionId,positionCode,positionName,managerId,managerCode,managerName,managerFromFile}, errors[{field,message}], warnings[] }`.
+
+**Commit**
+
+- Kiểm tra lại toàn bộ từ đầu; tính lại checksum trên dữ liệu đã chuẩn hoá — lệch ⇒ `409 EMP_020` (dữ liệu đổi sau khi HR duyệt).
+- Còn dòng lỗi ⇒ `422 EMP_021`, không ghi gì (strict commit).
+- Toàn bộ mẻ nằm trong MỘT giao dịch; một dòng hỏng bất ngờ ⇒ hoàn tác tất cả.
+- Hai lượt: lượt 1 tạo/cập nhật nhân viên, lượt 2 nối quản lý trỏ tới người cũng được tạo trong cùng tệp ⇒ **thứ tự dòng không quan trọng**. Vòng lặp báo cáo bị chặn kể cả khi chỉ xuất hiện sau khi nhập.
+- Ghi qua đúng use-case `create`/`update`/`updateProfile` ⇒ vẫn sinh `employeeHistories` + `auditLogs` như thao tác tay.
+- `CREATE_ONLY`: mã đã tồn tại ⇒ lỗi. `UPSERT`: cập nhật; **ô trống = không đổi** (không xoá dữ liệu đang có).
+- Cột hợp đồng/ngân hàng chỉ áp dụng khi TẠO mới; với dòng cập nhật thì bỏ qua kèm cảnh báo (không ghi đè hợp đồng lịch sử).
+- Trả `{ importId, mode, total, created, updated, skipped, failed, employeeIds[] }`.
+
+**Export**
+
+- Giữ nguyên bộ lọc (`departmentId`, `status`, `employeeType`, `q`) HR đang xem.
+- Luôn đủ cột; ô không có dữ liệu để **trống** (không `N/A`, không `null`).
+- UTF-8 **có BOM**, phân tách `,`, escaping theo RFC 4180.
+- Chống CSV injection: ô mở đầu bằng `= + - @` (trừ số) được thêm `'` trong tệp xuất; dữ liệu trong database không đổi.
+- Chỉ HR/Admin gọi được. Cột nhạy cảm (ngân hàng, lương, mã số thuế, số BHXH, ngày sinh, địa chỉ) chỉ có nội dung khi người gọi là HR/Admin — vai trò khác vẫn nhận đủ cột nhưng ô trống.
+
+**Audit** — `employeeImport/preview`, `employeeImport/commit`, `employee/export`. Chỉ ghi metadata (`fileName`, `checksum`, số dòng, created/updated, actor), **không** lưu nội dung CSV.
 
 ---
 

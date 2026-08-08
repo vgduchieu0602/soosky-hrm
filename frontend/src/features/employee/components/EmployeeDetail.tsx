@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  X, Phone, Mail, FileText, Briefcase, Laptop, History, IdCard, Plus,
+  X, Phone, Mail, FileText, Briefcase, Laptop, History, GitBranch, IdCard, Plus,
   Key, RefreshCw, Send, Power, Pencil, ChevronDown, Check, Trash2, RotateCcw,
   Paperclip, Download, Loader2, Camera, Landmark, Eye, Filter,
   type LucideIcon,
@@ -16,6 +16,7 @@ import { employeeService } from "@features/employee/services/employee.service";
 import { iamService } from "@features/iam/services/iam.service";
 import { EmployeeEditModal } from "@features/employee/components/EmployeeEditModal";
 import { ProfileCompletenessCard } from "@features/employee/components/ProfileCompletenessCard";
+import { LifecycleTab } from "@features/employee/components/LifecycleTab";
 import {
   CONTRACT_TYPE, EMPLOYMENT_STATUS, COND, DOC_TYPE, EMP_STATUS, EMP_TYPE, GENDER, HIST_EVENT,
   MARITAL, REL, ROLE, SALARY_ZONE_LABEL, STATUS_ACTIVE, STATUS_INACTIVE,
@@ -50,6 +51,7 @@ const TABS: { id: string; label: string; Icon: LucideIcon }[] = [
   { id: "documents", label: "Tài liệu", Icon: FileText },
   { id: "contracts", label: "Hợp đồng", Icon: Briefcase },
   { id: "assets", label: "Tài sản", Icon: Laptop },
+  { id: "lifecycle", label: "Vòng đời", Icon: GitBranch },
   { id: "history", label: "Lịch sử", Icon: History },
 ];
 
@@ -156,6 +158,13 @@ export function EmployeeDetail({ view, canManage, onClose, onStatusChanged, onAc
           {tab === "documents" && <DocumentsTab employeeId={view.id} canManage={canManage} />}
           {tab === "contracts" && <ContractsTab employeeId={view.id} canManage={canManage} />}
           {tab === "assets" && <AssetsTab employeeId={view.id} canManage={canManage} />}
+          {tab === "lifecycle" && (
+            <LifecycleTab
+              view={view}
+              canManage={canManage}
+              onChanged={() => { setProfileKey((k) => k + 1); onUpdated?.(); }}
+            />
+          )}
           {tab === "history" && <HistoryTab employeeId={view.id} />}
         </div>
       </div>
@@ -1275,6 +1284,9 @@ const TIME_RANGES: { id: string; label: string; days: number | null }[] = [
 function HistoryTab({ employeeId }: { employeeId: string }) {
   const { loading, items, error } = useResource<EmployeeHistoryRecord>(() => employeeService.history(employeeId), employeeId);
   const [range, setRange] = useState("all");
+  // Mốc thời gian tính ngay lúc người dùng đổi bộ lọc, không tính trong lúc render
+  // (đọc đồng hồ khi render là hàm không thuần).
+  const [cutoff, setCutoff] = useState<number | null>(null);
   const [action, setAction] = useState("all");
   const [dataCat, setDataCat] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -1285,11 +1297,6 @@ function HistoryTab({ employeeId }: { employeeId: string }) {
     new Set(items.flatMap((h) => [...Object.keys(h.fromValue ?? {}), ...Object.keys(h.toValue ?? {})])),
   );
 
-  const cutoff = (() => {
-    const days = TIME_RANGES.find((r) => r.id === range)?.days;
-    if (!days) return null;
-    return Date.now() - days * 86_400_000;
-  })();
 
   const filtered = items.filter((h) => {
     if (cutoff && new Date(h.effectiveDate).getTime() < cutoff) return false;
@@ -1308,7 +1315,16 @@ function HistoryTab({ employeeId }: { employeeId: string }) {
       {/* Minimal filter bar */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground"><Filter className="size-3.5" /> Lọc:</span>
-        <select className={selCls} value={range} onChange={(e) => setRange(e.target.value)}>
+        <select
+          className={selCls}
+          value={range}
+          onChange={(e) => {
+            const id = e.target.value;
+            setRange(id);
+            const days = TIME_RANGES.find((r) => r.id === id)?.days;
+            setCutoff(days ? Date.now() - days * 86_400_000 : null);
+          }}
+        >
           {TIME_RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
         </select>
         <select className={selCls} value={action} onChange={(e) => setAction(e.target.value)}>

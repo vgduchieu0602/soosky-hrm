@@ -225,6 +225,7 @@ export default function EmployeesPage() {
   }
 
   const [exporting, setExporting] = useState(false);
+  /** Xuất CSV đầy đủ trường theo đúng bộ lọc đang xem — tệp này nhập lại được. */
   function exportExcel() {
     setExporting(true);
     employeeService
@@ -238,7 +239,7 @@ export default function EmployeesPage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "nhan-vien.xlsx";
+        a.download = "nhan-vien.csv";
         a.click();
         URL.revokeObjectURL(url);
       })

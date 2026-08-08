@@ -28,13 +28,43 @@ Số hóa và tự động hóa toàn bộ nghiệp vụ nhân sự trong một 
 |----------------------------|----------------------------------------------------------------------------------------------------------------|
 | **IAM**                    | Người dùng, vai trò, quyền, phiên đăng nhập, JWT, kiểm toán (audit log)                                        |
 | **Organization**           | Phòng ban (dạng cây), vị trí công việc                                                                         |
-| **Employee**               | Nhân viên + hồ sơ, tài liệu, hợp đồng, liên hệ, tài khoản ngân hàng, lịch sử, tài sản; cấp tài khoản đăng nhập |
+| **Employee**               | Nhân viên + hồ sơ, tài liệu, hợp đồng, liên hệ, tài khoản ngân hàng, lịch sử, tài sản; vòng đời nhân sự; nhập/xuất CSV; cấp tài khoản đăng nhập |
 | **Attendance**             | Ca làm, chấm công, đơn nghỉ phép, duyệt nghỉ, hạn mức phép, ngày lễ                                            |
 | **Payroll**                | Kỳ lương, cấu trúc lương, tính lương, phiếu lương, phụ cấp/khấu trừ                                            |
 | **Performance**            | Chu kỳ đánh giá, tiêu chí, chấm điểm, phản hồi                                                                 |
 | **Settings**               | Cấu hình hệ thống (công ty, người dùng, vai trò, kiểm toán)                                                    |
 | **Dashboard**              | Báo cáo tổng hợp read-only + hành động nhanh (duyệt nghỉ)                                                      |
 | **Notification / Storage** | Thông báo trong app, email; lưu trữ tệp (S3-compatible)                                                        |
+
+## Vòng đời nhân viên
+
+```
+Onboarding → Thử việc → Đang làm việc
+                 ↓
+   Điều chuyển / Đổi chức vụ / Thăng chức / Đổi quản lý / Thay đổi lương
+                 ↓
+        Nghỉ việc (nguyện vọng | chấm dứt) → Tái tuyển
+```
+
+- Trạng thái hiện tại nằm trên `employees` + `employeeContracts`; **mọi thay đổi** ghi thêm một bản ghi bất biến vào `employeeHistories` kèm `effectiveDate`, lý do và người thực hiện. Không ghi đè dữ liệu cũ, không xoá cứng nhân viên.
+- **Thử việc** đọc từ hợp đồng đang hiệu lực (`employmentStatus` + `endDate`), không có trường riêng trên `employees`.
+- **Thay đổi lương** đóng hợp đồng cũ và lập hợp đồng mới ⇒ kỳ lương đã tính giữ nguyên ảnh chụp lương của kỳ đó.
+- **Nghỉ việc** phân biệt `resignation` / `termination` ở tầng sự kiện; `employees.status` chỉ có một giá trị "đã rời công ty" (`terminated`) để không phá vỡ mọi truy vấn của Payroll/Attendance.
+- Chặn vòng lặp quản lý ở mọi đường vào (giao diện lẫn nhập CSV).
+
+## Nhập / xuất nhân viên bằng CSV
+
+```
+Tải mẫu → điền → tải lên → parse → validate + resolve tham chiếu
+   → xem trước (sửa được từng ô/từng dòng) → commit → History + Audit
+```
+
+- **Một nguồn cột duy nhất**: `EMPLOYEE_CSV_SCHEMA` (backend). Tệp mẫu, bản xuất, trình nhập, luật kiểm tra và bảng hướng dẫn trên giao diện đều sinh từ đó.
+- Tham chiếu bằng **mã** (`department_code`, `position_code`, `manager_employee_code`), không bắt HR biết ObjectId.
+- Xem trước **không ghi gì**; commit chỉ chạy khi hết lỗi, đúng checksum, và nằm trong **một giao dịch**.
+- Quản lý có thể trỏ tới nhân viên cũng đang được tạo trong cùng tệp (hai lượt ⇒ thứ tự dòng không quan trọng).
+- Nhập đi qua đúng use-case nhân viên ⇒ vẫn sinh lịch sử + audit như thao tác tay.
+- Chi tiết cột và quy ước: `share-docs/API-SPEC.md` §Employee CSV import / export.
 
 ## Tech Stack
 

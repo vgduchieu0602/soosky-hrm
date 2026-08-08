@@ -41,17 +41,36 @@ export interface CreateEmployeeData {
 // ---- repository ports ----
 
 export interface EmployeeRepository {
-  findById(id: Id): Promise<Doc | null>;
+  /** `tx` để đọc được cả dữ liệu vừa ghi trong cùng giao dịch (nhập CSV). */
+  findById(id: Id, tx?: Tx): Promise<Doc | null>;
   findByIdJson(id: Id): Promise<Doc | null>;
   findByIdPopulatedJson(id: Id): Promise<Doc | null>;
   findByCode(code: string): Promise<Doc | null>;
   findByUserIdJson(userId: Id): Promise<Doc | null>;
   findOtherByFingerprint(fingerprintId: string, exceptId: Id): Promise<Doc | null>;
   paginate(opts: PaginateOpts): Promise<{ items: Doc[]; total: number }>;
+  /**
+   * Như `paginate` nhưng trả ĐỦ trường hồ sơ (gồm PII: ngày sinh, địa chỉ, mã số
+   * thuế, số BHXH) và không phân trang — chỉ dùng cho bản xuất CSV của HR/Admin.
+   * Tách riêng để endpoint danh sách thường KHÔNG lộ thêm PII.
+   */
+  listForExport(filter: ListEmployeesFilter, limit: number): Promise<Doc[]>;
   countByStatus(): Promise<{ _id: string; count: number }[]>;
   countByDepartment(): Promise<{ _id: string; count: number }[]>;
+  /** Nhiều nhân viên theo mã — dùng cho import (một truy vấn cho cả tệp). */
+  findManyByCodes(codes: readonly string[]): Promise<Doc[]>;
+  /** Nhiều nhân viên theo email công ty — phát hiện trùng email khi nhập CSV. */
+  findManyByWorkEmails(emails: readonly string[]): Promise<Doc[]>;
+  /** Họ tên + mã theo id — diễn giải quản lý trong dòng thời gian. */
+  listNamesByIds(ids: readonly string[]): Promise<{ id: string; code: string; name: string }[]>;
+  /**
+   * Chuỗi id quản lý đi LÊN bắt đầu từ `managerId` (gồm chính nó). Dùng để chặn
+   * vòng lặp báo cáo; có giới hạn độ sâu nên không bao giờ lặp vô hạn.
+   */
+  managerChainUpwards(managerId: Id, maxDepth: number): Promise<string[]>;
   create(data: CreateEmployeeData, tx: Tx): Promise<Doc>;
-  updateById(id: Id, patch: Record<string, unknown>): Promise<Doc | null>;
+  /** `tx` để thao tác nằm chung một giao dịch với phần còn lại (vòng đời, nhập CSV). */
+  updateById(id: Id, patch: Record<string, unknown>, tx?: Tx): Promise<Doc | null>;
   linkUser(employeeId: Id, userId: Id, tx?: Tx): Promise<void>;
   unlinkUser(employeeId: Id): Promise<void>;
   setTerminated(id: Id, terminationDate: Date, tx: Tx): Promise<void>;
@@ -62,7 +81,7 @@ export interface EmployeeRepository {
 export interface EmployeeProfileRepository {
   findByEmployeeId(employeeId: Id): Promise<Doc | null>;
   create(employeeId: Id, data: Record<string, unknown>, tx: Tx): Promise<void>;
-  upsertByEmployeeId(employeeId: Id, patch: Record<string, unknown>): Promise<Doc>;
+  upsertByEmployeeId(employeeId: Id, patch: Record<string, unknown>, tx?: Tx): Promise<Doc>;
   findEmail(employeeId: Id): Promise<{ exists: boolean; email: string | null }>;
   updateEmail(employeeId: Id, email: string): Promise<void>;
 }
@@ -77,7 +96,7 @@ export interface ContactRepository {
 
 export interface BankAccountRepository {
   listByEmployee(employeeId: Id): Promise<Doc[]>;
-  create(employeeId: Id, input: Record<string, unknown>): Promise<Doc>;
+  create(employeeId: Id, input: Record<string, unknown>, tx?: Tx): Promise<Doc>;
   updateById(id: Id, patch: Record<string, unknown>): Promise<Doc | null>;
   deleteById(id: Id): Promise<boolean>;
   clearPrimary(employeeId: Id): Promise<void>;
@@ -100,8 +119,16 @@ export interface AssetRepository {
 
 export interface ContractRepository {
   listByEmployee(employeeId: Id): Promise<Doc[]>;
+  /** Hợp đồng đang hiệu lực (nếu có) — nguồn duy nhất của lương & thử việc. */
+  findActive(employeeId: Id): Promise<Doc | null>;
   findByNumber(contractNumber: string): Promise<Doc | null>;
   employeeIdOf(contractId: Id): Promise<string | null>;
+  /** Kết thúc hợp đồng đang hiệu lực: đặt `endDate` và trạng thái. */
+  endActive(employeeId: Id, endDate: Date, status: string, tx: Tx): Promise<void>;
+  /** Đổi ngày kết thúc thử việc của hợp đồng đang hiệu lực. */
+  setEndDate(contractId: Id, endDate: Date, tx: Tx): Promise<void>;
+  /** Đổi tình trạng làm việc (probation → official) của một hợp đồng. */
+  setEmploymentStatus(contractId: Id, employmentStatus: string, tx: Tx): Promise<void>;
   expireActive(employeeId: Id, tx: Tx): Promise<void>;
   expireActiveExcept(employeeId: Id, exceptContractId: Id): Promise<void>;
   create(employeeId: Id, input: Record<string, unknown>, tx: Tx): Promise<Doc>;
@@ -110,6 +137,8 @@ export interface ContractRepository {
 
 export interface HistoryRepository {
   listByEmployee(employeeId: Id): Promise<Doc[]>;
+  /** Lịch sử + tên người thực hiện, phục vụ dòng thời gian đọc-người-hiểu-được. */
+  listByEmployeeWithActor(employeeId: Id): Promise<Doc[]>;
   create(
     data: {
       employeeId: Id;
@@ -126,11 +155,24 @@ export interface HistoryRepository {
 
 // ---- cross-feature gateways ----
 
+export interface OrgRef {
+  _id: string;
+  code: string;
+  /** Tên phòng ban / chức danh — hiển thị ở bản xem trước import & dòng thời gian. */
+  name: string;
+  status: string;
+}
+
 export interface OrganizationGateway {
   findDepartment(id: Id): Promise<Doc | null>;
   findPosition(id: Id): Promise<Doc | null>;
-  listDepartmentCodes(): Promise<{ _id: string; code: string }[]>;
-  listPositionCodes(): Promise<{ _id: string; code: string }[]>;
+  listDepartmentCodes(): Promise<OrgRef[]>;
+  listPositionCodes(): Promise<OrgRef[]>;
+  /** Tên phòng ban / chức danh theo id — dùng để diễn giải lịch sử. */
+  namesByIds(departmentIds: readonly string[], positionIds: readonly string[]): Promise<{
+    departments: Record<string, string>;
+    positions: Record<string, string>;
+  }>;
 }
 
 export interface UserRec {
@@ -221,6 +263,18 @@ export interface ReminderRepository {
 
 export interface ExportPort {
   export(rows: Doc[]): Promise<Buffer>;
+}
+
+/**
+ * Xuất CSV đầy đủ trường + sinh tệp mẫu để HR tải về điền. Tách khỏi `ExportPort`
+ * (xlsx) vì hai định dạng có tập cột và mục đích khác nhau: xlsx là báo cáo để
+ * đọc, CSV là dữ liệu để nhập lại.
+ */
+export interface CsvExportPort {
+  /** `includeSensitive=false` giữ nguyên cột nhưng để trống ô nhạy cảm. */
+  export(rows: Doc[], includeSensitive?: boolean): string;
+  /** Tệp mẫu: CHỈ dòng header các cột nhập được. */
+  template(): string;
 }
 
 // ---- infrastructure services ----

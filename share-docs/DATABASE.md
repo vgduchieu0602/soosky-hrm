@@ -173,7 +173,19 @@ Index: `{employeeId:1}` unique.
 
 ## 14. employeeHistories  (`EmployeeHistory`)
 
-`employeeId→employees`, `eventType` (`hired|promotion|transfer|salary_change|contract_renew|info_update|terminated`), `fromValue`/`toValue` (Mixed snapshots), `effectiveDate`, `note?`, `createdBy→users`. Indexes `{employeeId:1}`, `{employeeId:1,effectiveDate:-1}`.
+`employeeId→employees`, `eventType`, `fromValue`/`toValue` (Mixed snapshots), `effectiveDate`, `note?` (lý do — bắt buộc với thay đổi vòng đời), `createdBy→users`. Indexes `{employeeId:1}`, `{employeeId:1,effectiveDate:-1}`.
+
+`eventType` — 7 giá trị gốc: `hired|promotion|transfer|salary_change|contract_renew|info_update|terminated`; mở rộng vòng đời: `position_change|manager_change|probation_started|probation_extended|probation_completed|contract_ended|resigned|rehired`.
+
+**Đây là bản ghi vòng đời duy nhất** — không có collection `employeeMovements` riêng. Trạng thái hiện tại nằm trên `employees`/`employeeContracts`; mỗi thay đổi ghi thêm một bản ghi bất biến ở đây, không bao giờ sửa/ghi đè bản cũ. Nhờ vậy dựng lại được dòng thời gian (`01/01→14/06: Engineering`, `15/06→nay: Product`) mà không cần temporal database.
+
+Ánh xạ nghiệp vụ → `eventType`: điều chuyển phòng ban `transfer`; đổi chức vụ `position_change`; thăng chức `promotion`; đổi quản lý `manager_change`; nghỉ theo nguyện vọng `resigned`; công ty chấm dứt `terminated`. Cả hai hình thức nghỉ đều đưa `employees.status` về `terminated` — trạng thái nhân viên chỉ có MỘT giá trị "đã rời công ty" để mọi truy vấn `status != 'terminated'` của payroll/chấm công không bị lệch; hình thức nghỉ nằm ở `toValue.separationType`.
+
+Thử việc **không** có trường riêng trên `employees`: lấy từ `employeeContracts.employmentStatus` + `endDate` của hợp đồng đang hiệu lực. Thay đổi lương cũng không sửa hợp đồng cũ mà đóng nó lại (`status:'expired'`, `endDate`) và lập hợp đồng mới, nên bảng lương đã tính vẫn giữ đúng ảnh chụp lương của kỳ đó.
+
+**Nhập CSV không tạo bảng mới.** Một dòng CSV ghi vào đúng các collection sẵn có: `employees` + `employeeProfiles` (luôn), `employeeContracts` (chỉ hợp đồng ĐẦU TIÊN khi tạo mới), `employeeBankAccounts` (chỉ tài khoản chính khi tạo mới), kèm `employeeHistories` + `auditLogs`. Với dòng cập nhật, cột hợp đồng/ngân hàng bị bỏ qua để không ghi đè dữ liệu lịch sử. Không có collection `importSessions`: bước xem trước là thuần tính toán, ràng buộc với bước ghi bằng `checksum` tính trên dữ liệu đã chuẩn hoá.
+
+Tập cột CSV được suy ra từ chính các model trên và khai báo một lần tại `backend/src/features/employee/domain/employee-csv-schema.ts`.
 
 ## 15. employeeTaxProfiles  (`EmployeeTaxProfile`, versioned)
 

@@ -1,6 +1,6 @@
 import { HttpError } from '@shared/errors/http-error';
 import { isValidObjectId } from '@features/employee/domain/employee-rules';
-import type { HistoryRepository, Clock } from '@features/employee/domain/ports';
+import type { HistoryRepository, Clock, Tx } from '@features/employee/domain/ports';
 
 export interface RecordEventInput {
   employeeId: string;
@@ -20,15 +20,18 @@ export class HistoryUseCases {
     return this.repo.listByEmployee(employeeId);
   }
 
-  record(input: RecordEventInput) {
-    return this.repo.create({
-      employeeId: input.employeeId,
-      eventType: input.eventType,
-      fromValue: input.fromValue,
-      toValue: input.toValue,
-      effectiveDate: input.effectiveDate ?? this.clock.now(),
-      note: input.note,
-      createdBy: input.createdBy ?? null,
-    });
+  record(input: RecordEventInput, tx?: Tx) {
+    return this.repo.create(
+      {
+        employeeId: input.employeeId,
+        eventType: input.eventType,
+        fromValue: input.fromValue,
+        toValue: input.toValue,
+        effectiveDate: input.effectiveDate ?? this.clock.now(),
+        note: input.note,
+        createdBy: input.createdBy ?? null,
+      },
+      tx,
+    );
   }
 }

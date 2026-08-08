@@ -14,6 +14,15 @@ export function errorHandler(
       error: { code: err.code, message: err.message },
     });
   }
+
+  // body-parser ném lỗi thô khi payload vượt giới hạn — trả 413 có thông báo rõ
+  // thay vì 500 "Internal server error" khiến người dùng không biết phải làm gì.
+  if ((err as { type?: string }).type === 'entity.too.large') {
+    return res.status(413).json({
+      success: false,
+      error: { code: 'SYS_003', message: 'Tệp/nội dung quá lớn — hãy chia nhỏ rồi thử lại' },
+    });
+  }
   logger.error({ err }, 'Unhandled error');
   res
     .status(500)

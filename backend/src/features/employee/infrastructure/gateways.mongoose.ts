@@ -32,6 +32,7 @@ import { notificationService } from '@features/notification';
 import type { ReminderRow } from '@features/employee/domain/employee-rules';
 import type {
   OrganizationGateway,
+  OrgRef,
   AccountGateway,
   UserRec,
   UpdateUserAccountPatch,
@@ -56,13 +57,36 @@ export class MongooseOrganizationGateway implements OrganizationGateway {
     if (!Types.ObjectId.isValid(id)) return null;
     return (await Position.findById(id).lean()) as Doc | null;
   }
-  async listDepartmentCodes(): Promise<{ _id: string; code: string }[]> {
-    const rows = await Department.find({}).select('code').lean();
-    return rows.map((d) => ({ _id: String(d._id), code: (d as { code: string }).code }));
+  async listDepartmentCodes(): Promise<OrgRef[]> {
+    const rows = await Department.find({}).select('code name status').lean();
+    return rows.map((d) => {
+      const r = d as { code: string; name?: string; status?: string };
+      return { _id: String(d._id), code: r.code, name: r.name ?? r.code, status: r.status ?? 'active' };
+    });
   }
-  async listPositionCodes(): Promise<{ _id: string; code: string }[]> {
-    const rows = await Position.find({}).select('code').lean();
-    return rows.map((p) => ({ _id: String(p._id), code: (p as { code: string }).code }));
+  async listPositionCodes(): Promise<OrgRef[]> {
+    const rows = await Position.find({}).select('code title status').lean();
+    return rows.map((p) => {
+      const r = p as { code: string; title?: string; status?: string };
+      return { _id: String(p._id), code: r.code, name: r.title ?? r.code, status: r.status ?? 'active' };
+    });
+  }
+  async namesByIds(
+    departmentIds: readonly string[],
+    positionIds: readonly string[],
+  ): Promise<{ departments: Record<string, string>; positions: Record<string, string> }> {
+    const oids = (ids: readonly string[]) =>
+      ids.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+
+    const [depts, positions] = await Promise.all([
+      departmentIds.length ? Department.find({ _id: { $in: oids(departmentIds) } }).select('name').lean() : [],
+      positionIds.length ? Position.find({ _id: { $in: oids(positionIds) } }).select('title').lean() : [],
+    ]);
+
+    return {
+      departments: Object.fromEntries(depts.map((d) => [String(d._id), (d as { name: string }).name])),
+      positions: Object.fromEntries(positions.map((p) => [String(p._id), (p as { title: string }).title])),
+    };
   }
 }
 

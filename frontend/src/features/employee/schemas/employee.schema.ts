@@ -40,6 +40,17 @@ export const editEmployeeSchema = z.object({
 
 export type EditEmployeeForm = z.infer<typeof editEmployeeSchema>;
 
+/**
+ * Biểu mẫu nhân viên dùng chung cho "Chỉnh sửa nhân viên" và "Sửa dòng import".
+ * Chỉ khác `editEmployeeSchema` ở `hireDate` — màn hình sửa không hiển thị ô này
+ * nhưng vẫn giữ giá trị hiện có, còn màn hình import thì cần nhập.
+ */
+export const employeeFormSchema = editEmployeeSchema.extend({
+  hireDate: z.string(),
+});
+
+export type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
+
 export const contactSchema = z.object({
   name: z.string().trim().min(1, "Bắt buộc").max(120),
   relationship: z.enum(["spouse", "parent", "sibling", "other"]),

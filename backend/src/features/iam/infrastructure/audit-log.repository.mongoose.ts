@@ -11,7 +11,11 @@ export type AuditAction =
   | 'session-reuse'
   | 'create'
   | 'update'
-  | 'delete';
+  | 'delete'
+  // Đọc-nhưng-đáng-ghi-nhận: xuất dữ liệu hàng loạt và các bước nhập từ tệp.
+  | 'export'
+  | 'preview'
+  | 'commit';
 
 export class MongooseAuditLogRepository implements AuditLogRepository {
   async create(input: {

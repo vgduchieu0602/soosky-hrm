@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, json } from 'express';
 import { authenticate } from '@shared/middlewares/authenticate';
 import { requireRoles } from '@shared/middlewares/require-role';
 import { selfOrHr } from '@shared/middlewares/self-or-hr';
@@ -12,10 +12,22 @@ import {
   contractController,
   assetController,
   historyController,
+  lifecycleController,
 } from '@features/employee/interfaces/http/controllers';
 
+import {
+  transferDepartmentDto,
+  changePositionDto,
+  changeManagerDto,
+  completeProbationDto,
+  extendProbationDto,
+  changeSalaryDto,
+  endEmploymentDto,
+  rehireDto,
+} from '@features/employee/dto/lifecycle.dto';
+
 import { createEmployeeDto } from '@features/employee/dto/create-employee.dto';
-import { importEmployeesDto } from '@features/employee/dto/import-employees.dto';
+import { importPreviewDto, importCommitDto } from '@features/employee/dto/import-employees.dto';
 import { updateEmployeeDto } from '@features/employee/dto/update-employee.dto';
 import { updateProfileDto } from '@features/employee/dto/update-profile.dto';
 import { grantLoginDto } from '@features/employee/dto/grant-login.dto';
@@ -40,12 +52,19 @@ const router = Router();
 
 const hrOrAdmin = requireRoles('admin', 'hr_manager');
 
+/** Trần body cho hai route nhập CSV (~5.000 dòng vẫn lọt). */
+const IMPORT_BODY_LIMIT = '8mb';
+
 // ---------- Read endpoints (authenticated user) ----------
 router.get('/employees', authenticate, employeeController.list);
 router.get('/employees/stats', authenticate, employeeController.stats);
 router.get('/employees/reminders', authenticate, hrOrAdmin, employeeController.reminders);
 router.post('/admin/employees/reminders/run', authenticate, hrOrAdmin, employeeController.runReminders);
-router.get('/employees/export', authenticate, employeeController.exportCsv);
+// Bản xuất chứa PII đầy đủ (ngày sinh, địa chỉ, mã số thuế, số BHXH) nên chỉ
+// HR/Admin được gọi — trước đây mọi tài khoản đăng nhập đều tải được.
+router.get('/employees/export', authenticate, hrOrAdmin, employeeController.exportCsv);
+router.get('/employees/import/template', authenticate, hrOrAdmin, employeeController.importTemplate);
+router.get('/employees/import/schema', authenticate, hrOrAdmin, employeeController.importSchema);
 router.get('/employees/me', authenticate, employeeController.getMe);
 router.get('/employees/:id', authenticate, selfOrHr(), employeeController.getById);
 router.get('/employees/:id/account', authenticate, selfOrHr(), employeeController.getAccount);
@@ -66,6 +85,7 @@ router.get('/employees/:id/bank-accounts', authenticate, selfOrHr(), bankAccount
 router.get('/employees/:id/contracts', authenticate, selfOrHr(), contractController.list);
 router.get('/employees/:id/assets', authenticate, selfOrHr(), assetController.list);
 router.get('/employees/:id/history', authenticate, selfOrHr(), historyController.list);
+router.get('/employees/:id/lifecycle', authenticate, selfOrHr(), lifecycleController.timeline);
 
 // Sub-resource writes accessible to the owner employee or HR/Admin
 router.post(
@@ -128,12 +148,84 @@ router.post(
   validate(grantLoginDto, 'body'),
   employeeController.grantLogin,
 );
+// Nhập CSV: xem trước (không ghi) → HR sửa → ghi thật (kèm importId + checksum).
+// Hai route này nhận cả tệp vài nghìn dòng nên cần trần body riêng, thay vì nới
+// giới hạn 1MB chung cho toàn bộ API.
+const importBody = json({ limit: IMPORT_BODY_LIMIT });
+
 router.post(
-  '/admin/employees/import',
+  '/admin/employees/import/preview',
   authenticate,
   hrOrAdmin,
-  validate(importEmployeesDto, 'body'),
-  employeeController.importEmployees,
+  importBody,
+  validate(importPreviewDto, 'body'),
+  employeeController.previewImport,
+);
+router.post(
+  '/admin/employees/import/commit',
+  authenticate,
+  hrOrAdmin,
+  importBody,
+  validate(importCommitDto, 'body'),
+  employeeController.commitImport,
+);
+
+// ---------- Vòng đời nhân viên (HR/Admin) ----------
+router.post(
+  '/admin/employees/:id/transfer',
+  authenticate,
+  hrOrAdmin,
+  validate(transferDepartmentDto, 'body'),
+  lifecycleController.transferDepartment,
+);
+router.post(
+  '/admin/employees/:id/change-position',
+  authenticate,
+  hrOrAdmin,
+  validate(changePositionDto, 'body'),
+  lifecycleController.changePosition,
+);
+router.post(
+  '/admin/employees/:id/change-manager',
+  authenticate,
+  hrOrAdmin,
+  validate(changeManagerDto, 'body'),
+  lifecycleController.changeManager,
+);
+router.post(
+  '/admin/employees/:id/probation/complete',
+  authenticate,
+  hrOrAdmin,
+  validate(completeProbationDto, 'body'),
+  lifecycleController.completeProbation,
+);
+router.post(
+  '/admin/employees/:id/probation/extend',
+  authenticate,
+  hrOrAdmin,
+  validate(extendProbationDto, 'body'),
+  lifecycleController.extendProbation,
+);
+router.post(
+  '/admin/employees/:id/change-salary',
+  authenticate,
+  hrOrAdmin,
+  validate(changeSalaryDto, 'body'),
+  lifecycleController.changeSalary,
+);
+router.post(
+  '/admin/employees/:id/end-employment',
+  authenticate,
+  hrOrAdmin,
+  validate(endEmploymentDto, 'body'),
+  lifecycleController.endEmployment,
+);
+router.post(
+  '/admin/employees/:id/rehire',
+  authenticate,
+  hrOrAdmin,
+  validate(rehireDto, 'body'),
+  lifecycleController.rehire,
 );
 router.post(
   '/admin/employees/bulk/terminate',

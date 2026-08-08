@@ -11,6 +11,10 @@ const config: Config = {
     '^@config/(.*)$': '<rootDir>/src/config/$1',
   },
   testMatch: ['**/*.spec.ts'],
+  // Mỗi bộ test HTTP tự dựng một MongoDB replica set trong bộ nhớ. Chạy full
+  // song song làm worker chết vì hết tài nguyên (bộ test "failed to run" ngẫu
+  // nhiên), nên giới hạn số worker để kết quả ổn định.
+  maxWorkers: 2,
 };
 
 export default config;

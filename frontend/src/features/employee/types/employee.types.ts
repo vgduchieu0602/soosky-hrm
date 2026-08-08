@@ -14,7 +14,10 @@ export type ContractStatus = "active" | "expired" | "terminated";
 export type Relationship = "spouse" | "parent" | "sibling" | "other";
 export type AssetCondition = "new" | "good" | "fair" | "damaged";
 export type HistoryEvent =
-  | "hired" | "promotion" | "transfer" | "salary_change" | "contract_renew" | "info_update" | "terminated";
+  | "hired" | "promotion" | "transfer" | "salary_change" | "contract_renew" | "info_update" | "terminated"
+  // Phần mở rộng vòng đời — khớp HISTORY_EVENT ở backend.
+  | "position_change" | "manager_change" | "probation_started" | "probation_extended"
+  | "probation_completed" | "contract_ended" | "resigned" | "rehired";
 
 // ---- Populated reference shapes returned by the list endpoint ----
 export interface DepartmentRef {
@@ -362,32 +365,185 @@ export interface ExpiryReminders {
   contract: ReminderItem[];
 }
 
-export interface ImportEmployeeRow {
-  employeeCode: string;
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  departmentCode: string;
-  positionCode: string;
-  employeeType: string;
-  hireDate: string;
-  email?: string;
-  phone?: string;
-  gender?: string;
-  salaryZone?: string;
+// ---- Nhập nhân viên từ CSV ----
+// Tên cột KHÔNG khai báo cứng ở đây: giao diện tải đặc tả từ
+// `GET /employees/import/schema` để chỉ có một nguồn cột duy nhất (backend).
+
+export type ImportMode = "CREATE_ONLY" | "UPSERT";
+
+/** Một cột trong đặc tả CSV chuẩn do backend cung cấp. */
+export interface CsvColumnSpec {
+  key: string;
+  group: "identity" | "employment" | "contact" | "bank" | "contract";
+  label: string;
+  type: "string" | "email" | "date" | "number" | "boolean" | "enum";
+  enumValues: string[] | null;
+  required: boolean;
+  importable: boolean;
+  exportable: boolean;
+  sensitive: boolean;
+  example: string | null;
+  description: string | null;
 }
-export interface ImportRowResult {
+
+export interface CsvSchema {
+  dateFormat: string;
+  columns: CsvColumnSpec[];
+}
+
+/** Một dòng CSV — mọi ô là chuỗi, backend mới là nơi kiểm tra kiểu. */
+export type ImportEmployeeRow = Record<string, string>;
+
+export interface ImportFieldError {
+  field: string;
+  message: string;
+}
+
+export interface ImportHeaderReport {
+  missing: string[];
+  unknown: string[];
+  duplicated: string[];
+}
+
+export interface ImportRowPreview {
   index: number;
-  employeeCode: string;
-  status: "created" | "error";
-  employeeId?: string;
-  error?: string;
+  /** Số dòng trong bảng tính (header là dòng 1). */
+  rowNumber: number;
+  action: "create" | "update" | "skip";
+  valid: boolean;
+  raw: Record<string, unknown>;
+  normalized: ImportEmployeeRow;
+  resolved: {
+    employeeId: string | null;
+    departmentId: string | null;
+    departmentCode: string | null;
+    departmentName: string | null;
+    positionId: string | null;
+    positionCode: string | null;
+    positionName: string | null;
+    managerId: string | null;
+    managerCode: string | null;
+    managerName: string | null;
+    managerFromFile: boolean;
+  };
+  errors: ImportFieldError[];
+  warnings: ImportFieldError[];
 }
+
+export interface ImportPreview {
+  importId: string;
+  checksum: string;
+  mode: ImportMode;
+  headers: ImportHeaderReport;
+  summary: {
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    createRows: number;
+    updateRows: number;
+    warningRows: number;
+  };
+  rows: ImportRowPreview[];
+}
+
 export interface ImportResult {
+  importId: string;
+  mode: ImportMode;
   total: number;
   created: number;
+  updated: number;
+  skipped: number;
   failed: number;
-  results: ImportRowResult[];
+  employeeIds: string[];
+}
+
+// ---- Vòng đời nhân viên ----
+
+export type SeparationType = "resignation" | "termination";
+
+/** Một mốc trong dòng thời gian, backend đã diễn giải sẵn tên phòng ban/chức vụ. */
+export interface LifecycleChange {
+  field: string;
+  label: string;
+  from: string | null;
+  to: string | null;
+}
+
+export interface LifecycleEntry {
+  _id: string;
+  eventType: HistoryEvent;
+  effectiveDate: string;
+  createdAt: string | null;
+  reason: string | null;
+  performedBy: string | null;
+  changes: LifecycleChange[];
+}
+
+export interface TransferDepartmentInput {
+  newDepartmentId: string;
+  newPositionId?: string;
+  newManagerId?: string | null;
+  effectiveDate: string;
+  reason: string;
+}
+
+export interface ChangePositionInput {
+  newPositionId: string;
+  changeType: "position_change" | "promotion";
+  effectiveDate: string;
+  reason: string;
+}
+
+export interface ChangeManagerInput {
+  newManagerId: string | null;
+  effectiveDate: string;
+  reason: string;
+}
+
+export interface CompleteProbationInput {
+  effectiveDate: string;
+  reason: string;
+}
+
+export interface ExtendProbationInput {
+  newEndDate: string;
+  reason: string;
+}
+
+export interface ChangeSalaryInput {
+  newBaseSalary: number;
+  contractNumber: string;
+  contractType?: ContractType;
+  employmentStatus?: EmploymentStatus;
+  endDate?: string;
+  effectiveDate: string;
+  reason: string;
+}
+
+export interface EndEmploymentInput {
+  separationType: SeparationType;
+  noticeDate?: string;
+  lastWorkingDate: string;
+  reason: string;
+  note?: string;
+}
+
+export interface RehireInput {
+  rehireDate: string;
+  departmentId: string;
+  positionId: string;
+  managerId?: string | null;
+  employeeType?: EmployeeType;
+  reason: string;
+  contract?: {
+    contractType: ContractType;
+    employmentStatus?: EmploymentStatus;
+    contractNumber: string;
+    startDate: string;
+    endDate?: string;
+    baseSalary: number;
+    currency?: string;
+  };
 }
 
 export interface ChecklistItem {

@@ -99,11 +99,45 @@ export const COND: Record<AssetCondition, string> = {
 export const HIST_EVENT: Record<HistoryEvent, string> = {
   hired: "Tuyển dụng",
   promotion: "Thăng chức",
-  transfer: "Điều chuyển",
+  transfer: "Điều chuyển phòng ban",
   salary_change: "Thay đổi lương",
   contract_renew: "Gia hạn HĐ",
   info_update: "Cập nhật thông tin",
-  terminated: "Nghỉ việc",
+  terminated: "Chấm dứt hợp đồng",
+  position_change: "Đổi chức vụ",
+  manager_change: "Đổi quản lý",
+  probation_started: "Bắt đầu thử việc",
+  probation_extended: "Gia hạn thử việc",
+  probation_completed: "Hoàn tất thử việc",
+  contract_ended: "Kết thúc hợp đồng",
+  resigned: "Nghỉ theo nguyện vọng",
+  rehired: "Tái tuyển",
+};
+
+/** Nhãn cột CSV cho màn hình nhập — dùng chung cho bảng xem trước và phần trợ giúp. */
+export const IMPORT_COLUMN_LABEL: Record<string, string> = {
+  employeeCode: "Mã nhân viên",
+  lastName: "Họ",
+  middleName: "Tên đệm",
+  firstName: "Tên",
+  departmentCode: "Mã phòng ban",
+  positionCode: "Mã chức vụ",
+  managerCode: "Mã quản lý",
+  employeeType: "Loại nhân sự",
+  hireDate: "Ngày vào làm",
+  fingerprintId: "Mã vân tay",
+  email: "Email cá nhân",
+  workEmail: "Email công ty",
+  phone: "Điện thoại",
+  dateOfBirth: "Ngày sinh",
+  gender: "Giới tính",
+  maritalStatus: "Hôn nhân",
+  nationality: "Quốc tịch",
+  address: "Địa chỉ",
+  taxCode: "Mã số thuế",
+  socialInsuranceNo: "Số sổ BHXH",
+  vehiclePlate: "Biển số xe",
+  salaryZone: "Vùng lương",
 };
 
 export const ROLE: Record<string, string> = {

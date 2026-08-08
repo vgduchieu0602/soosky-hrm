@@ -3,6 +3,13 @@ import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
 const DB_NAME = 'employeeHistory';
 const COLLECTION_NAME = 'employeeHistories';
 
+/**
+ * Sự kiện vòng đời nhân viên. 7 giá trị đầu là bản gốc — KHÔNG đổi/bỏ để dữ liệu
+ * cũ vẫn đọc được; các giá trị sau là phần mở rộng cho Employee Lifecycle.
+ *
+ * `transfer` = điều chuyển phòng ban, `promotion` = thăng chức (đã có sẵn), nên
+ * phần mở rộng chỉ thêm những sự kiện chưa biểu diễn được.
+ */
 export const HISTORY_EVENT = [
   'hired',
   'promotion',
@@ -11,6 +18,15 @@ export const HISTORY_EVENT = [
   'contract_renew',
   'info_update',
   'terminated',
+  // ---- mở rộng lifecycle ----
+  'position_change',
+  'manager_change',
+  'probation_started',
+  'probation_extended',
+  'probation_completed',
+  'contract_ended',
+  'resigned',
+  'rehired',
 ] as const;
 export type HistoryEvent = (typeof HISTORY_EVENT)[number];
 
@@ -20,6 +36,7 @@ export interface IEmployeeHistory {
   fromValue?: Record<string, unknown>;
   toValue?: Record<string, unknown>;
   effectiveDate: Date;
+  /** Lý do do HR nhập — bắt buộc với mọi thay đổi vòng đời. */
   note?: string;
   createdBy?: Types.ObjectId | null;
   created_at?: Date;

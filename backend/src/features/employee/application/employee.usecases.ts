@@ -15,8 +15,10 @@ import type {
   LeaveSeedGateway,
   CascadeGateway,
   ExportPort,
+  CsvExportPort,
   AuditPort,
   UnitOfWork,
+  Tx,
 } from '@features/employee/domain/ports';
 
 const log = logger.child({ feature: 'employee', module: 'employee' });
@@ -42,11 +44,16 @@ export class EmployeeUseCases {
     private readonly seed: LeaveSeedGateway,
     private readonly cascade: CascadeGateway,
     private readonly exporter: ExportPort,
+    private readonly csv: CsvExportPort,
     private readonly audit: AuditPort,
     private readonly uow: UnitOfWork,
   ) {}
 
-  async create(input: CreateEmployeeDto, auditUserId: string) {
+  /**
+   * `tx` cho phép người gọi (nhập CSV) gộp nhiều lần tạo vào MỘT giao dịch; khi
+   * bỏ trống, use-case tự mở giao dịch riêng như trước.
+   */
+  async create(input: CreateEmployeeDto, auditUserId: string, tx?: Tx) {
     const [dept, position] = await Promise.all([
       this.org.findDepartment(input.departmentId),
       this.org.findPosition(input.positionId),
@@ -57,7 +64,7 @@ export class EmployeeUseCases {
     const codeExists = await this.employees.findByCode(input.employeeCode);
     if (codeExists) throw new HttpError(409, 'Employee code already exists', 'EMP_002');
 
-    const result = await this.uow.withTransaction(async (tx) => {
+    const work = async (tx: Tx) => {
       const employee = await this.employees.create(
         {
           employeeCode: input.employeeCode.trim(),
@@ -95,17 +102,22 @@ export class EmployeeUseCases {
         tx,
       );
 
-      await this.history.record({
-        employeeId,
-        eventType: 'hired',
-        toValue: { hireDate: input.hireDate, departmentId: input.departmentId },
-        note: 'Gia nhập Soosky',
-        createdBy: auditUserId,
-        effectiveDate: input.hireDate,
-      });
+      await this.history.record(
+        {
+          employeeId,
+          eventType: 'hired',
+          toValue: { hireDate: input.hireDate, departmentId: input.departmentId },
+          note: 'Gia nhập Soosky',
+          createdBy: auditUserId,
+          effectiveDate: input.hireDate,
+        },
+        tx,
+      );
 
       return employee;
-    });
+    };
+
+    const result = tx ? await work(tx) : await this.uow.withTransaction(work);
 
     await this.audit.record({
       userId: auditUserId,
@@ -116,10 +128,23 @@ export class EmployeeUseCases {
     });
 
     log.info({ employeeId: result._id }, 'employee created');
-    await this.seed
-      .seedLeaveBalances(String(result._id))
-      .catch((err) => log.error({ err, employeeId: result._id }, 'failed to seed leave balances'));
+    // Trong giao dịch của người gọi thì hoãn: seed đọc dữ liệu chưa commit sẽ sai.
+    // Người gọi gieo số dư phép sau khi commit (xem `seedLeaveBalancesFor`).
+    if (!tx) {
+      await this.seed
+        .seedLeaveBalances(String(result._id))
+        .catch((err) => log.error({ err, employeeId: result._id }, 'failed to seed leave balances'));
+    }
     return result;
+  }
+
+  /** Gieo số dư phép cho nhân viên vừa tạo trong một giao dịch bên ngoài. */
+  async seedLeaveBalancesFor(employeeIds: readonly string[]): Promise<void> {
+    for (const id of employeeIds) {
+      await this.seed
+        .seedLeaveBalances(id)
+        .catch((err) => log.error({ err, employeeId: id }, 'failed to seed leave balances'));
+    }
   }
 
   async list(query: ListEmployeesQuery) {
@@ -154,8 +179,8 @@ export class EmployeeUseCases {
     return { ...employee, profile: profile ?? null };
   }
 
-  async update(id: string, input: UpdateEmployeeDto, auditUserId: string) {
-    const before = await this.employees.findById(id);
+  async update(id: string, input: UpdateEmployeeDto, auditUserId: string, tx?: Tx) {
+    const before = await this.employees.findById(id, tx);
     if (!before) throw new HttpError(404, 'Employee not found', 'EMP_001');
 
     if (input.departmentId) {
@@ -175,17 +200,20 @@ export class EmployeeUseCases {
       if (dupFp) throw new HttpError(409, 'Mã vân tay đã tồn tại', 'EMP_002');
     }
 
-    const updated = await this.employees.updateById(id, input as Record<string, unknown>);
+    const updated = await this.employees.updateById(id, input as Record<string, unknown>, tx);
     if (!updated) throw new HttpError(404, 'Employee not found', 'EMP_001');
 
     if (input.departmentId && input.departmentId !== before.departmentId.toString()) {
-      await this.history.record({
-        employeeId: id,
-        eventType: 'transfer',
-        fromValue: { departmentId: before.departmentId.toString() },
-        toValue: { departmentId: input.departmentId },
-        createdBy: auditUserId,
-      });
+      await this.history.record(
+        {
+          employeeId: id,
+          eventType: 'transfer',
+          fromValue: { departmentId: before.departmentId.toString() },
+          toValue: { departmentId: input.departmentId },
+          createdBy: auditUserId,
+        },
+        tx,
+      );
     }
 
     const beforePosition = before.positionId?.toString();
@@ -196,18 +224,27 @@ export class EmployeeUseCases {
       (input.employeeType !== undefined && input.employeeType !== before.employeeType) ||
       (input.salaryZone !== undefined && input.salaryZone !== before.salaryZone);
     if (workChanged) {
-      await this.history.record({
-        employeeId: id,
-        eventType: 'info_update',
-        toValue: {
-          positionId: input.positionId,
-          managerId: input.managerId,
-          employeeType: input.employeeType,
-          salaryZone: input.salaryZone,
+      await this.history.record(
+        {
+          employeeId: id,
+          eventType: 'info_update',
+          fromValue: {
+            positionId: beforePosition,
+            managerId: beforeManager,
+            employeeType: before.employeeType,
+            salaryZone: before.salaryZone,
+          },
+          toValue: {
+            positionId: input.positionId,
+            managerId: input.managerId,
+            employeeType: input.employeeType,
+            salaryZone: input.salaryZone,
+          },
+          note: 'Cập nhật thông tin công việc',
+          createdBy: auditUserId,
         },
-        note: 'Cập nhật thông tin công việc',
-        createdBy: auditUserId,
-      });
+        tx,
+      );
     }
 
     await this.audit.record({
@@ -222,21 +259,24 @@ export class EmployeeUseCases {
     return updated;
   }
 
-  async updateProfile(employeeId: string, input: UpdateProfileDto, auditUserId: string) {
-    const employee = await this.employees.findById(employeeId);
+  async updateProfile(employeeId: string, input: UpdateProfileDto, auditUserId: string, tx?: Tx) {
+    const employee = await this.employees.findById(employeeId, tx);
     if (!employee) throw new HttpError(404, 'Employee not found', 'EMP_001');
 
-    const profile = await this.profiles.upsertByEmployeeId(employeeId, input as Record<string, unknown>);
+    const profile = await this.profiles.upsertByEmployeeId(employeeId, input as Record<string, unknown>, tx);
 
     const changedFields = Object.keys(input).filter((k) => k !== 'avatarUrl' && k !== 'avatarId');
     if (changedFields.length > 0) {
-      await this.history.record({
-        employeeId,
-        eventType: 'info_update',
-        toValue: input as Record<string, unknown>,
-        note: 'Cập nhật thông tin cá nhân',
-        createdBy: auditUserId,
-      });
+      await this.history.record(
+        {
+          employeeId,
+          eventType: 'info_update',
+          toValue: input as Record<string, unknown>,
+          note: 'Cập nhật thông tin cá nhân',
+          createdBy: auditUserId,
+        },
+        tx,
+      );
     }
 
     await this.audit.record({
@@ -345,6 +385,33 @@ export class EmployeeUseCases {
       },
     });
     return this.exporter.export(items);
+  }
+
+  /** Trần cứng cho bản xuất — tránh một request kéo cả triệu bản ghi vào RAM. */
+  private static readonly EXPORT_LIMIT = 5000;
+
+  /**
+   * Bản xuất CSV theo đúng bộ lọc HR đang xem. `includeSensitive=false` vẫn giữ
+   * đủ cột nhưng để trống ô nhạy cảm (ngân hàng, lương, mã số thuế, BHXH, ngày
+   * sinh, địa chỉ) — phạm vi do tầng HTTP quyết định theo vai trò.
+   */
+  async exportCsv(query: ListEmployeesQuery, includeSensitive = true): Promise<string> {
+    const rows = await this.employees.listForExport(
+      {
+        departmentId: query.departmentId,
+        status: query.status,
+        employeeType: query.employeeType,
+        managerId: query.managerId,
+        q: query.q,
+      },
+      EmployeeUseCases.EXPORT_LIMIT,
+    );
+    return this.csv.export(rows, includeSensitive);
+  }
+
+  /** Tệp mẫu CSV để HR tải về điền — chỉ dòng header các cột nhập được. */
+  importTemplate(): string {
+    return this.csv.template();
   }
 
   async stats() {

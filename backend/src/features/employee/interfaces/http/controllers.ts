@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { auditService } from '@features/iam';
 import {
   employeeService,
   accountProvisioningService,
@@ -12,8 +13,11 @@ import {
   employeeContractService,
   employeeAssetService,
   employeeHistoryService,
+  employeeLifecycleService,
 } from '@features/employee/container';
 import type { BulkTerminateEmployeesDto } from '@features/employee/dto/sub-resource.dto';
+import type { ImportPreviewDto, ImportCommitDto } from '@features/employee/dto/import-employees.dto';
+import { csvSchemaForClient } from '@features/employee/domain/employee-csv-schema';
 
 function requireUser(req: Request) {
   if (!req.user) throw new Error('IAM_002');
@@ -44,11 +48,45 @@ export const employeeController = {
     }
   },
 
-  async importEmployees(req: Request, res: Response, next: NextFunction) {
+  /** Bước xem trước: kiểm tra + tra tham chiếu, KHÔNG ghi gì vào cơ sở dữ liệu. */
+  async previewImport(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
-      const { rows } = req.body as { rows: Parameters<typeof employeeImportService.importEmployees>[0] };
-      res.json({ data: await employeeImportService.importEmployees(rows, user.userId) });
+      const body = req.body as ImportPreviewDto;
+      res.json({ data: await employeeImportService.preview(body, user.userId) });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async commitImport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const body = req.body as ImportCommitDto;
+      res.json({ data: await employeeImportService.commit(body, user.userId) });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** Đặc tả cột CSV — giao diện dựng bảng hướng dẫn từ đây, không tự chép lại. */
+  async importSchema(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      res.json({ data: csvSchemaForClient() });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** Tệp mẫu CSV cho HR tải về điền — chỉ dòng header. */
+  async importTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const csv = employeeService.importTemplate();
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="employees-import-template.csv"');
+      res.send(csv);
     } catch (err) {
       next(err);
     }
@@ -191,13 +229,45 @@ export const employeeController = {
     }
   },
 
+  /**
+   * Xuất danh sách nhân viên. `?format=csv` (mặc định) trả CSV đủ trường để nhập
+   * lại; `?format=xlsx` giữ bản báo cáo cũ.
+   */
   async exportCsv(req: Request, res: Response, next: NextFunction) {
     try {
-      requireUser(req);
-      const buf = await employeeService.exportXlsx(req.query as Record<string, string | undefined>);
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename="employees.xlsx"');
-      res.send(buf);
+      const user = requireUser(req);
+      const query = req.query as Record<string, string | undefined>;
+      // Cột nhạy cảm (ngân hàng, lương, mã số thuế, BHXH, ngày sinh, địa chỉ) chỉ
+      // dành cho HR/Admin; vai trò khác vẫn nhận đủ cột nhưng ô để trống.
+      const includeSensitive = user.roles.some((r) => r === 'admin' || r === 'hr_manager');
+
+      if (query.format === 'xlsx') {
+        const buf = await employeeService.exportXlsx(query);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="employees.xlsx"');
+        res.send(buf);
+      } else {
+        const csv = await employeeService.exportCsv(query, includeSensitive);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="employees.csv"');
+        res.send(csv);
+      }
+
+      await auditService.record({
+        userId: user.userId,
+        resource: 'employee',
+        action: 'export',
+        changes: {
+          format: query.format === 'xlsx' ? 'xlsx' : 'csv',
+          includeSensitive,
+          filters: {
+            departmentId: query.departmentId ?? null,
+            status: query.status ?? null,
+            employeeType: query.employeeType ?? null,
+            q: query.q ?? null,
+          },
+        },
+      });
     } catch (err) {
       next(err);
     }
@@ -409,6 +479,76 @@ export const historyController = {
       requireUser(req);
       const { id } = req.params as { id: string };
       res.json({ data: await employeeHistoryService.list(id) });
+    } catch (err) { next(err); }
+  },
+};
+
+/**
+ * Vòng đời nhân viên. Mọi handler đều nhận `:id` trên URL và lý do trong body —
+ * không có thao tác nào ghi lịch sử mà thiếu người thực hiện.
+ */
+export const lifecycleController = {
+  async timeline(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.timeline(id) });
+    } catch (err) { next(err); }
+  },
+  async transferDepartment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.transferDepartment(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async changePosition(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.changePosition(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async changeManager(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.changeManager(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async completeProbation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.completeProbation(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async extendProbation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.extendProbation(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async changeSalary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.status(201).json({ data: await employeeLifecycleService.changeSalary(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async endEmployment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.endEmployment(id, req.body, user.userId) });
+    } catch (err) { next(err); }
+  },
+  async rehire(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const { id } = req.params as { id: string };
+      res.json({ data: await employeeLifecycleService.rehire(id, req.body, user.userId) });
     } catch (err) { next(err); }
   },
 };
