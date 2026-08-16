@@ -46,10 +46,16 @@ export interface EmployeeLean {
   _id: unknown;
   shiftId?: unknown;
   salaryZone?: string;
+  /** Ngày vào làm — mốc bắt đầu khoảng thuộc bảng lương. */
+  hireDate: Date;
+  /** Ngày nghỉ việc; `null` = còn làm. */
+  terminationDate?: Date | null;
 }
 export interface EmployeeIdCode {
   _id: unknown;
   employeeCode: string;
+  hireDate: Date;
+  terminationDate?: Date | null;
 }
 export interface ProfileName {
   employeeId: unknown;
@@ -155,7 +161,12 @@ export interface TaxProfileRepository {
 export interface EmployeeGateway {
   findByIdLean(id: Id): Promise<EmployeeLean | null>;
   findByUserId(userId: Id): Promise<{ _id: unknown } | null>;
-  listForRun(): Promise<{ _id: unknown }[]>;
+  /**
+   * Ứng viên tính lương của MỘT kỳ: người có khoảng làm việc giao với kỳ đó —
+   * không lọc theo trạng thái hiện tại. Nhờ vậy người mới (`onboarding`) và
+   * người đã nghỉ vẫn tính/tính lại được lương của kỳ họ còn đi làm.
+   */
+  listForRun(periodStart: Date, periodEnd: Date): Promise<{ _id: unknown }[]>;
   listNonTerminatedIds(): Promise<{ _id: unknown }[]>;
   listNonTerminatedWithCode(): Promise<EmployeeIdCode[]>;
 }

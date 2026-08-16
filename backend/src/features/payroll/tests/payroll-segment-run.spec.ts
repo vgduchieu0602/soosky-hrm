@@ -73,6 +73,9 @@ interface Options {
   probationPayRate?: number;
   /** Mức BHXH cố định HR nhập trên hồ sơ thuế. */
   fixedInsuranceAmount?: number;
+  /** Khoảng làm việc của nhân viên; mặc định vào làm từ lâu, chưa nghỉ. */
+  hireDate?: Date;
+  terminationDate?: Date | null;
 }
 
 const rangeKey = (from: Date, to: Date) =>
@@ -97,7 +100,15 @@ function build(opts: Options) {
         return doc;
       },
     } as never,
-    { findByIdLean: async () => ({ _id: EMPLOYEE_ID, shiftId: null, salaryZone: 'zone1' }) } as never,
+    {
+      findByIdLean: async () => ({
+        _id: EMPLOYEE_ID,
+        shiftId: null,
+        salaryZone: 'zone1',
+        hireDate: opts.hireDate ?? d('2020-01-01'),
+        terminationDate: opts.terminationDate ?? null,
+      }),
+    } as never,
     {
       findActive: async () => opts.contracts[opts.contracts.length - 1] ?? null,
       findOverlapping: async () => opts.contracts,
@@ -417,5 +428,113 @@ describe('khoá tính lại', () => {
     await useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID));
 
     expect(saved).toHaveLength(2);
+  });
+});
+
+describe('phạm vi thuộc bảng lương theo khoảng làm việc', () => {
+  it('vào làm giữa kỳ: chỉ tính từ ngày vào làm, KHÔNG báo thiếu hợp đồng', async () => {
+    const doc = await run({
+      hireDate: d('2026-08-15'),
+      contracts: [contractSeed({ startDate: d('2026-08-15'), endDate: null, baseSalary: dec(15_000_000) })],
+      workDaysByRange: { '2026-08-15..2026-08-31': 11 },
+    });
+
+    expect(doc.contractSegments).toHaveLength(1);
+    expect(doc.contractSegments![0]!.standardWorkDays).toBe(11);
+  });
+
+  it('nghỉ giữa kỳ: chỉ tính đến ngày nghỉ, KHÔNG báo thiếu hợp đồng phần đuôi', async () => {
+    const doc = await run({
+      terminationDate: d('2026-08-20'),
+      contracts: [contractSeed({ startDate: d('2026-01-01'), endDate: d('2026-08-20') })],
+      workDaysByRange: { '2026-08-01..2026-08-20': 14 },
+    });
+
+    expect(doc.contractSegments).toHaveLength(1);
+    expect(doc.contractSegments![0]!.standardWorkDays).toBe(14);
+  });
+
+  it('hợp đồng vẫn mở nhưng đã nghỉ giữa kỳ thì đoạn bị cắt tới ngày nghỉ', async () => {
+    const doc = await run({
+      terminationDate: d('2026-08-20'),
+      contracts: [contractSeed({ startDate: d('2026-01-01'), endDate: null })],
+      workDaysByRange: { '2026-08-01..2026-08-20': 14 },
+    });
+
+    expect(doc.contractSegments![0]!.standardWorkDays).toBe(14);
+  });
+
+  it('khoảng trống THẬT bên trong khoảng làm việc vẫn bị chặn', async () => {
+    const { useCases } = build({
+      hireDate: d('2026-08-01'),
+      contracts: [
+        contractSeed({ endDate: d('2026-08-10') }),
+        contractSeed({ startDate: d('2026-08-15') }),
+      ],
+      workDaysByRange: { '2026-08-11..2026-08-14': 3 },
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_CONTRACT_GAP',
+    });
+  });
+
+  it('còn đi làm nhưng hợp đồng hết sớm → chặn khoảng đuôi (Case D)', async () => {
+    const { useCases, saved } = build({
+      contracts: [contractSeed({ startDate: d('2026-01-01'), endDate: d('2026-08-20') })],
+      workDaysByRange: { '2026-08-01..2026-08-20': 14, '2026-08-21..2026-08-31': 7 },
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_CONTRACT_GAP',
+    });
+    expect(saved).toEqual([]);
+  });
+
+  it('hợp đồng bắt đầu muộn hơn ngày vào làm → chặn khoảng đầu', async () => {
+    const { useCases } = build({
+      hireDate: d('2026-08-01'),
+      contracts: [contractSeed({ startDate: d('2026-08-05'), endDate: null })],
+      workDaysByRange: { '2026-08-01..2026-08-04': 2 },
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_CONTRACT_GAP',
+    });
+  });
+
+  it('vào làm sau khi kỳ kết thúc → không thuộc kỳ, không tạo dòng lương', async () => {
+    const { useCases, saved } = build({
+      hireDate: d('2026-09-01'),
+      contracts: [contractSeed({ startDate: d('2026-09-01') })],
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_OUT_OF_SCOPE',
+    });
+    expect(saved).toEqual([]);
+  });
+
+  it('đã nghỉ trước khi kỳ bắt đầu → không thuộc kỳ', async () => {
+    const { useCases, saved } = build({
+      terminationDate: d('2026-07-15'),
+      contracts: [contractSeed({ endDate: d('2026-07-15') })],
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_OUT_OF_SCOPE',
+    });
+    expect(saved).toEqual([]);
+  });
+
+  it('người đã nghỉ SAU kỳ vẫn tính lại được lương của kỳ cũ', async () => {
+    const doc = await run({
+      terminationDate: d('2026-09-30'),
+      contracts: [contractSeed({ startDate: d('2026-01-01'), endDate: d('2026-09-30') })],
+      workDaysByRange: { '2026-08-01..2026-08-31': 21 },
+    });
+
+    expect(doc.contractSegments).toHaveLength(1);
+    expect(doc.contractSegments![0]!.standardWorkDays).toBe(21);
   });
 });

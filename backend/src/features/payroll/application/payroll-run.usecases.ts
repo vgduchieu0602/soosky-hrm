@@ -33,6 +33,7 @@ import {
   buildContractSegments,
   describeGap,
   describeOverlap,
+  effectivePayrollRange,
   type ContractSegment,
 } from '@features/payroll/domain/contract-segment';
 import {
@@ -140,9 +141,11 @@ export class RunPayrollUseCases {
    */
   private async resolveSegments(
     period: PeriodRecord,
+    scope: { startDate: Date; endDate: Date },
     employeeId: string,
     contractRows: ContractRecord[],
   ): Promise<{ segments: ResolvedSegment[] }> {
+    // Chia đoạn trong PHẠM VI THUỘC BẢNG LƯƠNG, không phải toàn bộ kỳ.
     const { segments, overlaps, gaps } = buildContractSegments(
       contractRows.map((c) => ({
         contractId: String((c as { _id: unknown })._id),
@@ -151,7 +154,7 @@ export class RunPayrollUseCases {
         employmentStatus: c.employmentStatus,
         baseSalary: toNum(c.baseSalary),
       })),
-      period,
+      scope,
     );
 
     if (overlaps.length > 0) {
@@ -235,16 +238,34 @@ export class RunPayrollUseCases {
       }
     }
 
+    // Chỉ xét phần kỳ mà người này THỰC SỰ là nhân viên. Người vào làm ngày 15
+    // không "thiếu hợp đồng" cho 01–14 — lúc đó họ chưa thuộc bảng lương.
+    const scope = effectivePayrollRange(period, {
+      from: employee.hireDate,
+      to: employee.terminationDate ?? null,
+    });
+    if (!scope) {
+      throw conflict(
+        `Nhân viên ${employeeId} không thuộc kỳ ${period.name} (vào làm/nghỉ việc ngoài khoảng kỳ)`,
+        'PAY_OUT_OF_SCOPE',
+      );
+    }
+
     // Hợp đồng theo NGÀY HIỆU LỰC (không theo `status`): một kỳ có thể trải trên
     // nhiều hợp đồng, và hợp đồng đã hết hiệu lực vẫn đúng cho đoạn quá khứ.
     const contractRows = await this.contracts.findOverlapping(
       employeeId,
-      period.startDate,
-      period.endDate,
+      scope.startDate,
+      scope.endDate,
     );
     if (contractRows.length === 0) throw new NotFoundError('Active contract');
 
-    const { segments: rawSegments } = await this.resolveSegments(period, employeeId, contractRows);
+    const { segments: rawSegments } = await this.resolveSegments(
+      period,
+      scope,
+      employeeId,
+      contractRows,
+    );
 
     // Mức lương của đoạn CUỐI kỳ — dùng để hiển thị và làm nền bảo hiểm dự
     // phòng. Phần tính toán lấy từ từng đoạn, không lấy từ đây.
@@ -450,7 +471,7 @@ export class RunPayrollUseCases {
     if (!period) throw new NotFoundError('Payroll period');
     this.assertPeriodOpen(period);
 
-    const employees = await this.employees.listForRun();
+    const employees = await this.employees.listForRun(period.startDate, period.endDate);
 
     const result: PeriodRunResult = { periodId, computed: 0, errors: [] };
     for (const emp of employees) {

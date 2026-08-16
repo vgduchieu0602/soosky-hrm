@@ -4,6 +4,7 @@ import {
   buildContractSegments,
   describeGap,
   describeOverlap,
+  effectivePayrollRange,
 } from '@features/payroll/domain/contract-segment';
 import {
   grossUpFromNet,
@@ -116,20 +117,44 @@ export class PayrollUseCases {
         blockerCodes.push({ code, message });
       };
 
-      if (!hasContract.has(id)) addBlocker('PAY_CONTRACT_MISSING', 'Chưa có hợp đồng đang hiệu lực');
+      // Chỉ soi phần kỳ mà người này thực sự là nhân viên — giống hệt engine, nên
+      // preflight không thể lệch kết luận so với lúc chạy thật.
+      const scope = effectivePayrollRange(period, {
+        from: e.hireDate,
+        to: e.terminationDate ?? null,
+      });
+
+      // Không thuộc kỳ (vào làm sau kỳ / đã nghỉ trước kỳ) thì không có gì để
+      // cảnh báo — người này sẽ không có dòng lương nào cả.
+      if (!scope) {
+        return {
+          employeeId: id,
+          employeeCode: e.employeeCode,
+          fullName: nameOf.get(id) || e.employeeCode,
+          inPeriod: false,
+          blockers,
+          blockerCodes,
+          warnings,
+        };
+      }
+
+      const contracts = contractsByEmployee.get(id) ?? [];
+      // Xét hợp đồng phủ PHẠM VI của kỳ, không xét `status` hiện tại: người đã
+      // nghỉ vẫn có hợp đồng hợp lệ cho kỳ quá khứ.
+      if (contracts.length === 0 && !hasContract.has(id)) {
+        addBlocker('PAY_CONTRACT_MISSING', 'Chưa có hợp đồng phủ kỳ này');
+      }
       if (!hasEval.has(id)) addBlocker('PAY_EVAL_REQUIRED', 'Chưa có đánh giá được duyệt cho kỳ này');
 
-      // Chồng/thủng hợp đồng dùng CHUNG hàm chia đoạn với engine tính lương, nên
-      // preflight không thể lệch kết luận so với lúc chạy thật.
       const { overlaps, gaps } = buildContractSegments(
-        (contractsByEmployee.get(id) ?? []).map((c) => ({
+        contracts.map((c) => ({
           contractId: String((c as { _id: unknown })._id),
           startDate: c.startDate,
           endDate: c.endDate ?? null,
           employmentStatus: c.employmentStatus,
           baseSalary: 0,
         })),
-        period,
+        scope,
       );
       for (const overlap of overlaps) {
         addBlocker('PAY_CONTRACT_OVERLAP', describeOverlap(overlap));
@@ -146,20 +171,23 @@ export class PayrollUseCases {
         employeeId: id,
         employeeCode: e.employeeCode,
         fullName: nameOf.get(id) || e.employeeCode,
+        inPeriod: true,
         blockers,
         blockerCodes,
         warnings,
       };
     });
 
-    const blocked = items.filter((i) => i.blockers.length > 0);
+    // Người không thuộc kỳ không được tính vào tổng "sẵn sàng / bị chặn".
+    const inPeriod = items.filter((i) => i.inPeriod);
+    const blocked = inPeriod.filter((i) => i.blockers.length > 0);
     const policyWarnings: string[] = [];
     if (!policy) policyWarnings.push('Chưa có chính sách lương hiệu lực — không thể tính lương.');
     else if (!policy.socialInsuranceSalary) policyWarnings.push('Chưa đặt "Mức lương đóng BHXH" — nền BH sẽ lấy theo lương hợp đồng.');
 
     return {
-      total: items.length,
-      ready: items.length - blocked.length,
+      total: inPeriod.length,
+      ready: inPeriod.length - blocked.length,
       blockedCount: blocked.length,
       policyWarnings,
       items: items.filter((i) => i.blockers.length || i.warnings.length),

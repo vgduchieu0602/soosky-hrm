@@ -33,13 +33,21 @@ import type {
 
 export class MongooseEmployeeGateway implements EmployeeGateway {
   findByIdLean(id: Id) {
-    return Employee.findById(id).select('_id shiftId salaryZone').lean() as unknown as Promise<EmployeeLean | null>;
+    return Employee.findById(id)
+      .select('_id shiftId salaryZone hireDate terminationDate')
+      .lean() as unknown as Promise<EmployeeLean | null>;
   }
   findByUserId(userId: Id) {
     return Employee.findOne({ userId }).select('_id').lean() as unknown as Promise<{ _id: unknown } | null>;
   }
-  listForRun() {
-    return Employee.find({ status: { $in: ['active', 'on_leave'] } })
+  listForRun(periodStart: Date, periodEnd: Date) {
+    // Thành viên của kỳ xét theo KHOẢNG LÀM VIỆC, không theo trạng thái hiện tại:
+    // trạng thái chỉ mô tả hôm nay, còn bảng lương tháng 8 phải tính được cả
+    // người tháng 9 mới nghỉ.
+    return Employee.find({
+      hireDate: { $lte: periodEnd },
+      $or: [{ terminationDate: null }, { terminationDate: { $gte: periodStart } }],
+    })
       .select('_id')
       .lean() as unknown as Promise<{ _id: unknown }[]>;
   }
@@ -50,7 +58,7 @@ export class MongooseEmployeeGateway implements EmployeeGateway {
   }
   listNonTerminatedWithCode() {
     return Employee.find({ status: { $nin: ['terminated'] } })
-      .select('_id employeeCode')
+      .select('_id employeeCode hireDate terminationDate')
       .lean() as unknown as Promise<EmployeeIdCode[]>;
   }
 }

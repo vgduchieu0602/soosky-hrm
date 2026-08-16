@@ -53,8 +53,9 @@ export interface SegmentResult {
   /** Khoảng bị hai hợp đồng cùng phủ — payroll phải từ chối, không tự chọn. */
   overlaps: OverlapIssue[];
   /**
-   * Khoảng TRỐNG NẰM GIỮA hai hợp đồng. Người gọi phải hỏi lịch làm việc xem
-   * khoảng đó có ngày công thật không rồi mới quyết định chặn.
+   * Khoảng trong phạm vi KHÔNG có hợp đồng nào phủ (đầu, giữa hoặc cuối). Người
+   * gọi phải hỏi lịch làm việc xem khoảng đó có ngày công thật không rồi mới
+   * quyết định chặn — trống đúng vào thứ Bảy/Chủ nhật thì không đáng chặn.
    */
   gaps: DateRange[];
 }
@@ -77,9 +78,10 @@ const addDays = (d: Date, days: number): Date => new Date(startOfDay(d).getTime(
  *   from = max(hợp đồng.startDate, kỳ.startDate)
  *   to   = min(hợp đồng.endDate ?? kỳ.endDate, kỳ.endDate)
  *
- * Khoảng trống ở ĐẦU hoặc CUỐI kỳ không bị coi là lỗi: nó chỉ có nghĩa là người
- * này vào làm giữa kỳ hoặc nghỉ giữa kỳ — chuyện bình thường. Chỉ khoảng trống
- * KẸP GIỮA hai hợp đồng mới đáng ngờ, vì nghĩa là dữ liệu hợp đồng bị thủng.
+ * `period` ở đây là PHẠM VI THUỘC BẢNG LƯƠNG, không phải nguyên kỳ: người gọi
+ * phải kẹp theo ngày vào làm / nghỉ việc bằng `effectivePayrollRange` trước.
+ * Nhờ vậy mọi ngày trong phạm vi đều PHẢI có hợp đồng phủ, và khoảng trống ở
+ * đầu/cuối/giữa đều là dữ liệu thủng thật sự.
  */
 export function buildContractSegments(
   contracts: readonly ContractInput[],
@@ -113,6 +115,17 @@ export function buildContractSegments(
   const overlaps: OverlapIssue[] = [];
   const gaps: DateRange[] = [];
 
+  // Khoảng trống ở ĐẦU/CUỐI phạm vi cũng là thủng hợp đồng — vì `period` truyền
+  // vào đây đã là PHẠM VI THUỘC BẢNG LƯƠNG (đã kẹp theo ngày vào làm / nghỉ
+  // việc), nên mọi ngày trong phạm vi đều phải có hợp đồng phủ. Người vào làm
+  // giữa kỳ không lọt vào đây vì phạm vi của họ bắt đầu từ ngày vào làm.
+  if (segments.length > 0) {
+    const first = segments[0]!;
+    const last = segments[segments.length - 1]!;
+    if (first.from > periodStart) gaps.push({ from: periodStart, to: addDays(first.from, -1) });
+    if (last.to < periodEnd) gaps.push({ from: addDays(last.to, 1), to: periodEnd });
+  }
+
   for (let i = 1; i < segments.length; i += 1) {
     const previous = segments[i - 1]!;
     const current = segments[i]!;
@@ -133,7 +146,42 @@ export function buildContractSegments(
     }
   }
 
+  gaps.sort((a, b) => a.from.getTime() - b.from.getTime());
   return { segments, overlaps, gaps };
+}
+
+/** Khoảng người này thực sự là nhân sự của công ty. `to = null` = còn làm. */
+export interface EmploymentWindow {
+  from: Date;
+  to: Date | null;
+}
+
+/**
+ * Khoảng của kỳ mà nhân viên THỰC SỰ thuộc bảng lương.
+ *
+ *   from = max(đầu kỳ, ngày vào làm)
+ *   to   = min(cuối kỳ, ngày nghỉ việc ?? cuối kỳ)
+ *
+ * Trả `null` khi hai khoảng không giao nhau — vào làm sau kỳ, hoặc đã nghỉ trước
+ * kỳ; những người này không có dòng lương nào cả.
+ *
+ * Không có bước này thì người vào làm ngày 15 bị báo "thiếu hợp đồng 01–14",
+ * trong khi 01–14 họ còn chưa là nhân viên.
+ */
+export function effectivePayrollRange(
+  period: { startDate: Date; endDate: Date },
+  employment: EmploymentWindow,
+): { startDate: Date; endDate: Date } | null {
+  const periodStart = startOfDay(period.startDate);
+  const periodEnd = startOfDay(period.endDate);
+  const hiredAt = startOfDay(employment.from);
+  const leftAt = employment.to ? startOfDay(employment.to) : null;
+
+  const from = hiredAt > periodStart ? hiredAt : periodStart;
+  const to = leftAt && leftAt < periodEnd ? leftAt : periodEnd;
+
+  if (from > to) return null;
+  return { startDate: from, endDate: to };
 }
 
 /** `2026-08-10` — dùng trong thông báo lỗi cho HR đọc. */

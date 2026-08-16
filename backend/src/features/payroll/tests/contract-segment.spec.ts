@@ -9,6 +9,7 @@
 import {
   buildContractSegments,
   dayLabel,
+  effectivePayrollRange,
   describeGap,
   describeOverlap,
   type ContractInput,
@@ -183,24 +184,92 @@ describe('phát hiện khoảng trống', () => {
     expect(overlaps).toEqual([]);
   });
 
-  it('vào làm giữa kỳ KHÔNG bị coi là thủng hợp đồng', () => {
+  it('hợp đồng bắt đầu muộn hơn phạm vi → lộ khoảng trống ĐẦU', () => {
+    // Người vào làm giữa kỳ KHÔNG rơi vào đây: phạm vi truyền vào đã được kẹp
+    // theo ngày vào làm (xem `effectivePayrollRange`).
     const { gaps, segments } = buildContractSegments(
       [contract({ contractId: 'A', startDate: d('2026-08-11') })],
       AUGUST,
     );
 
-    expect(gaps).toEqual([]);
+    expect(gaps).toHaveLength(1);
+    expect(dayLabel(gaps[0]!.from)).toBe('2026-08-01');
+    expect(dayLabel(gaps[0]!.to)).toBe('2026-08-10');
     expect(dayLabel(segments[0]!.from)).toBe('2026-08-11');
   });
 
-  it('nghỉ giữa kỳ KHÔNG bị coi là thủng hợp đồng', () => {
+  it('hợp đồng kết thúc sớm hơn phạm vi → lộ khoảng trống CUỐI', () => {
     const { gaps, segments } = buildContractSegments(
       [contract({ contractId: 'A', endDate: d('2026-08-20') })],
       AUGUST,
     );
 
-    expect(gaps).toEqual([]);
+    expect(gaps).toHaveLength(1);
+    expect(dayLabel(gaps[0]!.from)).toBe('2026-08-21');
+    expect(dayLabel(gaps[0]!.to)).toBe('2026-08-31');
     expect(dayLabel(segments[0]!.to)).toBe('2026-08-20');
+  });
+});
+
+describe('phạm vi thuộc bảng lương', () => {
+  const employment = (from: string, to?: string) => ({ from: d(from), to: to ? d(to) : null });
+
+  it('vào làm giữa kỳ → phạm vi bắt đầu từ ngày vào làm', () => {
+    expect(effectivePayrollRange(AUGUST, employment('2026-08-15'))).toEqual({
+      startDate: d('2026-08-15'),
+      endDate: d('2026-08-31'),
+    });
+  });
+
+  it('nghỉ giữa kỳ → phạm vi kết thúc ở ngày nghỉ', () => {
+    expect(effectivePayrollRange(AUGUST, employment('2020-01-01', '2026-08-20'))).toEqual({
+      startDate: d('2026-08-01'),
+      endDate: d('2026-08-20'),
+    });
+  });
+
+  it('làm cả kỳ → phạm vi đúng bằng kỳ', () => {
+    expect(effectivePayrollRange(AUGUST, employment('2020-01-01'))).toEqual({
+      startDate: d('2026-08-01'),
+      endDate: d('2026-08-31'),
+    });
+  });
+
+  it('vào làm sau kỳ → không thuộc kỳ', () => {
+    expect(effectivePayrollRange(AUGUST, employment('2026-09-01'))).toBeNull();
+  });
+
+  it('nghỉ trước kỳ → không thuộc kỳ', () => {
+    expect(effectivePayrollRange(AUGUST, employment('2020-01-01', '2026-07-31'))).toBeNull();
+  });
+
+  it('vào làm đúng ngày cuối kỳ vẫn thuộc kỳ (một ngày)', () => {
+    expect(effectivePayrollRange(AUGUST, employment('2026-08-31'))).toEqual({
+      startDate: d('2026-08-31'),
+      endDate: d('2026-08-31'),
+    });
+  });
+
+  it('người vào làm giữa kỳ, hợp đồng khớp ngày vào làm → KHÔNG có khoảng trống', () => {
+    const scope = effectivePayrollRange(AUGUST, employment('2026-08-15'))!;
+    const { gaps, segments } = buildContractSegments(
+      [contract({ contractId: 'A', startDate: d('2026-08-15'), endDate: null })],
+      scope,
+    );
+
+    expect(gaps).toEqual([]);
+    expect(dayLabel(segments[0]!.from)).toBe('2026-08-15');
+    expect(dayLabel(segments[0]!.to)).toBe('2026-08-31');
+  });
+
+  it('người nghỉ giữa kỳ, hợp đồng khớp ngày nghỉ → KHÔNG có khoảng trống', () => {
+    const scope = effectivePayrollRange(AUGUST, employment('2020-01-01', '2026-08-20'))!;
+    const { gaps } = buildContractSegments(
+      [contract({ contractId: 'A', endDate: d('2026-08-20') })],
+      scope,
+    );
+
+    expect(gaps).toEqual([]);
   });
 });
 
