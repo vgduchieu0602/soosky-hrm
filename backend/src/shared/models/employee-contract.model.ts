@@ -52,6 +52,10 @@ const employeeContractSchema = new Schema<IEmployeeContract>(
   },
 );
 
+// Payroll tra hợp đồng theo KHOẢNG HIỆU LỰC (startDate ≤ hết kỳ, endDate ≥ đầu
+// kỳ) chứ không theo `status`, nên cần index theo ngày bắt đầu.
+employeeContractSchema.index({ employeeId: 1, startDate: 1 });
+
 // Serialize Decimal128 baseSalary to a plain string so clients never receive
 // the raw `{ $numberDecimal }` BSON wrapper. (Lean reads are normalized in the
 // repository instead, since lean bypasses this transform.)

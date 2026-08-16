@@ -9,13 +9,38 @@ import mongoose from 'mongoose';
 import { type IPayroll } from '@shared/models/payroll.model';
 import {
   computeAttendanceRatio,
+  computeEffectiveBaseSalary,
   computePayroll,
+  type EffectiveBaseResult,
   type SalaryComponentWeights,
   type TaxBracket,
   type InsuranceRates,
 } from '@shared/utils/salary.util';
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(Math.round(n)));
+
+/**
+ * Một đoạn lương đã giải xong mọi đầu vào số học.
+ *
+ * Kỳ lương trải trên nhiều hợp đồng thì mỗi đoạn có mức lương, tỷ lệ hưởng và
+ * ngày công riêng; thành phần lương được tính RIÊNG cho từng đoạn rồi cộng lại.
+ */
+export interface PayrollSegmentInput {
+  contractId: mongoose.Types.ObjectId;
+  from: Date;
+  to: Date;
+  employmentStatus: string;
+  /** Lương ghi trên hợp đồng của đoạn này. */
+  baseSalary: number;
+  /** Tỷ lệ hưởng: 1 với chính thức/thực tập, `probationPayRate` với thử việc. */
+  payRate: number;
+  standardWorkDays: number;
+  actualWorkDays: number;
+  /** Thử việc/thực tập = 0 theo quy định hiện hành. */
+  performanceRatio: number;
+  goalRatio: number;
+  weights: SalaryComponentWeights;
+}
 
 export interface PayrollRunContext {
   payrollPeriodId: mongoose.Types.ObjectId;
@@ -33,6 +58,17 @@ export interface PayrollRunContext {
   goalRatio: number;
   weights?: SalaryComponentWeights;
 
+  /**
+   * Các đoạn lương của kỳ. Luôn có ít nhất một phần tử. Khi chỉ có một đoạn phủ
+   * cả kỳ, kết quả trùng khít cách tính cũ.
+   */
+  segments: PayrollSegmentInput[];
+
+  /**
+   * Lương hợp đồng dùng để HIỂN THỊ và làm nền bảo hiểm dự phòng — theo quy ước
+   * là mức của đoạn CUỐI kỳ. Khi có nhiều hợp đồng, một con số duy nhất không
+   * mô tả hết kỳ; phần tính toán lấy từ `segments`, không lấy từ đây.
+   */
   baseSalary: number;
   totalTaxableAllowances: number;
   totalNonTaxableAllowances: number;
@@ -64,11 +100,52 @@ export interface PayrollRunContext {
   insuranceRates?: InsuranceRates;
 }
 
+/**
+ * Tính thành phần lương cho từng đoạn rồi cộng lại.
+ *
+ * Mỗi đoạn có tỷ lệ chấm công riêng (ngày công thực tế / ngày công chuẩn CỦA
+ * ĐOẠN ĐÓ), nên chuyển thử việc → chính thức giữa kỳ ra đúng hai khoản, không
+ * còn chuyện lấy mức lương cuối kỳ nhân cho cả tháng.
+ */
+function computeSegments(segments: PayrollSegmentInput[]): {
+  total: EffectiveBaseResult;
+  perSegment: (EffectiveBaseResult & { attendanceRatio: number })[];
+} {
+  const perSegment = segments.map((segment) => {
+    const attendanceRatio = Math.min(
+      1,
+      computeAttendanceRatio(segment.actualWorkDays, segment.standardWorkDays),
+    );
+    const result = computeEffectiveBaseSalary({
+      baseSalary: Math.round(segment.baseSalary * segment.payRate),
+      attendanceRatio,
+      performanceRatio: segment.performanceRatio,
+      goalRatio: segment.goalRatio,
+      weights: segment.weights,
+    });
+    return { ...result, attendanceRatio };
+  });
+
+  const total = perSegment.reduce<EffectiveBaseResult>(
+    (sum, s) => ({
+      attendanceComponent: sum.attendanceComponent + s.attendanceComponent,
+      performanceComponent: sum.performanceComponent + s.performanceComponent,
+      goalComponent: sum.goalComponent + s.goalComponent,
+      proRatedBaseSalary: sum.proRatedBaseSalary + s.proRatedBaseSalary,
+    }),
+    { attendanceComponent: 0, performanceComponent: 0, goalComponent: 0, proRatedBaseSalary: 0 },
+  );
+
+  return { total, perSegment };
+}
+
 /** Map resolved inputs onto a Payroll document (money as Decimal128). Pure. */
 export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
   // Cap at 1: working more days than the period standard must not inflate the
   // 20% attendance component beyond full.
   const attendanceRatio = Math.min(1, computeAttendanceRatio(ctx.actualWorkDays, ctx.standardWorkDays));
+
+  const segments = computeSegments(ctx.segments);
 
   const r = computePayroll({
     baseSalary: ctx.baseSalary,
@@ -76,6 +153,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     performanceRatio: ctx.performanceRatio,
     goalRatio: ctx.goalRatio,
     weights: ctx.weights,
+    components: segments.total,
     totalTaxableAllowances: ctx.totalTaxableAllowances,
     totalNonTaxableAllowances: ctx.totalNonTaxableAllowances,
     insuranceBaseSalary: ctx.insuranceBaseSalary,
@@ -152,6 +230,24 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     netSalary: dec(r.netSalary),
 
     leaveDays: ctx.leaveDays,
+
+    // Additive: cho phép kiểm chứng "kỳ này gồm mấy đoạn, mỗi đoạn ra bao nhiêu".
+    // Ảnh chụp đầy đủ (chính sách, tiêu chí đánh giá) thuộc giai đoạn sau.
+    contractSegments: ctx.segments.map((segment, i) => ({
+      contractId: segment.contractId,
+      from: segment.from,
+      to: segment.to,
+      employmentStatus: segment.employmentStatus,
+      baseSalary: dec(segment.baseSalary),
+      payRate: segment.payRate,
+      standardWorkDays: segment.standardWorkDays,
+      actualWorkDays: segment.actualWorkDays,
+      attendanceComponent: dec(segments.perSegment[i]!.attendanceComponent),
+      performanceComponent: dec(segments.perSegment[i]!.performanceComponent),
+      goalComponent: dec(segments.perSegment[i]!.goalComponent),
+      segmentSalary: dec(segments.perSegment[i]!.proRatedBaseSalary),
+    })),
+
     status: 'draft',
     computedAt: new Date(),
   };

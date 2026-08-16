@@ -2,12 +2,16 @@
  * Payroll Run engine — resolves every input for an employee in a period, runs
  * the pure `computePayroll` chain, and upserts a Payroll record.
  *
- *   contract.baseSalary ┐
- *   attendance summary  ├─▶ computePayroll() ─▶ buildPayrollDoc() ─▶ upsert Payroll
- *   monthlyEvaluation   │
- *   salaryPolicyConfig  │
- *   taxProfile          │
- *   allowances/bonuses ─┘
+ *   hợp đồng chồng kỳ ─▶ chia ĐOẠN LƯƠNG ─┐
+ *   chấm công + lịch làm việc (theo đoạn) ─┤
+ *   monthlyEvaluation (theo KỲ)           ├─▶ computePayroll() ─▶ buildPayrollDoc()
+ *   salaryPolicyConfig                    │                        ─▶ upsert Payroll
+ *   taxProfile · allowances/bonuses ──────┘
+ *
+ * Một kỳ có thể trải trên NHIỀU hợp đồng (thử việc → chính thức, đổi mức lương
+ * giữa tháng). Mỗi đoạn có mức lương, tỷ lệ hưởng và ngày công riêng; thành phần
+ * lương tính riêng từng đoạn rồi cộng lại. Phụ cấp/thưởng/khấu trừ/thuế/bảo hiểm
+ * vẫn ở mức KỲ — quy định hiện hành chưa yêu cầu chia nhỏ.
  *
  * Idempotent on the unique { payrollPeriodId, employeeId } index: re-running a
  * period recomputes `draft` rows and refuses to touch `approved`/`paid` ones.
@@ -24,16 +28,24 @@ import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { logger } from '@core/logger/logger';
 import { type IPayroll } from '@shared/models/payroll.model';
-import { type SalaryComponentWeights } from '@shared/utils/salary.util';
+import { DEFAULT_COMPONENT_WEIGHTS, type SalaryComponentWeights } from '@shared/utils/salary.util';
+import {
+  buildContractSegments,
+  describeGap,
+  describeOverlap,
+  type ContractSegment,
+} from '@features/payroll/domain/contract-segment';
 import {
   buildPayrollDoc,
   type PayrollRunContext,
+  type PayrollSegmentInput,
 } from '@features/payroll/infrastructure/payroll-doc.mapper';
 import type {
   PayrollPeriodRepository,
   PayrollRepository,
   EmployeeGateway,
   ContractGateway,
+  ContractRecord,
   ShiftGateway,
   SalaryPolicyGateway,
   EvaluationGateway,
@@ -83,6 +95,12 @@ function sumAllowances(
   };
 }
 
+/** Đoạn lương đã có ngày công chuẩn + ngày công thực tế của riêng nó. */
+interface ResolvedSegment extends ContractSegment {
+  standardWorkDays: number;
+  actualWorkDays: number;
+}
+
 export interface RunOptions {
   /** Refuse to compute when the employee has no approved MonthlyEvaluation. */
   requireApprovedEvaluation?: boolean;
@@ -111,6 +129,79 @@ export class RunPayrollUseCases {
     private readonly workCalendar: WorkCalendarGateway,
     private readonly uow: UnitOfWork,
   ) {}
+
+  /**
+   * Chia kỳ thành các đoạn lương và giải ngày công / chấm công cho từng đoạn.
+   *
+   * @throws HttpError 409 `PAY_CONTRACT_OVERLAP` khi hai hợp đồng cùng phủ một
+   *   khoảng ngày — payroll không được tự đoán hợp đồng nào đúng.
+   * @throws HttpError 409 `PAY_CONTRACT_GAP` khi có khoảng trống KẸP GIỮA hai
+   *   hợp đồng mà khoảng đó còn ngày công thật.
+   */
+  private async resolveSegments(
+    period: PeriodRecord,
+    employeeId: string,
+    contractRows: ContractRecord[],
+  ): Promise<{ segments: ResolvedSegment[] }> {
+    const { segments, overlaps, gaps } = buildContractSegments(
+      contractRows.map((c) => ({
+        contractId: String((c as { _id: unknown })._id),
+        startDate: c.startDate,
+        endDate: c.endDate ?? null,
+        employmentStatus: c.employmentStatus,
+        baseSalary: toNum(c.baseSalary),
+      })),
+      period,
+    );
+
+    if (overlaps.length > 0) {
+      throw conflict(
+        `Hợp đồng của nhân viên ${employeeId} bị chồng ngày trong kỳ ${period.name}: ` +
+          overlaps.map(describeOverlap).join('; '),
+        'PAY_CONTRACT_OVERLAP',
+      );
+    }
+
+    const workingDays = await this.employeeWorkingDays(employeeId);
+
+    // Khoảng trống chỉ rơi vào thứ Bảy/Chủ nhật/ngày lễ thì không phải lỗi dữ
+    // liệu đáng chặn — chỉ chặn khi khoảng đó thực sự có ngày công.
+    for (const gap of gaps) {
+      const gapWorkDays = await this.workCalendar.standardWorkDaysInRange(gap.from, gap.to, workingDays);
+      if (gapWorkDays > 0) {
+        throw conflict(
+          `Nhân viên ${employeeId} thiếu hợp đồng trong kỳ ${period.name}: ${describeGap(gap)} ` +
+            `(${gapWorkDays} ngày công)`,
+          'PAY_CONTRACT_GAP',
+        );
+      }
+    }
+
+    const resolved: ResolvedSegment[] = [];
+    for (const segment of segments) {
+      // Dùng lại đúng hạ tầng lịch làm việc + chấm công, chỉ thu hẹp khoảng —
+      // không chia theo ngày dương lịch, không truy vấn từng ngày.
+      const [standardWorkDays, summary] = await Promise.all([
+        this.workCalendar.standardWorkDaysInRange(segment.from, segment.to, workingDays),
+        this.attendance.aggregatePeriod(employeeId, segment.from, segment.to),
+      ]);
+      resolved.push({
+        ...segment,
+        standardWorkDays,
+        actualWorkDays: summary.actualWorkDays,
+      });
+    }
+
+    return { segments: resolved };
+  }
+
+  /** Ngày làm việc trong tuần theo ca của nhân viên (rỗng = lịch chung). */
+  private async employeeWorkingDays(employeeId: string): Promise<number[] | undefined> {
+    const employee = await this.employees.findByIdLean(employeeId);
+    if (!employee?.shiftId) return undefined;
+    const workingDays = await this.shifts.workingDays(String(employee.shiftId));
+    return workingDays?.length ? workingDays : undefined;
+  }
 
   /** Resolve every input and build the context for one employee. */
   private async resolveContext(
@@ -144,10 +235,21 @@ export class RunPayrollUseCases {
       }
     }
 
-    // Active contract → base salary snapshot.
-    const contract = await this.contracts.findActive(employeeId);
-    if (!contract) throw new NotFoundError('Active contract');
-    const baseSalary = toNum(contract.baseSalary);
+    // Hợp đồng theo NGÀY HIỆU LỰC (không theo `status`): một kỳ có thể trải trên
+    // nhiều hợp đồng, và hợp đồng đã hết hiệu lực vẫn đúng cho đoạn quá khứ.
+    const contractRows = await this.contracts.findOverlapping(
+      employeeId,
+      period.startDate,
+      period.endDate,
+    );
+    if (contractRows.length === 0) throw new NotFoundError('Active contract');
+
+    const { segments: rawSegments } = await this.resolveSegments(period, employeeId, contractRows);
+
+    // Mức lương của đoạn CUỐI kỳ — dùng để hiển thị và làm nền bảo hiểm dự
+    // phòng. Phần tính toán lấy từ từng đoạn, không lấy từ đây.
+    const lastSegment = rawSegments[rawSegments.length - 1]!;
+    const baseSalary = lastSegment.baseSalary;
 
     // Salary policy in effect at the pay date.
     const policy = await this.policies.effectiveAt(period.payDate);
@@ -172,20 +274,42 @@ export class RunPayrollUseCases {
     // Attendance summary over the period.
     const summary = await this.attendance.aggregatePeriod(employeeId, period.startDate, period.endDate);
 
-    // Employment status (tình trạng, not loại HĐLĐ) decides pay base + insurance:
-    //   • internship → FULL contract salary, attendance-prorated only, NO insurance.
-    //   • probation  → 85% of the agreed salary, NO insurance.
-    //   • official   → full agreed salary, contributes compulsory insurance on a
-    //                  FIXED company-wide salary (mức đóng BHXH) + union fee.
-    // Interns/probation are attendance-prorated only (no 60/20 perf/goal split).
-    const isIntern = contract.employmentStatus === 'internship';
-    const isProbation = contract.employmentStatus === 'probation';
-    const isInsuranceExempt = isIntern || isProbation;
-
+    // Tình trạng làm việc (không phải loại HĐLĐ) quyết định cách trả và bảo hiểm:
+    //   • internship → lương hợp đồng, chỉ chia theo chấm công, KHÔNG bảo hiểm.
+    //   • probation  → `probationPayRate` × lương hợp đồng, KHÔNG bảo hiểm.
+    //   • official   → đủ lương, áp trọng số chấm công/hiệu suất/mục tiêu từ
+    //                  chính sách, đóng bảo hiểm trên mức cố định + phí công đoàn.
+    // Trạng thái này nay xét theo TỪNG ĐOẠN, không còn lấy từ một hợp đồng duy
+    // nhất — kỳ có chuyển thử việc → chính thức phải ra hai khoản khác nhau.
     const probationRate = (policy.probationPayRate ?? PROBATION_PAY_RATE * 100) / 100;
-    // Intern pay follows the contract salary (chỉ chịu ảnh hưởng của chấm công);
-    // probation is paid a fraction of it; official gets the full amount.
-    const effectiveBase = isProbation ? Math.round(baseSalary * probationRate) : baseSalary;
+    const policyWeights = policy.salaryComponentWeights as SalaryComponentWeights | undefined;
+
+    const segments: PayrollSegmentInput[] = rawSegments.map((segment) => {
+      const isOfficial = segment.employmentStatus === 'official';
+      return {
+        contractId: new mongoose.Types.ObjectId(segment.contractId),
+        from: segment.from,
+        to: segment.to,
+        employmentStatus: segment.employmentStatus,
+        baseSalary: segment.baseSalary,
+        payRate: segment.employmentStatus === 'probation' ? probationRate : 1,
+        standardWorkDays: segment.standardWorkDays,
+        actualWorkDays: segment.actualWorkDays,
+        // Đánh giá gắn với KỲ, không gắn với hợp đồng: cùng một
+        // performanceRatio/goalRatio dùng lại cho mọi đoạn chính thức.
+        performanceRatio: isOfficial ? (evaluation?.performanceRatio ?? 0) : 0,
+        goalRatio: isOfficial ? (evaluation?.goalRatio ?? 0) : 0,
+        // Thực tập/thử việc chỉ ăn theo chấm công → dồn 100% vào trọng số chấm công.
+        weights: isOfficial
+          ? (policyWeights ?? DEFAULT_COMPONENT_WEIGHTS)
+          : { attendance: 100, performance: 0, goal: 0 },
+      };
+    });
+
+    // Miễn bảo hiểm khi CẢ KỲ không có đoạn chính thức nào. Có ít nhất một đoạn
+    // chính thức thì vẫn thu theo mức của kỳ (không chia nhỏ) — quy định hiện
+    // hành chưa yêu cầu chia tỷ lệ bảo hiểm theo ngày.
+    const isInsuranceExempt = !rawSegments.some((s) => s.employmentStatus === 'official');
 
     const fixedInsuranceSalary = toNum(policy.socialInsuranceSalary) || baseSalary;
     const insuranceBaseSalary = isInsuranceExempt ? 0 : fixedInsuranceSalary;
@@ -245,14 +369,10 @@ export class RunPayrollUseCases {
 
       performanceRatio: evaluation?.performanceRatio ?? 0,
       goalRatio: evaluation?.goalRatio ?? 0,
-      // Intern/probation pay is purely attendance-prorated (no perf/goal split):
-      //   effectiveBase / standardWorkDays × actualWorkDays
-      // model it as a 100% attendance weight.
-      weights: isInsuranceExempt
-        ? { attendance: 100, performance: 0, goal: 0 }
-        : (policy.salaryComponentWeights as SalaryComponentWeights | undefined),
+      weights: policyWeights,
 
-      baseSalary: effectiveBase,
+      segments,
+      baseSalary,
       totalTaxableAllowances: allowances.taxable,
       totalNonTaxableAllowances: allowances.nonTaxable,
       insuranceBaseSalary,

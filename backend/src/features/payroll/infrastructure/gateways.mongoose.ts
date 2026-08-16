@@ -56,16 +56,45 @@ export class MongooseEmployeeGateway implements EmployeeGateway {
 }
 
 export class MongooseContractGateway implements ContractGateway {
-  findActive(employeeId: Id) {
-    return EmployeeContractModel.findOne({ employeeId, status: 'active' })
-      .sort({ startDate: -1 })
-      .lean() as unknown as Promise<ContractRecord | null>;
-  }
   async activeEmployeeIds(employeeIds: Id[]) {
     const rows = await EmployeeContractModel.find({ employeeId: { $in: employeeIds }, status: 'active' })
       .select('employeeId')
       .lean();
     return rows.map((c) => String(c.employeeId));
+  }
+
+  /**
+   * Điều kiện chồng lấn theo ngày hiệu lực (KHÔNG lọc `status`):
+   *   startDate <= to  AND  (endDate == null OR endDate >= from)
+   * Một truy vấn cho cả kỳ — không dò từng ngày.
+   */
+  findOverlapping(employeeId: Id, from: Date, to: Date) {
+    return EmployeeContractModel.find({
+      employeeId,
+      startDate: { $lte: to },
+      $or: [{ endDate: null }, { endDate: { $gte: from } }],
+    })
+      .sort({ startDate: 1 })
+      .lean() as unknown as Promise<ContractRecord[]>;
+  }
+
+  async findOverlappingForMany(employeeIds: Id[], from: Date, to: Date) {
+    const rows = (await EmployeeContractModel.find({
+      employeeId: { $in: employeeIds },
+      startDate: { $lte: to },
+      $or: [{ endDate: null }, { endDate: { $gte: from } }],
+    })
+      .sort({ startDate: 1 })
+      .lean()) as unknown as ContractRecord[];
+
+    const byEmployee = new Map<string, ContractRecord[]>();
+    for (const row of rows) {
+      const key = String((row as { employeeId: unknown }).employeeId);
+      const bucket = byEmployee.get(key);
+      if (bucket) bucket.push(row);
+      else byEmployee.set(key, [row]);
+    }
+    return byEmployee;
   }
 }
 

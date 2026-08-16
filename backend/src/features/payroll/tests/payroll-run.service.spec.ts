@@ -6,38 +6,60 @@ import { buildPayrollDoc, type PayrollRunContext } from '@features/payroll/appli
 const oid = () => new mongoose.Types.ObjectId();
 const num = (d: mongoose.Types.Decimal128) => Number(d.toString());
 
-const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => ({
-  payrollPeriodId: oid(),
-  employeeId: oid(),
-  policyConfigId: oid(),
-  monthlyEvaluationId: oid(),
-  standardWorkDays: 22,
-  actualWorkDays: 22,
-  unpaidLeaveDays: 0,
-  workDays: 22,
-  leaveDays: 0,
-  performanceRatio: 100,
-  goalRatio: 100,
-  baseSalary: 30_000_000,
-  totalTaxableAllowances: 2_000_000,
-  totalNonTaxableAllowances: 730_000,
-  insuranceBaseSalary: 30_000_000,
-  insuranceBaseAllowances: 0,
-  unionFee: 0,
-  deductions: [],
-  overtimePay: 0,
-  overtimeNonTaxablePay: 0,
-  totalBonuses: 0,
-  totalNonTaxableBonuses: 0,
-  socialHealthCeiling: 46_800_000,
-  unemploymentCeiling: 99_200_000,
-  personalDeduction: 11_000_000,
-  dependentDeduction: 4_400_000,
-  dependentsCount: 1,
-  isResident: true,
-  taxEnabled: true, // these specs verify the tax engine; production defaults to off
-  ...over,
-});
+const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => {
+  const merged = {
+    payrollPeriodId: oid(),
+    employeeId: oid(),
+    policyConfigId: oid(),
+    monthlyEvaluationId: oid(),
+    standardWorkDays: 22,
+    actualWorkDays: 22,
+    unpaidLeaveDays: 0,
+    workDays: 22,
+    leaveDays: 0,
+    performanceRatio: 100,
+    goalRatio: 100,
+    baseSalary: 30_000_000,
+    totalTaxableAllowances: 2_000_000,
+    totalNonTaxableAllowances: 730_000,
+    insuranceBaseSalary: 30_000_000,
+    insuranceBaseAllowances: 0,
+    unionFee: 0,
+    deductions: [],
+    overtimePay: 0,
+    overtimeNonTaxablePay: 0,
+    totalBonuses: 0,
+    totalNonTaxableBonuses: 0,
+    socialHealthCeiling: 46_800_000,
+    unemploymentCeiling: 99_200_000,
+    personalDeduction: 11_000_000,
+    dependentDeduction: 4_400_000,
+    dependentsCount: 1,
+    isResident: true,
+    taxEnabled: true, // these specs verify the tax engine; production defaults to off
+    ...over,
+  } as PayrollRunContext;
+
+  // Mặc định: MỘT đoạn hợp đồng phủ cả kỳ, phản chiếu đúng các giá trị cấp kỳ —
+  // đây là đường đi cũ (một hợp đồng duy nhất) và phải cho kết quả y hệt.
+  merged.segments = over.segments ?? [
+    {
+      contractId: oid(),
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: new Date('2026-08-31T00:00:00.000Z'),
+      employmentStatus: 'official',
+      baseSalary: merged.baseSalary,
+      payRate: 1,
+      standardWorkDays: merged.standardWorkDays,
+      actualWorkDays: merged.actualWorkDays,
+      performanceRatio: merged.performanceRatio,
+      goalRatio: merged.goalRatio,
+      weights: merged.weights ?? { attendance: 20, performance: 60, goal: 20 },
+    },
+  ];
+
+  return merged;
+};
 
 describe('buildPayrollDoc', () => {
   it('mirrors the E1 parallel-run case onto a Payroll doc (Decimal128)', () => {

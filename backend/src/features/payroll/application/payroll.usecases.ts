@@ -1,6 +1,11 @@
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { ForbiddenError } from '@shared/errors/forbidden.error';
 import {
+  buildContractSegments,
+  describeGap,
+  describeOverlap,
+} from '@features/payroll/domain/contract-segment';
+import {
   grossUpFromNet,
   type TaxBracket,
   type InsuranceRates,
@@ -84,11 +89,14 @@ export class PayrollUseCases {
     const employees = await this.employees.listNonTerminatedWithCode();
     const ids = employees.map((e) => String(e._id));
 
-    const [contractIds, evalIds, taxIds, profiles] = await Promise.all([
+    const [contractIds, evalIds, taxIds, profiles, contractsByEmployee] = await Promise.all([
       this.contracts.activeEmployeeIds(ids),
       this.evaluations.finalizedEmployeeIds(periodId),
       this.taxProfiles.employeeIdsEffective(ids, period.payDate),
       this.profiles.namesFor(ids),
+      // Một truy vấn cho toàn bộ nhân viên — phát hiện hợp đồng chồng/thủng
+      // TRƯỚC khi HR bấm tính lương, thay vì để cả mẻ chạy rồi mới báo lỗi.
+      this.contracts.findOverlappingForMany(ids, period.startDate, period.endDate),
     ]);
     const hasContract = new Set(contractIds);
     const hasEval = new Set(evalIds);
@@ -100,15 +108,46 @@ export class PayrollUseCases {
     const items = employees.map((e) => {
       const id = String(e._id);
       const blockers: string[] = [];
+      const blockerCodes: { code: string; message: string }[] = [];
       const warnings: string[] = [];
-      if (!hasContract.has(id)) blockers.push('Chưa có hợp đồng đang hiệu lực');
-      if (!hasEval.has(id)) blockers.push('Chưa có đánh giá được duyệt cho kỳ này');
+
+      const addBlocker = (code: string, message: string) => {
+        blockers.push(message);
+        blockerCodes.push({ code, message });
+      };
+
+      if (!hasContract.has(id)) addBlocker('PAY_CONTRACT_MISSING', 'Chưa có hợp đồng đang hiệu lực');
+      if (!hasEval.has(id)) addBlocker('PAY_EVAL_REQUIRED', 'Chưa có đánh giá được duyệt cho kỳ này');
+
+      // Chồng/thủng hợp đồng dùng CHUNG hàm chia đoạn với engine tính lương, nên
+      // preflight không thể lệch kết luận so với lúc chạy thật.
+      const { overlaps, gaps } = buildContractSegments(
+        (contractsByEmployee.get(id) ?? []).map((c) => ({
+          contractId: String((c as { _id: unknown })._id),
+          startDate: c.startDate,
+          endDate: c.endDate ?? null,
+          employmentStatus: c.employmentStatus,
+          baseSalary: 0,
+        })),
+        period,
+      );
+      for (const overlap of overlaps) {
+        addBlocker('PAY_CONTRACT_OVERLAP', describeOverlap(overlap));
+      }
+      // Preflight không tra lịch làm việc từng người (sẽ thành N+1); khoảng trống
+      // giữa hai hợp đồng báo ở mức CẢNH BÁO, engine mới là nơi chặn thật sau khi
+      // đã kiểm tra khoảng đó có ngày công hay không.
+      for (const gap of gaps) {
+        warnings.push(`${describeGap(gap)} — sẽ bị chặn nếu khoảng này có ngày công`);
+      }
+
       if (!hasTax.has(id)) warnings.push('Chưa có hồ sơ thuế (dùng mặc định: 0 phụ thuộc, cư trú)');
       return {
         employeeId: id,
         employeeCode: e.employeeCode,
         fullName: nameOf.get(id) || e.employeeCode,
         blockers,
+        blockerCodes,
         warnings,
       };
     });

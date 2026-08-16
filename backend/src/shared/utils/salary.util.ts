@@ -354,6 +354,14 @@ export interface ComputePayrollInput {
   /** Scale performance & goal components by attendance too (default false —
    *  only the attendance component is prorated). */
   prorateByAttendance?: boolean;
+  /**
+   * Thành phần lương ĐÃ TÍNH SẴN, thay cho việc engine tự tính từ một mức lương
+   * duy nhất. Dùng khi kỳ lương trải trên nhiều hợp đồng: mỗi đoạn có mức lương
+   * và trạng thái riêng, được tính rồi cộng lại (xem `contract-segment.ts`).
+   * Khi có giá trị này, `baseSalary`/ratio/weights KHÔNG còn quyết định thành
+   * phần lương — chúng chỉ còn là dữ liệu hiển thị.
+   */
+  components?: EffectiveBaseResult;
   // additive gross components
   totalTaxableAllowances?: number;
   totalNonTaxableAllowances?: number;
@@ -431,14 +439,16 @@ export interface ComputePayrollResult extends EffectiveBaseResult, InsuranceResu
  * converting money to Decimal128).
  */
 export function computePayroll(input: ComputePayrollInput): ComputePayrollResult {
-  const effective = computeEffectiveBaseSalary({
-    baseSalary: input.baseSalary,
-    attendanceRatio: input.attendanceRatio,
-    performanceRatio: input.performanceRatio,
-    goalRatio: input.goalRatio,
-    weights: input.weights,
-    prorateByAttendance: input.prorateByAttendance,
-  });
+  const effective =
+    input.components ??
+    computeEffectiveBaseSalary({
+      baseSalary: input.baseSalary,
+      attendanceRatio: input.attendanceRatio,
+      performanceRatio: input.performanceRatio,
+      goalRatio: input.goalRatio,
+      weights: input.weights,
+      prorateByAttendance: input.prorateByAttendance,
+    });
 
   const totalTaxableAllowances = input.totalTaxableAllowances ?? 0;
   const totalNonTaxableAllowances = input.totalNonTaxableAllowances ?? 0;

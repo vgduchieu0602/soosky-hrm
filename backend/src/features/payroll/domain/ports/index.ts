@@ -161,8 +161,19 @@ export interface EmployeeGateway {
 }
 
 export interface ContractGateway {
-  findActive(employeeId: Id): Promise<ContractRecord | null>;
   activeEmployeeIds(employeeIds: Id[]): Promise<string[]>;
+  /**
+   * Mọi hợp đồng có hiệu lực CHỒNG LÊN [from, to], sắp xếp theo `startDate` tăng
+   * dần. Lọc theo NGÀY HIỆU LỰC chứ không theo `status`: hợp đồng đã `expired`
+   * vẫn là dữ liệu đúng cho đoạn quá khứ của kỳ lương.
+   */
+  findOverlapping(employeeId: Id, from: Date, to: Date): Promise<ContractRecord[]>;
+  /** Như trên nhưng cho nhiều nhân viên trong MỘT truy vấn (dùng cho preflight). */
+  findOverlappingForMany(
+    employeeIds: Id[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, ContractRecord[]>>;
 }
 
 export interface ShiftGateway {

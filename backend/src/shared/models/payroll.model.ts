@@ -8,6 +8,31 @@ export type PayrollStatus = (typeof PAYROLL_STATUS)[number];
 
 type Dec = mongoose.Types.Decimal128;
 
+/**
+ * Một đoạn lương trong kỳ, ứng với đúng một hợp đồng.
+ *
+ * Kỳ lương có thể trải trên nhiều hợp đồng (thử việc → chính thức, đổi mức lương
+ * giữa tháng). Mảng này cho biết kỳ được chia thế nào và mỗi đoạn ra bao nhiêu —
+ * đủ để đối chiếu con số cuối cùng. Bản ghi cũ KHÔNG có trường này (optional).
+ */
+export interface IPayrollContractSegment {
+  contractId: Types.ObjectId;
+  from: Date;
+  to: Date;
+  employmentStatus: string;
+  /** Lương ghi trên hợp đồng của đoạn. */
+  baseSalary: Dec;
+  /** Tỷ lệ hưởng: 1 chính thức/thực tập · `probationPayRate` khi thử việc. */
+  payRate: number;
+  standardWorkDays: number;
+  actualWorkDays: number;
+  attendanceComponent: Dec;
+  performanceComponent: Dec;
+  goalComponent: Dec;
+  /** Tổng ba thành phần của riêng đoạn này. */
+  segmentSalary: Dec;
+}
+
 export interface IPayroll {
   payrollPeriodId: Types.ObjectId;
   employeeId: Types.ObjectId;
@@ -75,6 +100,8 @@ export interface IPayroll {
   netSalary: Dec;
 
   leaveDays: number;
+  /** Các đoạn hợp đồng của kỳ. Không có ở bản ghi tính trước khi tách đoạn. */
+  contractSegments?: IPayrollContractSegment[];
   status: PayrollStatus;
   approvedBy?: Types.ObjectId | null;
   paidAt?: Date | null;
@@ -86,6 +113,24 @@ export interface IPayroll {
 export type PayrollDoc = HydratedDocument<IPayroll>;
 
 const dec = { type: Schema.Types.Decimal128, default: () => mongoose.Types.Decimal128.fromString('0') };
+
+const payrollContractSegmentSchema = new Schema<IPayrollContractSegment>(
+  {
+    contractId: { type: Schema.Types.ObjectId, ref: 'employeeContracts', required: true },
+    from: { type: Date, required: true },
+    to: { type: Date, required: true },
+    employmentStatus: { type: String, required: true },
+    baseSalary: dec,
+    payRate: { type: Number, default: 1 },
+    standardWorkDays: { type: Number, default: 0 },
+    actualWorkDays: { type: Number, default: 0 },
+    attendanceComponent: dec,
+    performanceComponent: dec,
+    goalComponent: dec,
+    segmentSalary: dec,
+  },
+  { _id: false },
+);
 
 const payrollSchema = new Schema<IPayroll>(
   {
@@ -150,6 +195,7 @@ const payrollSchema = new Schema<IPayroll>(
     netSalary: dec,
 
     leaveDays: { type: Number, default: 0 },
+    contractSegments: { type: [payrollContractSegmentSchema], default: undefined },
     status: { type: String, enum: PAYROLL_STATUS, default: 'draft', index: true },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     paidAt: { type: Date, default: null },
