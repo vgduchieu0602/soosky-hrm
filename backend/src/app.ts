@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { logger } from '@core/logger/logger';
+import { env } from '@config/env';
 import { errorHandler } from '@shared/middlewares/error-handler';
 import { iamRouter } from '@features/iam';
 import { employeeRouter } from '@features/employee';
@@ -16,13 +17,33 @@ import { storageRouter } from '@features/storage';
 import { notificationRouter } from '@features/notification';
 import { dashboardRouter } from '@features/dashboard';
 
+/**
+ * Origin được phép gọi API kèm cookie.
+ *
+ * `origin: true` (phản chiếu mọi origin) cộng với `credentials: true` nghĩa là
+ * bất kỳ trang web nào cũng gọi được API bằng cookie phiên của người dùng. Khi
+ * `HTTP_CORS_ORIGINS` được khai báo thì chỉ những origin đó được phép; chỉ ở
+ * môi trường không phải production mới rơi về chế độ phản chiếu cho tiện dev.
+ */
+function corsOrigin(): string[] | boolean {
+  const configured = env.HTTP_CORS_ORIGINS?.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  if (configured && configured.length > 0) return configured;
+  if (env.NODE_ENV === 'production') {
+    logger.warn('HTTP_CORS_ORIGINS chưa đặt — CORS kèm cookie đang mở cho mọi origin');
+  }
+  return true;
+}
+
 export function createApp() {
   //Khởi tạo Express app
   const app = express();
 
   //Register Middleware
   app.use(helmet());
-  app.use(cors({ credentials: true, origin: true }));
+  app.use(cors({ credentials: true, origin: corsOrigin() }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));

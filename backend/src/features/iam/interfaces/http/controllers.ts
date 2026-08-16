@@ -98,6 +98,8 @@ export const authController = {
         newPassword,
         req.user.sessionId,
       );
+      // Trả access token mới (đã bỏ cờ mustChangePassword) để client dùng ngay,
+      // khỏi phải gọi refresh rồi mới vào được ứng dụng.
       res.json({ data: result, message: 'Đổi mật khẩu thành công' });
     } catch (err) {
       next(err);

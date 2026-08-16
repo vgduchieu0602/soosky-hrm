@@ -31,7 +31,7 @@ function extractErrorMessage(err: unknown): string {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const setSession = useAuthStore((s) => s.setSession);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -147,7 +147,7 @@ export default function LoginPage() {
                 identifier: identifier.trim(),
                 password,
               });
-              setAuth(accessToken, user);
+              setSession(accessToken, user);
               navigate(user.mustChangePassword ? "/auth/change-password" : "/dashboard", {
                 replace: true,
               });

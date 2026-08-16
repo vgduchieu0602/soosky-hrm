@@ -31,11 +31,19 @@ export const authService = {
     return data.data;
   },
 
+  /**
+   * Đổi mật khẩu. Máy chủ trả kèm access token MỚI (đã bỏ cờ
+   * `mustChangePassword`) cho đúng phiên hiện tại — dùng ngay, khỏi phải refresh.
+   */
   async changePassword(payload: {
     currentPassword: string;
     newPassword: string;
-  }): Promise<void> {
-    await api.patch("/auth/change-password", payload);
+  }): Promise<{ ok: boolean; accessToken?: string }> {
+    const { data } = await api.patch<ApiEnvelope<{ ok: boolean; accessToken?: string }>>(
+      "/auth/change-password",
+      payload,
+    );
+    return data.data;
   },
 
   /** Validate a set-password / reset link token before showing the form. */

@@ -269,7 +269,24 @@ export class AuthUseCases {
     });
 
     log.info({ userId }, 'password changed by user');
-    return { ok: true };
+
+    // Access token đang cầm vẫn mang `mustChangePassword: true`; nếu không cấp
+    // token mới thì mọi request sau đó bị chặn bởi IAM_013 và người dùng kẹt
+    // vòng "đổi mật khẩu → dashboard → 403 → đổi mật khẩu". Cấp lại token cho
+    // đúng phiên hiện tại; refresh token và phiên không đổi.
+    let accessToken: string | undefined;
+    if (currentSessionId) {
+      const { roleNames, permissions } = await this.resolveRolesAndPermissions(userId);
+      accessToken = this.tokens.signAccess({
+        userId,
+        sessionId: currentSessionId,
+        roles: roleNames,
+        permissions,
+        mustChangePassword: false,
+      });
+    }
+
+    return { ok: true, accessToken };
   }
 
   async me(userId: string): Promise<AuthenticatedUser> {

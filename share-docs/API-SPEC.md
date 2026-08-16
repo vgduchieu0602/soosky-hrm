@@ -22,6 +22,21 @@
 - Algorithm HS256; issuer/audience `soosky-hrm` / `soosky-hrm-client`.
 - JWT claims: `{ userId, roles[], permissions[], mustChangePassword?, sessionId? }`.
 
+### Vòng đời phiên (client)
+
+```
+Mở ứng dụng → status = initializing
+  ├─ có access token trong bộ nhớ → GET /auth/me
+  └─ không   → POST /auth/refresh (cookie) → GET /auth/me
+       thành công → authenticated
+       thất bại   → unauthenticated → trang đăng nhập
+```
+
+- Access token **chỉ nằm trong bộ nhớ**; refresh token nằm trong cookie httpOnly. Không lưu access token xuống `localStorage`: chuỗi token còn sót không chứng minh phiên còn sống.
+- Cookie refresh: `httpOnly`, `sameSite=lax`, `path=/api/v1/auth`, `secure` **chỉ khi** `NODE_ENV=production` (để dev chạy được trên `http://localhost`).
+- `mustChangePassword=true` → mọi API trừ `/auth/change-password`, `/auth/logout`, `/auth/me` trả **403 `IAM_013`**. Đổi mật khẩu xong, dùng `accessToken` trả về trong response — không cần refresh.
+- CORS: chỉ những origin trong `HTTP_CORS_ORIGINS` được gọi API kèm cookie. Bỏ trống chỉ chấp nhận ở môi trường không phải production.
+
 ### Response envelopes
 
 **Success**
@@ -48,7 +63,7 @@
 | POST | `/auth/login` | public | `{ identifier, password }` | Login (email or username) |
 | POST | `/auth/refresh` | public (cookie) | — | Rotate tokens via refresh cookie |
 | POST | `/auth/logout` | auth | — | Revoke current session |
-| PATCH | `/auth/change-password` | auth | `{ currentPassword, newPassword }` | Change own password |
+| PATCH | `/auth/change-password` | auth | `{ currentPassword, newPassword }` | Đổi mật khẩu; trả `{ ok, accessToken }` — token MỚI đã bỏ cờ `mustChangePassword` |
 | GET | `/auth/me` | auth | — | Current user profile |
 | GET | `/auth/set-password` | public | `?token=` | Validate a setup/reset token |
 | POST | `/auth/set-password` | public | `{ token, password }` | Set password via emailed link |

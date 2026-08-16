@@ -12,39 +12,40 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+  const token = useAuthStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-function forceLogout() {
-  useAuthStore.getState().logout();
-  if (!window.location.pathname.startsWith("/auth/")) {
-    window.location.href = "/auth/login";
-  }
+/**
+ * Những endpoint KHÔNG bao giờ được kích hoạt luồng refresh.
+ *
+ * `/auth/refresh` tự gọi lại chính nó là đệ quy vô hạn; `/auth/login` trả 401
+ * khi sai mật khẩu — refresh ở đây chỉ làm nhiễu và nuốt mất thông báo lỗi.
+ */
+function isRefreshExempt(url: string): boolean {
+  return url.includes("/auth/refresh") || url.includes("/auth/login");
 }
 
-// Single-flight refresh: concurrent 401s share one /auth/refresh call and
-// retry once it resolves, instead of each triggering its own logout.
+// Refresh gộp: nhiều request cùng nhận 401 sẽ dùng CHUNG một lời gọi
+// `/auth/refresh` rồi thử lại, thay vì mỗi request tự refresh một lần.
 let refreshing: Promise<string> | null = null;
 
-function refreshToken(): Promise<string> {
-  if (!refreshing) {
-    refreshing = axios
-      .post<{ data: { accessToken: string } }>(
-        "/auth/refresh",
-        undefined,
-        { baseURL: api.defaults.baseURL, withCredentials: true },
-      )
-      .then((res) => {
-        const token = res.data.data.accessToken;
-        useAuthStore.getState().setToken(token);
-        return token;
-      })
-      .finally(() => {
-        refreshing = null;
-      });
-  }
+function refreshAccessToken(): Promise<string> {
+  refreshing ??= axios
+    .post<{ data: { accessToken: string } }>("/auth/refresh", undefined, {
+      baseURL: api.defaults.baseURL,
+      withCredentials: true,
+    })
+    .then((res) => {
+      const token = res.data.data.accessToken;
+      useAuthStore.getState().setAccessToken(token);
+      return token;
+    })
+    .finally(() => {
+      refreshing = null;
+    });
+
   return refreshing;
 }
 
@@ -57,38 +58,29 @@ api.interceptors.response.use(
     const status = err.response?.status;
     const url = original?.url ?? "";
 
-    // Don't try to refresh the refresh/login calls themselves, or when we've
-    // already retried this request once.
-    const isAuthCall =
-      url.includes("/auth/refresh") || url.includes("/auth/login");
-
-    if (status === 401 && original && !original._retry && !isAuthCall) {
-      original._retry = true;
-      try {
-        const token = await refreshToken();
-        original.headers = original.headers ?? {};
-        original.headers.Authorization = `Bearer ${token}`;
-        return api(original as AxiosRequestConfig);
-      } catch {
-        forceLogout();
-        return Promise.reject(err);
-      }
+    if (status !== 401 || !original || isRefreshExempt(url)) {
+      return Promise.reject(err);
     }
 
-    if (status === 401 && !isAuthCall) {
-      forceLogout();
+    // Mỗi request chỉ được thử lại ĐÚNG một lần sau khi refresh.
+    if (original._retry) {
+      useAuthStore.getState().markUnauthenticated();
+      return Promise.reject(err);
     }
 
-    // Server enforces a forced password change (IAM_013) — route the user to
-    // the change-password page instead of surfacing a generic error.
-    const code = (err.response?.data as { error?: { code?: string } } | undefined)?.error?.code;
-    if (status === 403 && code === "IAM_013") {
-      if (!window.location.pathname.startsWith("/auth/")) {
-        window.location.href = "/auth/change-password";
-      }
+    original._retry = true;
+    try {
+      const token = await refreshAccessToken();
+      original.headers = original.headers ?? {};
+      original.headers.Authorization = `Bearer ${token}`;
+      return await api(original as AxiosRequestConfig);
+    } catch {
+      // Không dùng `window.location` để điều hướng: axios là tầng hạ tầng, ép
+      // tải lại trang ở đây sẽ mất trạng thái ứng dụng và gây chớp màn hình.
+      // Chỉ đánh dấu mất phiên — `ProtectedRoute` phản ứng và chuyển trang.
+      useAuthStore.getState().markUnauthenticated();
+      return Promise.reject(err);
     }
-
-    return Promise.reject(err);
   },
 );
 

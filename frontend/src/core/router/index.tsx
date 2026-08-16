@@ -4,7 +4,7 @@ import AuthLayout from "@layouts/AuthLayout";
 import LoginPage from "@pages/LoginPage";
 import SetPasswordPage from "@pages/SetPasswordPage";
 import ChangePasswordPage from "@pages/ChangePasswordPage";
-import DashboardPage from "@pages/DashboardPage";
+import DashboardByRole from "./DashboardByRole";
 import EmployeesPage from "@pages/EmployeesPage";
 import DepartmentsPage from "@pages/DepartmentsPage";
 import MyAttendancePage from "@features/attendance/components/MyAttendancePage";
@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
         element: <MainLayout />,
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
-          { path: "dashboard", element: <DashboardPage /> },
+          { path: "dashboard", element: <DashboardByRole /> },
           { path: "attendance", element: <AttendanceByRole /> },
           { path: "me/attendance", element: <MyAttendancePage /> },
           { path: "me/payslips", element: <MyPayslipsPage /> },

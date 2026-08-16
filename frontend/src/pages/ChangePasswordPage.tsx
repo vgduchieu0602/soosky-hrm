@@ -22,9 +22,10 @@ function extractError(err: unknown): string {
  */
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
-  const token = useAuthStore((s) => s.token);
+  const status = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
+  const setAccessToken = useAuthStore((s) => s.setAccessToken);
 
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -33,7 +34,7 @@ export default function ChangePasswordPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Not authenticated → back to login. Already resolved → nothing to force here.
-  if (!token) return <Navigate to="/auth/login" replace />;
+  if (status !== "authenticated") return <Navigate to="/auth/login" replace />;
   if (user && !user.mustChangePassword) return <Navigate to="/dashboard" replace />;
 
   const tooShort = next.length > 0 && next.length < 8;
@@ -46,7 +47,14 @@ export default function ChangePasswordPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await authService.changePassword({ currentPassword: current, newPassword: next });
+      // Máy chủ cấp access token mới đã bỏ cờ mustChangePassword. Không dùng
+      // token này thì token cũ vẫn bị chặn bởi IAM_013 và người dùng quay lại
+      // đúng trang đổi mật khẩu.
+      const { accessToken } = await authService.changePassword({
+        currentPassword: current,
+        newPassword: next,
+      });
+      if (accessToken) setAccessToken(accessToken);
       if (user) setUser({ ...user, mustChangePassword: false });
       navigate("/dashboard", { replace: true });
     } catch (err) {

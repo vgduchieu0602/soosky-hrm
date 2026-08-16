@@ -15,6 +15,10 @@ const schema = z.object({
 
   BCRYPT_ROUND: z.coerce.number().default(10),
 
+  // Danh sách origin của web client được phép gọi API kèm cookie, phân tách bằng
+  // dấu phẩy. Bắt buộc đặt ở production; bỏ trống chỉ chấp nhận khi chạy dev.
+  HTTP_CORS_ORIGINS: z.string().optional(),
+
   // Web client base URL — used to build the "Đăng nhập" link in emails.
   APP_WEB_URL: z.string().default('http://localhost:5173'),
   // Sender identity for outgoing mail.

@@ -6,17 +6,28 @@
 
 export type ChipColor = "blue" | "emerald" | "indigo" | "violet" | "amber" | "rose" | "cyan";
 
+/**
+ * Mục điều hướng. `roles` liệt kê vai trò được THẤY mục đó; bỏ trống nghĩa là mọi
+ * người đã đăng nhập. Đây chỉ là lớp trải nghiệm — máy chủ vẫn là nơi chặn thật,
+ * và `RoleRoute` chặn ở tầng router.
+ */
 export const NAV_ITEMS = [
   { id: "dash", label: "Tổng quan", icon: "LayoutDashboard", to: "/dashboard" },
-  { id: "emp", label: "Nhân viên", icon: "Users", to: "/employees" },
-  { id: "org", label: "Phòng ban", icon: "Building2", to: "/departments" },
+  { id: "emp", label: "Nhân viên", icon: "Users", to: "/employees", roles: ["admin", "hr_manager"] },
+  { id: "org", label: "Phòng ban", icon: "Building2", to: "/departments", roles: ["admin", "hr_manager"] },
   { id: "att", label: "Chấm công", icon: "Clock", to: "/attendance" },
   { id: "leave", label: "Nghỉ phép", icon: "CalendarDays", to: "/leave" },
-  { id: "pay", label: "Bảng lương", icon: "Wallet", to: "/payroll" },
-  { id: "perf", label: "Đánh giá", icon: "Trophy", to: "/performance" },
+  { id: "pay", label: "Bảng lương", icon: "Wallet", to: "/payroll", roles: ["admin", "hr_manager"] },
+  { id: "perf", label: "Đánh giá", icon: "Trophy", to: "/performance", roles: ["admin", "hr_manager"] },
   { id: "mypayslips", label: "Phiếu lương của tôi", icon: "ReceiptText", to: "/me/payslips" },
   { id: "myeval", label: "Đánh giá của tôi", icon: "ClipboardList", to: "/me/evaluations" },
-] as const;
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  icon: string;
+  to: string;
+  roles?: readonly string[];
+}[];
 
 export interface TopKpi {
   label: string;

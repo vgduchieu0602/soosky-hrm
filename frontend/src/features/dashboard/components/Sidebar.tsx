@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils/cn";
 import { NAV_ITEMS } from "@features/dashboard/data";
-import { useAuthStore } from "@core/store/auth.store";
+import { hasAnyRole, useAuthStore } from "@core/store/auth.store";
 import { authService } from "@features/auth/services/auth.service";
 import logoMark from "@/assets/LOGO.png";
 
@@ -46,11 +46,16 @@ export default function Sidebar({ active }: SidebarProps) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const clearAuth = useAuthStore((s) => s.logout);
+  const clearAuth = useAuthStore((s) => s.markUnauthenticated);
 
   const displayName = user?.username ?? "Người dùng";
   const roleLabel = user?.roles?.length ? ROLE_LABEL[user.roles[0]] ?? user.roles[0] : "—";
 
+  /**
+   * Đăng xuất: thu hồi phiên ở máy chủ rồi mới xoá trạng thái cục bộ. Máy chủ
+   * lỗi (phiên đã hết hạn sẵn) vẫn phải xoá phía client, nếu không người dùng
+   * kẹt trong ứng dụng với token chết.
+   */
   function handleLogout() {
     authService.logout().catch(() => {}).finally(() => {
       clearAuth();
@@ -97,7 +102,10 @@ export default function Sidebar({ active }: SidebarProps) {
           // "Phiếu lương của tôi" là self-service: ẩn với admin (tài khoản hệ
           // thống không gắn hồ sơ nhân viên nên không có phiếu lương cá nhân).
           if ((n.id === "mypayslips" || n.id === "myeval") && user?.roles?.includes("admin")) return false;
-          return true;
+          // Mục quản lý chỉ hiện với vai trò được phép — nhân viên thường không
+          // được thấy menu dẫn tới trang mà họ sẽ bị chặn ngay khi bấm.
+          const allowed = "roles" in n ? (n.roles as readonly string[]) : null;
+          return allowed ? hasAnyRole(user, allowed) : true;
         }).map((n) => {
           const Icon = ICONS[n.icon];
           const isActive = active ? n.id === active : pathname.startsWith(n.to);
