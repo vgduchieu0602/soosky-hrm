@@ -78,6 +78,8 @@ export interface PayrollPeriodRepository {
   reopenToOpen(id: Id): Promise<PeriodRecord | null>;
   lockAttendance(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
   unlockAttendance(id: Id): Promise<PeriodRecord | null>;
+  lockPerformance(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
+  unlockPerformance(id: Id): Promise<PeriodRecord | null>;
   markProcessing(id: Id, tx: Tx): Promise<void>;
   markPaid(id: Id, tx: Tx): Promise<void>;
 }
@@ -112,6 +114,7 @@ export interface PayrollRepository {
   countDrafts(periodId: Id, employeeId?: Id): Promise<number>;
   countApproved(periodId: Id): Promise<number>;
   reopenApprovedToDraft(periodId: Id): Promise<number>;
+  deleteDrafts(periodId: Id): Promise<number>;
   upsertComputed(periodId: Id, employeeId: Id, doc: IPayroll, tx: Tx): Promise<IPayroll>;
   approveMany(periodId: Id, employeeId: Id | undefined, approverUserId: Id, tx: Tx): Promise<void>;
   markPaidMany(periodId: Id, paidAt: Date, tx: Tx): Promise<void>;

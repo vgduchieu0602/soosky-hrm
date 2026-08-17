@@ -5,6 +5,7 @@ import type {
   PayrollPeriodRepository,
   PayrollRepository,
   EmployeeGateway,
+  EvaluationGateway,
   AttendanceGateway,
   WorkCalendarGateway,
   AuditPort,
@@ -20,6 +21,7 @@ export class PayrollPeriodUseCases {
     private readonly periods: PayrollPeriodRepository,
     private readonly payrolls: PayrollRepository,
     private readonly employees: EmployeeGateway,
+    private readonly evaluations: EvaluationGateway,
     private readonly attendance: AttendanceGateway,
     private readonly workCalendar: WorkCalendarGateway,
     private readonly audit: AuditPort,
@@ -119,19 +121,25 @@ export class PayrollPeriodUseCases {
     const period = await this.periods.findById(id);
     if (!period) throw new NotFoundError('Payroll period');
 
-    const activeEmployees = await this.employees.listNonTerminatedIds();
+    const activeEmployees = await this.employees.listForRun(period.startDate, period.endDate);
     const rows = await this.attendance.listStatusesInRange(period.startDate, period.endDate);
 
     const withRecords = new Set(rows.map((r) => String(r.employeeId)));
     const incompleteRows = rows.filter((r) => r.status === 'incomplete');
     const employeesNoRecords = activeEmployees.filter((e) => !withRecords.has(String(e._id))).length;
 
+    const blockers = [
+      ...(employeesNoRecords > 0 ? [{ code: 'ATTENDANCE_EMPLOYEES_MISSING', count: employeesNoRecords }] : []),
+      ...(incompleteRows.length > 0 ? [{ code: 'ATTENDANCE_INCOMPLETE_RECORDS', count: incompleteRows.length }] : []),
+    ];
     return {
       attendanceLocked: !!period.attendanceLockedAt,
+      ready: blockers.length === 0,
       totalActiveEmployees: activeEmployees.length,
       employeesNoRecords,
       incompleteRecords: incompleteRows.length,
       employeesWithIncomplete: new Set(incompleteRows.map((r) => String(r.employeeId))).size,
+      blockers,
     };
   }
 
@@ -140,6 +148,10 @@ export class PayrollPeriodUseCases {
     const period = await this.periods.findById(id);
     if (!period) throw new NotFoundError('Payroll period');
     if (period.status === 'paid') throw new HttpError(409, 'Kỳ lương đã thanh toán', 'PAY_PERIOD_LOCKED');
+    const readiness = await this.attendanceReadiness(id);
+    if (!readiness.ready) {
+      throw new HttpError(409, 'Chấm công chưa sẵn sàng để chốt', 'PAY_ATTENDANCE_NOT_READY');
+    }
     const updated = await this.periods.lockAttendance(id, auditUserId);
     await this.audit.record({
       userId: auditUserId,
@@ -163,7 +175,6 @@ export class PayrollPeriodUseCases {
   async reopen(id: Id, auditUserId: Id) {
     const period = await this.periods.findById(id);
     if (!period) throw new NotFoundError('Payroll period');
-    if (period.status === 'open') return period;
     if (period.status === 'paid') {
       throw new HttpError(
         409,
@@ -173,15 +184,18 @@ export class PayrollPeriodUseCases {
     }
 
     const revertedRows = await this.payrolls.reopenApprovedToDraft(id);
-    const updated = await this.periods.reopenToOpen(id);
+    // A reopened period must not present stale draft calculations as current.
+    // Re-run creates fresh rows after the source lock(s) are deliberately opened.
+    const invalidatedRows = await this.payrolls.deleteDrafts(id);
+    const updated = period.status === 'open' ? period : await this.periods.reopenToOpen(id);
     await this.audit.record({
       userId: auditUserId,
       resource: 'payrollPeriod',
       action: 'update',
       resourceId: id,
-      changes: { reopened: true, from: period.status, revertedRows },
+      changes: { reopened: true, from: period.status, revertedRows, invalidatedRows },
     });
-    log.info({ action: 'reopen', periodId: id, revertedRows });
+    log.info({ action: 'reopen', periodId: id, revertedRows, invalidatedRows });
     return updated!;
   }
 
@@ -205,13 +219,18 @@ export class PayrollPeriodUseCases {
     return { id };
   }
 
-  /** Re-open attendance for editing (only before the period is closed/paid). */
+  private async assertSourcesEditable(period: Awaited<ReturnType<PayrollPeriodRepository['findById']>>) {
+    if (!period) throw new NotFoundError('Payroll period');
+    if (period.status === 'paid') throw new HttpError(409, 'Kỳ lương đã thanh toán', 'PAY_PERIOD_LOCKED');
+    if (period.status === 'closed' || (await this.payrolls.countByPeriod(String(period._id))) > 0) {
+      throw new HttpError(409, 'Hãy mở lại payroll trước khi mở dữ liệu nguồn', 'PAYROLL_REOPEN_REQUIRED');
+    }
+  }
+
+  /** Re-open attendance for editing only after invalidating calculated payroll. */
   async unlockAttendance(id: Id, auditUserId: Id) {
     const period = await this.periods.findById(id);
-    if (!period) throw new NotFoundError('Payroll period');
-    if (period.status === 'closed' || period.status === 'paid') {
-      throw new HttpError(409, `Kỳ lương đã ${period.status}, không thể mở chốt`, 'PAY_PERIOD_LOCKED');
-    }
+    await this.assertSourcesEditable(period);
     const updated = await this.periods.unlockAttendance(id);
     await this.audit.record({
       userId: auditUserId,
@@ -221,6 +240,47 @@ export class PayrollPeriodUseCases {
       changes: { attendanceLocked: false },
     });
     log.info({ action: 'unlock-attendance', periodId: id });
+    return updated!;
+  }
+
+  async performanceReadiness(id: Id) {
+    const period = await this.periods.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+    const employees = await this.employees.listForRun(period.startDate, period.endDate);
+    const finalized = new Set(await this.evaluations.finalizedEmployeeIds(id));
+    const pending = employees.filter((employee) => !finalized.has(String(employee._id)));
+    return {
+      performanceLocked: !!period.performanceLockedAt,
+      ready: pending.length === 0,
+      totalEmployees: employees.length,
+      finalized: employees.length - pending.length,
+      pending: pending.length,
+      blockers: pending.map((employee) => ({ employeeId: String(employee._id), code: 'PAY_EVAL_REQUIRED' })),
+    };
+  }
+
+  async lockPerformance(id: Id, auditUserId: Id) {
+    const period = await this.periods.findById(id);
+    if (!period) throw new NotFoundError('Payroll period');
+    await this.assertSourcesEditable(period);
+    const readiness = await this.performanceReadiness(id);
+    if (!readiness.ready) throw new HttpError(409, 'Đánh giá chưa sẵn sàng để chốt', 'PAY_PERFORMANCE_NOT_READY');
+    const updated = await this.periods.lockPerformance(id, auditUserId);
+    await this.audit.record({
+      userId: auditUserId, resource: 'payrollPeriod', action: 'update', resourceId: id,
+      changes: { performanceLocked: true },
+    });
+    return updated!;
+  }
+
+  async unlockPerformance(id: Id, auditUserId: Id) {
+    const period = await this.periods.findById(id);
+    await this.assertSourcesEditable(period);
+    const updated = await this.periods.unlockPerformance(id);
+    await this.audit.record({
+      userId: auditUserId, resource: 'payrollPeriod', action: 'update', resourceId: id,
+      changes: { performanceLocked: false },
+    });
     return updated!;
   }
 }

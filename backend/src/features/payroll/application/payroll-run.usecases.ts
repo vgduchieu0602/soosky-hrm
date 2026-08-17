@@ -214,7 +214,10 @@ export class RunPayrollUseCases {
     // Attendance must be locked before payroll consumes it, so figures can't shift
     // mid-run.
     if (!period.attendanceLockedAt) {
-      throw conflict(`Hãy chốt chấm công kỳ ${period.name} trước khi tính lương`, 'PAY_ATT_NOT_LOCKED');
+      throw conflict(`Hãy chốt chấm công kỳ ${period.name} trước khi tính lương`, 'PAY_ATTENDANCE_NOT_LOCKED');
+    }
+    if (!period.performanceLockedAt) {
+      throw conflict(`Hãy chốt đánh giá kỳ ${period.name} trước khi tính lương`, 'PAY_PERFORMANCE_NOT_LOCKED');
     }
 
     const employee = await this.employees.findByIdLean(employeeId);
@@ -486,6 +489,15 @@ export class RunPayrollUseCases {
     }
   }
 
+  private assertSourcesLocked(period: PeriodRecord): void {
+    if (!period.attendanceLockedAt) {
+      throw conflict(`Hãy chốt chấm công kỳ ${period.name} trước khi tính lương`, 'PAY_ATTENDANCE_NOT_LOCKED');
+    }
+    if (!period.performanceLockedAt) {
+      throw conflict(`Hãy chốt đánh giá kỳ ${period.name} trước khi tính lương`, 'PAY_PERFORMANCE_NOT_LOCKED');
+    }
+  }
+
   /**
    * Compute (or recompute) payroll for one employee in a period. Idempotent:
    * upserts the draft row; throws if the existing row is already approved/paid.
@@ -494,6 +506,7 @@ export class RunPayrollUseCases {
     const period = await this.periods.findById(periodId);
     if (!period) throw new NotFoundError('Payroll period');
     this.assertPeriodOpen(period);
+    this.assertSourcesLocked(period);
 
     const existing = await this.payrolls.findExisting(periodId, employeeId);
     if (existing && existing.status !== 'draft') {
@@ -521,6 +534,7 @@ export class RunPayrollUseCases {
     const period = await this.periods.findById(periodId);
     if (!period) throw new NotFoundError('Payroll period');
     this.assertPeriodOpen(period);
+    this.assertSourcesLocked(period);
 
     const employees = await this.employees.listForRun(period.startDate, period.endDate);
 

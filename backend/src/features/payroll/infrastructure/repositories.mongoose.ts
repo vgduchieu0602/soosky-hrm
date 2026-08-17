@@ -110,6 +110,24 @@ export class MongoosePayrollPeriodRepository implements PayrollPeriodRepository 
     return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
   }
 
+  async lockPerformance(id: Id, byUserId: Id) {
+    const updated = await PayrollPeriod.findByIdAndUpdate(
+      id,
+      { performanceLockedAt: new Date(), performanceLockedBy: new Types.ObjectId(byUserId) },
+      { new: true },
+    );
+    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
+  }
+
+  async unlockPerformance(id: Id) {
+    const updated = await PayrollPeriod.findByIdAndUpdate(
+      id,
+      { performanceLockedAt: null, performanceLockedBy: null },
+      { new: true },
+    );
+    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
+  }
+
   async markProcessing(id: Id, tx: Tx) {
     await PayrollPeriod.updateOne({ _id: id }, { $set: { status: 'processing' } }, { session: session(tx) });
   }
@@ -210,6 +228,11 @@ export class MongoosePayrollRepository implements PayrollRepository {
       { $set: { status: 'draft' }, $unset: { approvedBy: '' } },
     );
     return res.modifiedCount;
+  }
+
+  async deleteDrafts(periodId: Id) {
+    const result = await Payroll.deleteMany({ payrollPeriodId: periodId, status: 'draft' });
+    return result.deletedCount ?? 0;
   }
 
   async upsertComputed(periodId: Id, employeeId: Id, doc: IPayroll, tx: Tx): Promise<IPayroll> {

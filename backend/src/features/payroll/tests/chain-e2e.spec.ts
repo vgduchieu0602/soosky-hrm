@@ -148,6 +148,7 @@ describe('Evaluation workflow → payroll (full chain)', () => {
     expect(approved.performanceRatio).toBe(90); // avg performance criteria
     expect(approved.goalRatio).toBe(95); // avg goal criteria
 
+    await PayrollPeriod.updateOne({ _id: period._id }, { $set: { performanceLockedAt: new Date() } });
     const payroll = await runPayrollForEmployee(String(period._id), employeeId);
     // Payroll consumed the approved evaluation ratios.
     expect(payroll.performanceRatio).toBe(90);

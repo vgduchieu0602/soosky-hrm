@@ -39,6 +39,9 @@ router.delete('/payroll/periods/:id', authenticate, hrOrAdmin, payrollPeriodCont
 router.get('/payroll/periods/:id/attendance-readiness', authenticate, hrOrAdmin, payrollPeriodController.attendanceReadiness);
 router.post('/payroll/periods/:id/lock-attendance', authenticate, hrOrAdmin, payrollPeriodController.lockAttendance);
 router.post('/payroll/periods/:id/unlock-attendance', authenticate, hrOrAdmin, payrollPeriodController.unlockAttendance);
+router.get('/payroll/periods/:id/performance-readiness', authenticate, hrOrAdmin, payrollPeriodController.performanceReadiness);
+router.post('/payroll/periods/:id/lock-performance', authenticate, hrOrAdmin, payrollPeriodController.lockPerformance);
+router.post('/payroll/periods/:id/unlock-performance', authenticate, hrOrAdmin, payrollPeriodController.unlockPerformance);
 
 // ---- Payroll run triggers ----
 router.post('/payroll/periods/:id/run', authenticate, hrOrAdmin, validate(runPeriodDto, 'body'), payrollPeriodController.runPeriod);

@@ -64,10 +64,10 @@ void clock; // reserved for future time-dependent rules
 
 // --- application ---
 export const payrollPeriodUseCases = new PayrollPeriodUseCases(
-  periodRepo, payrollRepo, employeeGw, attendanceGw, workCalendarGw, audit, events,
+  periodRepo, payrollRepo, employeeGw, evaluationGw, attendanceGw, workCalendarGw, audit, events,
 );
 export const payrollUseCases = new PayrollUseCases(
-  payrollRepo, periodRepo, policyGw, employeeGw, contractGw, evaluationGw, taxProfileRepo, profileGw,
+  payrollRepo, periodRepo, policyGw, employeeGw, contractGw, evaluationGw, attendanceGw, taxProfileRepo, profileGw,
 );
 export const approvalUseCases = new PayrollApprovalUseCases(periodRepo, payrollRepo, audit, events, uow);
 export const runUseCases = new RunPayrollUseCases(

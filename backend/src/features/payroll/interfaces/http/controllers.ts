@@ -96,6 +96,27 @@ export const payrollPeriodController = {
       next(e);
     }
   },
+  async performanceReadiness(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await payrollPeriodUseCases.performanceReadiness(idParam(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async lockPerformance(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await payrollPeriodUseCases.lockPerformance(idParam(req), userId(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async unlockPerformance(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await payrollPeriodUseCases.unlockPerformance(idParam(req), userId(req)) });
+    } catch (e) {
+      next(e);
+    }
+  },
   // ---- Run triggers ----
   async runPeriod(req: Request, res: Response, next: NextFunction) {
     try {

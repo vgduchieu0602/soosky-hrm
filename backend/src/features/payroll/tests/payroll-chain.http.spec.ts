@@ -18,6 +18,7 @@ import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
 import { Attendance } from '@shared/models/attendance.model';
 import { Shift } from '@shared/models/shift.model';
+import { PayrollPeriod } from '@shared/models/payroll-period.model';
 
 jest.setTimeout(90_000);
 
@@ -70,13 +71,18 @@ async function seedEmployee(code: string, periodMonth = '2026-05') {
 }
 
 /** Create a period over HTTP and lock its attendance. */
-async function createLockedPeriod(month = '2026-05') {
+async function createLockedPeriod(month = '2026-05', lockPerformance = true) {
   const create = await api.post('/api/v1/payroll/periods').set(hr()).send({
     name: month, startDate: utc(`${month}-01`), endDate: utc(`${month}-28`),
     payDate: utc(`${month}-28`), standardWorkDays: 22,
   });
   const periodId = create.body.data._id ?? create.body.data.id;
   await api.post(`/api/v1/payroll/periods/${periodId}/lock-attendance`).set(hr());
+  if (lockPerformance) {
+    // Legacy workflow specs intentionally bypass evaluation readiness; P3 endpoint
+    // readiness is covered separately while these retain their focused lifecycle assertions.
+    await PayrollPeriod.updateOne({ _id: periodId }, { $set: { performanceLockedAt: new Date() } });
+  }
   return periodId;
 }
 
@@ -113,7 +119,7 @@ describe('Self check-in / check-out (HTTP)', () => {
 });
 
 describe('Payroll period lifecycle — HTTP state machine', () => {
-  it('run on a period whose attendance is NOT locked yields per-employee errors', async () => {
+  it('run on a period whose attendance is NOT locked is rejected before calculation', async () => {
     await seedPolicy();
     await seedEmployee('NOLOCK');
     const create = await api.post('/api/v1/payroll/periods').set(hr()).send({
@@ -121,9 +127,8 @@ describe('Payroll period lifecycle — HTTP state machine', () => {
     });
     const periodId = create.body.data._id ?? create.body.data.id;
     const run = await api.post(`/api/v1/payroll/periods/${periodId}/run`).set(hr()).send({ requireApprovedEvaluation: false });
-    expect(run.status).toBe(200);
-    expect(run.body.data.computed).toBe(0);
-    expect(run.body.data.errors.length).toBeGreaterThan(0);
+    expect(run.status).toBe(409);
+    expect(run.body.error?.code ?? run.body.code).toBe('PAY_ATTENDANCE_NOT_LOCKED');
   });
 
   it('full guard sequence: run → draft → close/mark-paid blocked → approve → mark-paid → reopen blocked', async () => {
@@ -193,7 +198,7 @@ describe('Evaluation reopen blocked once payroll approved (PERF-1, HTTP)', () =>
   it('reopen returns 409 after payroll for the period+employee is approved', async () => {
     await seedPolicy();
     const { employeeId } = await seedEmployee('EVAL');
-    const periodId = await createLockedPeriod();
+    const periodId = await createLockedPeriod('2026-05', false);
 
     const perf = await PerformanceCriterion.create({ key: 'quality', label: 'quality', type: 'performance', weight: 100, status: 'active' });
     const goal = await PerformanceCriterion.create({ key: 'goal_x', label: 'goal_x', type: 'goal', weight: 100, status: 'active' });
@@ -207,6 +212,8 @@ describe('Evaluation reopen blocked once payroll approved (PERF-1, HTTP)', () =>
     expect(evalRes.status).toBe(201);
     const evalId = evalRes.body.data._id ?? evalRes.body.data.id;
 
+    const performanceLock = await api.post(`/api/v1/payroll/periods/${periodId}/lock-performance`).set(hr());
+    expect(performanceLock.status).toBe(200);
     // Run + approve payroll (eval now satisfies the requirement).
     await api.post(`/api/v1/payroll/periods/${periodId}/run`).set(hr()).send({});
     await api.post(`/api/v1/payroll/periods/${periodId}/approve`).set(hr()).send({});

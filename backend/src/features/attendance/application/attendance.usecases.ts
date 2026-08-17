@@ -30,7 +30,7 @@ export class AttendanceUseCases {
 
   private async assertUnlocked(date: Date): Promise<void> {
     const name = await this.lock.lockedPeriodName(date);
-    if (name) throw new HttpError(409, `Kỳ ${name} đã chốt chấm công — không thể sửa`, 'ATT_LOCKED');
+    if (name) throw new HttpError(409, `Kỳ ${name} đã chốt chấm công — không thể sửa`, 'ATTENDANCE_PERIOD_LOCKED');
   }
 
   /** Employee self view — derives employee from the authenticated user. */

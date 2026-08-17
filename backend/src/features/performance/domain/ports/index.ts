@@ -100,6 +100,8 @@ export interface CriterionRepository {
 export interface PayrollLockGateway {
   /** Approved/paid payroll locking this employee+period, or null. */
   findLockedPayroll(payrollPeriodId: Id, employeeId: Id): Promise<{ status: string } | null>;
+  /** A period-level performance lock freezes score-changing evaluation actions. */
+  isPerformancePeriodLocked?(payrollPeriodId: Id): Promise<boolean>;
 }
 
 // ---- infrastructure services ----

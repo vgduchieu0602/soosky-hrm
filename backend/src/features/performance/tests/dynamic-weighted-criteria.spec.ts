@@ -7,7 +7,11 @@ const CRITERIA = [
   { criterionId: 'cccccccccccccccccccccccc', name: 'Revenue goal', group: 'goal', weight: 100 },
 ];
 
-function build(criteria = CRITERIA, existing: Record<string, unknown> | null = null) {
+function build(
+  criteria = CRITERIA,
+  existing: Record<string, unknown> | null = null,
+  performancePeriodLocked = false,
+) {
   let saved: Record<string, unknown> | undefined;
   const useCases = new EvaluationUseCases(
     {
@@ -25,7 +29,7 @@ function build(criteria = CRITERIA, existing: Record<string, unknown> | null = n
       }),
       activeDefinitions: async () => criteria,
     } as never,
-    {} as never,
+    { isPerformancePeriodLocked: async () => performancePeriodLocked } as never,
     { record: async () => undefined } as never,
     { evaluationFinalized: () => undefined } as never,
     { now: () => new Date('2026-08-31T00:00:00.000Z') } as never,
@@ -152,5 +156,16 @@ describe('dynamic weighted evaluation criteria', () => {
     );
 
     expect(saved()).toMatchObject({ performanceRatio: 87, criteriaDefinitionSnapshot: CRITERIA });
+  });
+
+  it('rejects score-changing evaluation updates after the performance period is locked', async () => {
+    const { useCases } = build(CRITERIA, null, true);
+
+    await expect(useCases.directEvaluate({
+      employeeId: '111111111111111111111111',
+      payrollPeriodId: '222222222222222222222222',
+      criteriaScores: [{ criterionId: CRITERIA[0]!.criterionId, score: 80 }],
+      finalize: false,
+    }, '333333333333333333333333')).rejects.toMatchObject({ code: 'PERFORMANCE_PERIOD_LOCKED' });
   });
 });

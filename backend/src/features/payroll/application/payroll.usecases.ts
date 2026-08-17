@@ -19,6 +19,7 @@ import type {
   EmployeeGateway,
   ContractGateway,
   EvaluationGateway,
+  AttendanceGateway,
   TaxProfileRepository,
   EmployeeProfileGateway,
   ListPayrollFilter,
@@ -37,6 +38,7 @@ export class PayrollUseCases {
     private readonly employees: EmployeeGateway,
     private readonly contracts: ContractGateway,
     private readonly evaluations: EvaluationGateway,
+    private readonly attendance: AttendanceGateway,
     private readonly taxProfiles: TaxProfileRepository,
     private readonly profiles: EmployeeProfileGateway,
   ) {}
@@ -181,6 +183,26 @@ export class PayrollUseCases {
     // Người không thuộc kỳ không được tính vào tổng "sẵn sàng / bị chặn".
     const inPeriod = items.filter((i) => i.inPeriod);
     const blocked = inPeriod.filter((i) => i.blockers.length > 0);
+    const inPeriodIds = new Set(inPeriod.map((item) => item.employeeId));
+    const attendanceRows = await this.attendance.listStatusesInRange(period.startDate, period.endDate);
+    const attendanceEmployeeIds = new Set(
+      attendanceRows.filter((row) => inPeriodIds.has(String(row.employeeId))).map((row) => String(row.employeeId)),
+    );
+    const attendanceMissing = inPeriod.filter((item) => !attendanceEmployeeIds.has(item.employeeId)).length;
+    const attendanceIncomplete = attendanceRows.filter(
+      (row) => inPeriodIds.has(String(row.employeeId)) && row.status === 'incomplete',
+    ).length;
+    const attendanceReady = attendanceMissing === 0 && attendanceIncomplete === 0;
+    const performancePending = inPeriod.filter((item) =>
+      item.blockerCodes.some((blocker) => blocker.code === 'PAY_EVAL_REQUIRED'),
+    ).length;
+    const performanceReady = performancePending === 0;
+    const closingBlockers = [
+      ...(!period.attendanceLockedAt ? [{ code: 'PAY_ATTENDANCE_NOT_LOCKED', message: 'Chưa chốt chấm công' }] : []),
+      ...(!period.performanceLockedAt ? [{ code: 'PAY_PERFORMANCE_NOT_LOCKED', message: 'Chưa chốt đánh giá' }] : []),
+      ...(!attendanceReady ? [{ code: 'PAY_ATTENDANCE_NOT_READY', message: 'Chấm công chưa sẵn sàng' }] : []),
+      ...(!performanceReady ? [{ code: 'PAY_PERFORMANCE_NOT_READY', message: 'Đánh giá chưa sẵn sàng' }] : []),
+    ];
     const policyWarnings: string[] = [];
     if (!policy) policyWarnings.push('Chưa có chính sách lương hiệu lực — không thể tính lương.');
     else if (!policy.socialInsuranceSalary) policyWarnings.push('Chưa đặt "Mức lương đóng BHXH" — nền BH sẽ lấy theo lương hợp đồng.');
@@ -191,6 +213,10 @@ export class PayrollUseCases {
       blockedCount: blocked.length,
       policyWarnings,
       items: items.filter((i) => i.blockers.length || i.warnings.length),
+      attendance: { locked: !!period.attendanceLockedAt, ready: attendanceReady },
+      performance: { locked: !!period.performanceLockedAt, ready: performanceReady },
+      payroll: { canRun: closingBlockers.length === 0 && blocked.length === 0 },
+      blockers: closingBlockers,
     };
   }
 

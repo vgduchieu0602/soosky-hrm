@@ -29,6 +29,7 @@ const PERIOD = {
   standardWorkDays: 21,
   status: 'open',
   attendanceLockedAt: d('2026-09-01'),
+  performanceLockedAt: d('2026-09-01'),
 };
 
 interface ContractSeed {
@@ -73,6 +74,8 @@ interface Options {
   /** Fixed intern pay configured by the salary policy. */
   internPayAmount?: number;
   probationPayRate?: number;
+  attendanceLockedAt?: Date | null;
+  performanceLockedAt?: Date | null;
   /** Mức BHXH cố định HR nhập trên hồ sơ thuế. */
   fixedInsuranceAmount?: number;
   /** Khoảng làm việc của nhân viên; mặc định vào làm từ lâu, chưa nghỉ. */
@@ -94,7 +97,13 @@ function build(opts: Options) {
   };
 
   const useCases = new RunPayrollUseCases(
-    { findById: async () => PERIOD } as never,
+    {
+      findById: async () => ({
+        ...PERIOD,
+        attendanceLockedAt: opts.attendanceLockedAt === undefined ? PERIOD.attendanceLockedAt : opts.attendanceLockedAt,
+        performanceLockedAt: opts.performanceLockedAt === undefined ? d('2026-09-01') : opts.performanceLockedAt,
+      }),
+    } as never,
     {
       findExisting: async () => null,
       upsertComputed: async (_p: string, _e: string, doc: unknown) => {
@@ -374,6 +383,41 @@ describe('cả kỳ thử việc / thực tập', () => {
     });
 
     expect(num(doc.insurance)).toBe(0);
+  });
+});
+
+describe('P3 payroll source-lock guards', () => {
+  it('refuses payroll run until performance is locked', async () => {
+    const { useCases } = build({
+      contracts: [contractSeed()],
+      performanceLockedAt: null,
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_PERFORMANCE_NOT_LOCKED',
+    });
+  });
+
+  it('returns the public attendance-lock code when attendance is open', async () => {
+    const { useCases } = build({
+      contracts: [contractSeed()],
+      attendanceLockedAt: null,
+      performanceLockedAt: d('2026-09-01'),
+    });
+
+    await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
+      code: 'PAY_ATTENDANCE_NOT_LOCKED',
+    });
+  });
+
+  it('allows payroll run only after both attendance and performance are locked', async () => {
+    const doc = await run({
+      contracts: [contractSeed()],
+      attendanceLockedAt: d('2026-09-01'),
+      performanceLockedAt: d('2026-09-01'),
+    });
+
+    expect(num(doc.proRatedBaseSalary)).toBe(30_000_000);
   });
 });
 

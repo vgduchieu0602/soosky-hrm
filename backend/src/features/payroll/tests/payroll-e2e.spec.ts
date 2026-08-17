@@ -177,7 +177,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
       startDate: utc('2026-05-01'),
       endDate: utc('2026-05-31'),
       payDate: utc('2026-05-31'),
-      standardWorkDays: 22, attendanceLockedAt: new Date(),
+      standardWorkDays: 22, attendanceLockedAt: new Date(), performanceLockedAt: new Date(),
       status: 'open',
     });
 
@@ -239,7 +239,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, insuranceAmount: 577_500, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-08', startDate: utc('2026-08-01'), endDate: utc('2026-08-31'),
-      payDate: utc('2026-08-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+      payDate: utc('2026-08-31'), standardWorkDays: 22, attendanceLockedAt: new Date(), performanceLockedAt: new Date(), status: 'open',
     });
     for (let d = 1; d <= 22; d += 1) {
       await Attendance.create({ employeeId, date: utc(`2026-08-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
@@ -276,7 +276,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
-      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), performanceLockedAt: new Date(), status: 'open',
     });
     for (let d = 1; d <= 22; d += 1) {
       await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
@@ -309,7 +309,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     await EmployeeTaxProfile.create({ employeeId, isResident: true, dependentsCount: 0, effectiveDate: utc('2024-01-01') });
     const period = await PayrollPeriod.create({
       name: '2026-09', startDate: utc('2026-09-01'), endDate: utc('2026-09-30'),
-      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), status: 'open',
+      payDate: utc('2026-09-30'), standardWorkDays: 22, attendanceLockedAt: new Date(), performanceLockedAt: new Date(), status: 'open',
     });
     for (let d = 1; d <= 22; d += 1) {
       await Attendance.create({ employeeId, date: utc(`2026-09-${String(d).padStart(2, '0')}`), session: 'full_day', status: 'present', workHours: 8 });
@@ -354,7 +354,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
       startDate: utc('2026-06-01'),
       endDate: utc('2026-06-30'),
       payDate: utc('2026-06-30'),
-      standardWorkDays: 22, attendanceLockedAt: new Date(),
+      standardWorkDays: 22, attendanceLockedAt: new Date(), performanceLockedAt: new Date(),
       status: 'open',
     });
 
