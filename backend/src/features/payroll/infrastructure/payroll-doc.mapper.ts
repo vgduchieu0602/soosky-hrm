@@ -19,7 +19,7 @@ import {
 } from '@shared/utils/salary.util';
 
 /** Hình dạng ảnh chụp hiện tại. Tăng khi cấu trúc đổi. */
-export const PAYROLL_SNAPSHOT_VERSION = 1;
+export const PAYROLL_SNAPSHOT_VERSION = 2;
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(Math.round(n)));
 const copyDate = (value: Date) => new Date(value.getTime());
@@ -39,6 +39,8 @@ export interface PayrollSegmentInput {
   baseSalary: number;
   /** Tỷ lệ hưởng: 1 với chính thức/thực tập, `probationPayRate` với thử việc. */
   payRate: number;
+  /** Salary basis resolved by employment policy before component calculation. */
+  effectiveSalaryBase?: number;
   standardWorkDays: number;
   actualWorkDays: number;
   /** Thử việc/thực tập = 0 theo quy định hiện hành. */
@@ -72,6 +74,7 @@ export interface PayrollSnapshotSource {
   };
   policy: {
     effectiveFrom?: Date | null;
+    internPayAmount: number;
     probationPayRate: number;
     socialInsuranceSalary: number;
     unionFeeRate: number;
@@ -159,7 +162,7 @@ function computeSegments(segments: PayrollSegmentInput[]): {
       computeAttendanceRatio(segment.actualWorkDays, segment.standardWorkDays),
     );
     const result = computeEffectiveBaseSalary({
-      baseSalary: Math.round(segment.baseSalary * segment.payRate),
+      baseSalary: Math.round(segment.effectiveSalaryBase ?? segment.baseSalary * segment.payRate),
       attendanceRatio,
       performanceRatio: segment.performanceRatio,
       goalRatio: segment.goalRatio,
@@ -198,6 +201,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     employmentStatus: segment.employmentStatus,
     baseSalary: dec(segment.baseSalary),
     payRate: segment.payRate,
+    effectiveSalaryBase: dec(segment.effectiveSalaryBase ?? segment.baseSalary * segment.payRate),
     standardWorkDays: segment.standardWorkDays,
     actualWorkDays: segment.actualWorkDays,
     weights: { ...segment.weights },
@@ -290,6 +294,7 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
       policyId: ctx.policyConfigId ?? null,
       effectiveFrom: src.policy.effectiveFrom ? copyDate(src.policy.effectiveFrom) : null,
       weights: { ...(ctx.weights ?? DEFAULT_COMPONENT_WEIGHTS) },
+      internPayAmount: dec(src.policy.internPayAmount),
       probationPayRate: src.policy.probationPayRate,
       socialInsuranceSalary: dec(src.policy.socialInsuranceSalary),
       unionFeeRate: src.policy.unionFeeRate,

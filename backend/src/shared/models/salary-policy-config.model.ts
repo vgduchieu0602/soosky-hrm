@@ -2,6 +2,9 @@ import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
 
 const DB_NAME = 'salaryPolicyConfig';
 const COLLECTION_NAME = 'salaryPolicyConfigs';
+/** Policy defaults only: payroll resolves values from the effective policy. */
+export const DEFAULT_INTERN_STIPEND = 1_500_000;
+export const DEFAULT_PROBATION_PAY_RATE = 85;
 
 /** Weights (percent) for the 20/60/20 effective-base-salary formula. Should sum to 100. */
 export interface ISalaryComponentWeights {
@@ -30,10 +33,7 @@ export interface ISalaryPolicyConfig {
   unionFeeEnabled: boolean;
   /** Probation pay as a PERCENT of contract salary (default 85). */
   probationPayRate: number;
-  /** @deprecated No longer used to compute intern pay. Interns are now paid their
-   *  FULL contract salary, attendance-prorated only (no perf/goal split, no
-   *  compulsory insurance) — see payroll-run.service. Kept for back-compat /
-   *  historical records; safe to drop in a future migration. */
+  /** Fixed intern pay for a full attendance period, before attendance proration. */
   internStipend: mongoose.Types.Decimal128;
   /** Weights for the 20/60/20 effective base salary formula. */
   salaryComponentWeights: ISalaryComponentWeights;
@@ -70,8 +70,11 @@ const salaryPolicyConfigSchema = new Schema<ISalaryPolicyConfig>(
     socialInsuranceSalary: { type: Schema.Types.Decimal128, default: null },
     unionFeeRate: { type: Number, default: 1 },
     unionFeeEnabled: { type: Boolean, default: true },
-    probationPayRate: { type: Number, default: 85, min: 0, max: 100 },
-    internStipend: { type: Schema.Types.Decimal128, default: () => mongoose.Types.Decimal128.fromString('1500000') },
+    probationPayRate: { type: Number, default: DEFAULT_PROBATION_PAY_RATE, min: 0, max: 100 },
+    internStipend: {
+      type: Schema.Types.Decimal128,
+      default: () => mongoose.Types.Decimal128.fromString(String(DEFAULT_INTERN_STIPEND)),
+    },
     salaryComponentWeights: {
       type: salaryComponentWeightsSchema,
       default: () => ({ attendance: 20, performance: 60, goal: 20 }),

@@ -70,6 +70,8 @@ interface Options {
   /** Ngày công thực tế theo khoảng; mặc định = ngày công chuẩn. */
   actualByRange?: Record<string, number>;
   weights?: { attendance: number; performance: number; goal: number };
+  /** Fixed intern pay configured by the salary policy. */
+  internPayAmount?: number;
   probationPayRate?: number;
   /** Mức BHXH cố định HR nhập trên hồ sơ thuế. */
   fixedInsuranceAmount?: number;
@@ -122,6 +124,7 @@ function build(opts: Options) {
         regionalMinWage: { zone1: 4_960_000 },
         personalDeduction: dec(11_000_000),
         dependentDeduction: dec(4_400_000),
+        internStipend: dec(opts.internPayAmount ?? 1_500_000),
         probationPayRate: opts.probationPayRate ?? 85,
         socialInsuranceSalary: dec(5_500_000),
         unionFeeEnabled: false,
@@ -325,14 +328,113 @@ describe('cả kỳ thử việc / thực tập', () => {
     expect(num(doc.proRatedBaseSalary)).toBe(9_000_000);
   });
 
-  it('thực tập toàn kỳ giữ hành vi hiện tại: lương hợp đồng, không bảo hiểm', async () => {
+  it('thực tập toàn kỳ dùng mức trả cố định từ policy, không dùng lương hợp đồng', async () => {
     const doc = await run({
       contracts: [contractSeed({ employmentStatus: 'internship', baseSalary: dec(4_000_000) })],
       workDaysByRange: { '2026-08-01..2026-08-31': 21 },
+      internPayAmount: 1_500_000,
     });
 
-    expect(num(doc.proRatedBaseSalary)).toBe(4_000_000);
+    expect(num(doc.proRatedBaseSalary)).toBe(1_500_000);
+    expect(num((doc.calculationSnapshot!.contracts[0] as any).effectiveSalaryBase)).toBe(1_500_000);
     expect(num(doc.insurance)).toBe(0);
+  });
+
+  it('thực tập chia lương theo ngày công trên mức trả cố định của policy', async () => {
+    const doc = await run({
+      contracts: [contractSeed({ employmentStatus: 'internship', baseSalary: dec(3_000_000) })],
+      workDaysByRange: { '2026-08-01..2026-08-31': 20 },
+      actualByRange: { '2026-08-01..2026-08-31': 10 },
+      internPayAmount: 1_500_000,
+    });
+
+    expect(num(doc.proRatedBaseSalary)).toBe(750_000);
+    expect(num(doc.performanceComponent)).toBe(0);
+    expect(num(doc.goalComponent)).toBe(0);
+  });
+
+  it('giữ mức trả intern và tỷ lệ thử việc đã resolve trong payroll snapshot', async () => {
+    const doc = await run({
+      contracts: [contractSeed({ employmentStatus: 'internship', baseSalary: dec(3_000_000) })],
+      workDaysByRange: { '2026-08-01..2026-08-31': 21 },
+      internPayAmount: 1_500_000,
+      probationPayRate: 85,
+    });
+
+    const policy = (doc.calculationSnapshot as any).policy;
+    expect(policy.internPayAmount).toBeDefined();
+    expect(policy.probationPayRate).toBe(85);
+  });
+
+  it('giữ insurance override bằng 0, không đổi thành mức mặc định', async () => {
+    const doc = await run({
+      contracts: [contractSeed({ employmentStatus: 'official', baseSalary: dec(10_000_000) })],
+      workDaysByRange: { '2026-08-01..2026-08-31': 21 },
+      fixedInsuranceAmount: 0,
+    });
+
+    expect(num(doc.insurance)).toBe(0);
+  });
+});
+
+describe('chuyển trạng thái có internship trong cùng kỳ', () => {
+  it('internship → probation tạo hai đoạn với hai policy pay basis riêng', async () => {
+    const doc = await run({
+      contracts: [
+        contractSeed({
+          employmentStatus: 'internship',
+          baseSalary: dec(3_000_000),
+          endDate: d('2026-08-10'),
+        }),
+        contractSeed({
+          employmentStatus: 'probation',
+          baseSalary: dec(10_000_000),
+          startDate: d('2026-08-11'),
+        }),
+      ],
+      workDaysByRange: { '2026-08-01..2026-08-10': 7, '2026-08-11..2026-08-31': 15 },
+      internPayAmount: 1_500_000,
+      probationPayRate: 85,
+      fixedInsuranceAmount: 570_000,
+    });
+
+    const segments = doc.calculationSnapshot!.contracts;
+    expect(segments).toHaveLength(2);
+    expect(num((segments[0] as any).effectiveSalaryBase)).toBe(1_500_000);
+    expect(num((segments[1] as any).effectiveSalaryBase)).toBe(8_500_000);
+    expect(num(doc.proRatedBaseSalary)).toBe(10_000_000);
+    expect(num(doc.insurance)).toBe(0);
+  });
+
+  it('internship → probation → official giữ ba đoạn và chỉ thu insurance một lần', async () => {
+    const doc = await run({
+      contracts: [
+        contractSeed({ employmentStatus: 'internship', baseSalary: dec(3_000_000), endDate: d('2026-08-10') }),
+        contractSeed({
+          employmentStatus: 'probation',
+          baseSalary: dec(10_000_000),
+          startDate: d('2026-08-11'),
+          endDate: d('2026-08-20'),
+        }),
+        contractSeed({ employmentStatus: 'official', baseSalary: dec(15_000_000), startDate: d('2026-08-21') }),
+      ],
+      workDaysByRange: {
+        '2026-08-01..2026-08-10': 7,
+        '2026-08-11..2026-08-20': 7,
+        '2026-08-21..2026-08-31': 7,
+      },
+      internPayAmount: 1_500_000,
+      probationPayRate: 85,
+      fixedInsuranceAmount: 570_000,
+    });
+
+    const segments = doc.calculationSnapshot!.contracts;
+    expect(segments).toHaveLength(3);
+    expect(segments.map((s) => s.employmentStatus)).toEqual(['internship', 'probation', 'official']);
+    expect(num((segments[0] as any).effectiveSalaryBase)).toBe(1_500_000);
+    expect(num((segments[1] as any).effectiveSalaryBase)).toBe(8_500_000);
+    expect(num((segments[2] as any).effectiveSalaryBase)).toBe(15_000_000);
+    expect(num(doc.insurance)).toBe(570_000);
   });
 });
 

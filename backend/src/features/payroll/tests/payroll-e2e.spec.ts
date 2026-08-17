@@ -294,7 +294,7 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     expect(num(payroll.unionFee)).toBe(0);
   });
 
-  it('intern: full contract salary, attendance-prorated only, no insurance, no union fee', async () => {
+  it('intern: fixed policy pay, attendance-prorated only, no insurance, no union fee', async () => {
     await seedCompanyPolicy();
     const criteria = await seedCriteria();
     const employee = await Employee.create({
@@ -321,10 +321,10 @@ describe('Full chain: attendance + evaluation → payroll', () => {
     });
 
     const payroll = await runPayrollForEmployee(String(period._id), employeeId);
-    // Intern pay follows the contract salary, attendance-prorated only (no perf/goal,
-    // no insurance/union fee). Full attendance on the 20M contract → 20,000,000.
-    expect(num(payroll.proRatedBaseSalary)).toBe(20_000_000);
-    expect(num(payroll.grossSalary)).toBe(20_000_000);
+    // Intern pay follows the configured salary policy, not the 20M contract salary.
+    // Full attendance → default intern stipend 1,500,000 (no perf/goal/insurance/union fee).
+    expect(num(payroll.proRatedBaseSalary)).toBe(1_500_000);
+    expect(num(payroll.grossSalary)).toBe(1_500_000);
     expect(num(payroll.insurance)).toBe(0);
     expect(num(payroll.unionFee)).toBe(0);
   });

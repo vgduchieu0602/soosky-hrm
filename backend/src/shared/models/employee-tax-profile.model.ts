@@ -16,7 +16,7 @@ export interface IEmployeeTaxProfile {
   isResident: boolean;
   /** Number of registered dependents (người phụ thuộc) for the deduction. */
   dependentsCount: number;
-  /** Fixed compulsory-insurance amount (BHXH) deducted per period, entered by HR. */
+  /** Fixed compulsory-insurance amount (BHXH) deducted per period, entered by HR. Zero is explicit. */
   insuranceAmount?: number;
   effectiveDate: Date;
   endDate?: Date | null;

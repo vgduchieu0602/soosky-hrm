@@ -85,6 +85,7 @@ export class MongooseSalaryPolicyRepository implements SalaryPolicyRepository {
       ...(input.socialInsuranceSalary !== undefined && {
         socialInsuranceSalary: dec(input.socialInsuranceSalary),
       }),
+      ...(input.internStipend !== undefined && { internStipend: dec(input.internStipend) }),
       ...(input.unionFeeRate !== undefined && { unionFeeRate: input.unionFeeRate }),
       ...(input.unionFeeEnabled !== undefined && { unionFeeEnabled: input.unionFeeEnabled }),
       ...(input.probationPayRate !== undefined && { probationPayRate: input.probationPayRate }),
@@ -110,6 +111,7 @@ export class MongooseSalaryPolicyRepository implements SalaryPolicyRepository {
     if (input.insuranceRates) patch.insuranceRates = input.insuranceRates;
     if (input.socialInsuranceSalary !== undefined)
       patch.socialInsuranceSalary = dec(input.socialInsuranceSalary);
+    if (input.internStipend !== undefined) patch.internStipend = dec(input.internStipend);
     if (input.unionFeeRate !== undefined) patch.unionFeeRate = input.unionFeeRate;
     if (input.unionFeeEnabled !== undefined) patch.unionFeeEnabled = input.unionFeeEnabled;
     if (input.probationPayRate !== undefined) patch.probationPayRate = input.probationPayRate;

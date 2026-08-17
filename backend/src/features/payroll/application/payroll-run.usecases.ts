@@ -67,9 +67,6 @@ export { buildPayrollDoc, type PayrollRunContext };
 
 const log = logger.child({ feature: 'payroll', module: 'run' });
 
-/** Probation / internship contracts are paid this fraction of the agreed salary. */
-const PROBATION_PAY_RATE = 0.85;
-
 /** 409 conflict with a payroll-scoped error code. */
 const conflict = (message: string, code = 'PAY_409') => new HttpError(409, message, code);
 
@@ -296,17 +293,21 @@ export class RunPayrollUseCases {
     const summary = await this.attendance.aggregatePeriod(employeeId, period.startDate, period.endDate);
 
     // Tình trạng làm việc (không phải loại HĐLĐ) quyết định cách trả và bảo hiểm:
-    //   • internship → lương hợp đồng, chỉ chia theo chấm công, KHÔNG bảo hiểm.
+    //   • internship → mức cố định từ salary policy, chỉ chia theo chấm công, KHÔNG bảo hiểm.
     //   • probation  → `probationPayRate` × lương hợp đồng, KHÔNG bảo hiểm.
     //   • official   → đủ lương, áp trọng số chấm công/hiệu suất/mục tiêu từ
     //                  chính sách, đóng bảo hiểm trên mức cố định + phí công đoàn.
     // Trạng thái này nay xét theo TỪNG ĐOẠN, không còn lấy từ một hợp đồng duy
     // nhất — kỳ có chuyển thử việc → chính thức phải ra hai khoản khác nhau.
-    const probationRate = (policy.probationPayRate ?? PROBATION_PAY_RATE * 100) / 100;
+    const probationRate = policy.probationPayRate / 100;
+    const internPayAmount = toNum(policy.internStipend);
     const policyWeights = policy.salaryComponentWeights as SalaryComponentWeights | undefined;
 
     const segments: PayrollSegmentInput[] = rawSegments.map((segment) => {
       const isOfficial = segment.employmentStatus === 'official';
+      const effectiveSalaryBase =
+        segment.employmentStatus === 'internship' ? internPayAmount : segment.baseSalary *
+          (segment.employmentStatus === 'probation' ? probationRate : 1);
       return {
         contractId: new mongoose.Types.ObjectId(segment.contractId),
         from: segment.from,
@@ -314,6 +315,7 @@ export class RunPayrollUseCases {
         employmentStatus: segment.employmentStatus,
         baseSalary: segment.baseSalary,
         payRate: segment.employmentStatus === 'probation' ? probationRate : 1,
+        effectiveSalaryBase,
         standardWorkDays: segment.standardWorkDays,
         actualWorkDays: segment.actualWorkDays,
         // Đánh giá gắn với KỲ, không gắn với hợp đồng: cùng một
@@ -434,7 +436,8 @@ export class RunPayrollUseCases {
         },
         policy: {
           effectiveFrom: policy.effectiveFrom ?? null,
-          probationPayRate: policy.probationPayRate ?? PROBATION_PAY_RATE * 100,
+          internPayAmount,
+          probationPayRate: policy.probationPayRate,
           socialInsuranceSalary: fixedInsuranceSalary,
           unionFeeRate: policy.unionFeeRate ?? 0,
           unionFeeEnabled: policy.unionFeeEnabled ?? false,
@@ -448,8 +451,8 @@ export class RunPayrollUseCases {
       // Allowances flagged isInsuranceBase add to the BHXH base — except for
       // intern/probation, who are not on compulsory insurance.
       insuranceBaseAllowances: isInsuranceExempt ? 0 : allowances.insuranceBase,
-      // Fixed BHXH amount entered by HR on the tax profile overrides the %-based
-      // computation. Intern/probation are insurance-exempt → 0.
+      // EmployeeTaxProfile is the only fixed-insurance source today. `??` keeps
+      // an explicit employee override of 0; intern/probation are exempt → 0.
       fixedInsuranceAmount: isInsuranceExempt ? 0 : (taxProfile?.insuranceAmount ?? 0),
       unionFee,
       deductions,

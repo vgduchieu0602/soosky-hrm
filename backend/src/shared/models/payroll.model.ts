@@ -27,6 +27,8 @@ export interface IPayrollContractSegment {
   baseSalary: Dec;
   /** Tỷ lệ hưởng: 1 chính thức/thực tập · `probationPayRate` khi thử việc. */
   payRate: number;
+  /** Salary basis after the employment policy is resolved for this segment. */
+  effectiveSalaryBase: Dec;
   standardWorkDays: number;
   actualWorkDays: number;
   /** Trọng số áp cho ĐOẠN này (thử việc/thực tập dồn 100% vào chấm công). */
@@ -107,6 +109,7 @@ export interface IPayrollCalculationSnapshot {
     policyId?: Types.ObjectId | null;
     effectiveFrom?: Date | null;
     weights: ISnapshotWeights;
+    internPayAmount: Dec;
     probationPayRate: number;
     socialInsuranceSalary: Dec;
     unionFeeRate: number;
@@ -121,7 +124,7 @@ export interface IPayrollCalculationSnapshot {
     exempt: boolean;
     base: Dec;
     unemploymentBase: Dec;
-    /** Mức BHXH cố định HR nhập trên hồ sơ thuế (0 = tính theo %). */
+    /** Mức BHXH cố định đã resolve từ hồ sơ thuế (0 = không khấu trừ cố định). */
     fixedAmount: Dec;
     socialHealthCeiling: Dec;
     unemploymentCeiling: Dec;
@@ -252,6 +255,7 @@ const payrollContractSegmentSchema = new Schema<IPayrollContractSegment>(
     employmentStatus: { type: String, required: true },
     baseSalary: dec,
     payRate: { type: Number, default: 1 },
+    effectiveSalaryBase: dec,
     standardWorkDays: { type: Number, default: 0 },
     actualWorkDays: { type: Number, default: 0 },
     weights: { type: snapshotWeightsSchema, required: true },
@@ -322,6 +326,7 @@ const calculationSnapshotSchema = new Schema<IPayrollCalculationSnapshot>(
       policyId: { type: Schema.Types.ObjectId, ref: 'salaryPolicyConfigs', default: null },
       effectiveFrom: { type: Date, default: null },
       weights: { type: snapshotWeightsSchema, required: true },
+      internPayAmount: dec,
       probationPayRate: { type: Number, default: 0 },
       socialInsuranceSalary: dec,
       unionFeeRate: { type: Number, default: 0 },

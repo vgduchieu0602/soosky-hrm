@@ -346,7 +346,7 @@ export function computeOvertimePayBreakdown(
 
 export interface ComputePayrollInput {
   baseSalary: number;
-  // attendance / performance / goal (20/60/20)
+  // configurable attendance / performance / goal component weights
   attendanceRatio: number;
   performanceRatio: number;
   goalRatio: number;

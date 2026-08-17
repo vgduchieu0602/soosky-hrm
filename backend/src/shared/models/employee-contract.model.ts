@@ -7,9 +7,9 @@ const COLLECTION_NAME = 'employeeContracts';
 export const CONTRACT_TYPE = ['fixed_term', 'indefinite'] as const;
 export type ContractType = (typeof CONTRACT_TYPE)[number];
 
-// Tình trạng làm việc — drives payroll: probation → 85% of contract salary;
-// internship → full contract salary (attendance-prorated only); both have no
-// compulsory insurance. official → full salary + insurance.
+// Tình trạng làm việc — drives payroll: probation → configured percentage of
+// contract salary; internship → fixed salary-policy amount (attendance-prorated
+// only); both have no compulsory insurance. official → full salary + insurance.
 export const EMPLOYMENT_STATUS = ['probation', 'official', 'internship'] as const;
 export type EmploymentStatus = (typeof EMPLOYMENT_STATUS)[number];
 

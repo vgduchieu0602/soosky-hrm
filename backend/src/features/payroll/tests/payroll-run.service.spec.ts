@@ -38,6 +38,7 @@ const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => {
       },
       policy: {
         effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+        internPayAmount: 1_500_000,
         probationPayRate: 85,
         socialInsuranceSalary: 30_000_000,
         unionFeeRate: 0,
@@ -194,14 +195,16 @@ describe('buildPayrollDoc', () => {
     const doc = buildPayrollDoc(ctx);
     const snapshot = doc.calculationSnapshot!;
 
-    expect(snapshot.version).toBe(1);
+    expect(snapshot.version).toBe(2);
     expect(snapshot.period).toEqual(ctx.snapshot.period);
     expect(snapshot.employment).toEqual(ctx.snapshot.employment);
     expect(snapshot.policy).toMatchObject({
       policyId: ctx.policyConfigId,
       weights: { attendance: 20, performance: 60, goal: 20 },
+      internPayAmount: expect.objectContaining({ toString: expect.any(Function) }),
       socialInsuranceSalary: expect.objectContaining({ toString: expect.any(Function) }),
     });
+    expect(num(snapshot.policy.internPayAmount)).toBe(1_500_000);
     expect(num(snapshot.policy.socialInsuranceSalary)).toBe(30_000_000);
     expect(snapshot.evaluation).toMatchObject({
       evaluationId: ctx.monthlyEvaluationId,
@@ -233,6 +236,7 @@ describe('buildPayrollDoc', () => {
     ctx.snapshot.period.startDate.setUTCDate(2);
     ctx.snapshot.employment.effectiveStart.setUTCDate(2);
     ctx.snapshot.policy.socialInsuranceSalary = 20_000_000;
+    ctx.snapshot.policy.internPayAmount = 1_800_000;
     ctx.snapshot.evaluation.criteria[0]!.score = 10;
     rates.employee.social = 9;
 
@@ -244,6 +248,7 @@ describe('buildPayrollDoc', () => {
     expect(snapshot.employment.effectiveStart.toISOString()).toBe('2026-08-01T00:00:00.000Z');
     expect(snapshot.policy.weights.attendance).toBe(20);
     expect(num(snapshot.policy.socialInsuranceSalary)).toBe(30_000_000);
+    expect(num(snapshot.policy.internPayAmount)).toBe(1_500_000);
     expect(snapshot.evaluation.criteria[0]!.score).toBe(92);
     expect(snapshot.evaluation.criteria[0]).toMatchObject({
       name: 'Quality',

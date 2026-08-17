@@ -2,7 +2,11 @@ import { Employee } from '@shared/models/employee.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
 import { Shift } from '@shared/models/shift.model';
-import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
+import {
+  DEFAULT_INTERN_STIPEND,
+  DEFAULT_PROBATION_PAY_RATE,
+  SalaryPolicyConfig,
+} from '@shared/models/salary-policy-config.model';
 import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
 import { Attendance, type AttendanceStatus } from '@shared/models/attendance.model';
@@ -114,10 +118,19 @@ export class MongooseShiftGateway implements ShiftGateway {
 }
 
 export class MongooseSalaryPolicyGateway implements SalaryPolicyGateway {
-  effectiveAt(date: Date) {
-    return SalaryPolicyConfig.findOne({ effectiveFrom: { $lte: date } })
+  async effectiveAt(date: Date) {
+    const policy = await SalaryPolicyConfig.findOne({ effectiveFrom: { $lte: date } })
       .sort({ effectiveFrom: -1 })
-      .lean() as unknown as Promise<PolicyRecord | null>;
+      .lean();
+    if (!policy) return null;
+
+    // `lean()` does not backfill defaults for historical documents. Normalize at
+    // the policy boundary so the payroll engine never carries business constants.
+    return {
+      ...policy,
+      internStipend: policy.internStipend ?? DEFAULT_INTERN_STIPEND,
+      probationPayRate: policy.probationPayRate ?? DEFAULT_PROBATION_PAY_RATE,
+    } as unknown as PolicyRecord;
   }
 }
 
