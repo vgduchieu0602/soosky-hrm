@@ -2,11 +2,18 @@ import { Router } from 'express';
 import { authenticate } from '@shared/middlewares/authenticate';
 import { requireRoles } from '@shared/middlewares/require-role';
 import { validate } from '@shared/middlewares/validate';
-import { evaluationController } from '@features/performance/interfaces/http/controllers';
+import { criterionController, evaluationController } from '@features/performance/interfaces/http/controllers';
 import { directEvaluateDto, acknowledgeDto, reopenDto } from '@features/performance/dto/evaluation.dto';
+import { createCriterionDto, updateCriterionDto } from '@features/performance/dto/criterion.dto';
 
 const router = Router();
 const hrOrAdmin = requireRoles('admin', 'hr_manager');
+
+// ---- Criteria management: one model, filter by performance/goal group ----
+router.get('/performance/criteria', authenticate, hrOrAdmin, criterionController.list);
+router.post('/performance/criteria', authenticate, hrOrAdmin, validate(createCriterionDto, 'body'), criterionController.create);
+router.patch('/performance/criteria/:id', authenticate, hrOrAdmin, validate(updateCriterionDto, 'body'), criterionController.update);
+router.post('/performance/criteria/:id/deactivate', authenticate, hrOrAdmin, criterionController.deactivate);
 
 // ---- Self-service (employee): chỉ xem + xác nhận ----
 router.get('/performance/evaluations/me', authenticate, evaluationController.mine);

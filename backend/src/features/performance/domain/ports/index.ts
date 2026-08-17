@@ -23,6 +23,7 @@ export interface EvaluationRecord {
 /** Fields persisted on an upsert (direct evaluate). */
 export interface EvaluationUpsertFields {
   criteriaScores: ScoreInput[];
+  criteriaDefinitionSnapshot?: CriterionDefinition[];
   performanceRatio: number;
   goalResult: number;
   goalRatio: number;
@@ -69,8 +70,31 @@ export interface EmployeeGateway {
 }
 
 export interface CriterionGateway {
-  /** Active criterion ids split by type — performance vs goal. */
-  activeTypeSets(): Promise<{ performance: Set<string>; goal: Set<string> }>;
+  /** Active criteria captured by a newly-created evaluation. */
+  activeDefinitions(): Promise<CriterionDefinition[]>;
+}
+
+/** Criterion metadata needed for evaluation math and its historical snapshot. */
+export interface CriterionDefinition {
+  criterionId: string;
+  name: string;
+  group: 'performance' | 'goal';
+  weight: number;
+}
+
+export interface CriterionRecord extends CriterionDefinition {
+  _id: unknown;
+  key: string;
+  description?: string;
+  order: number;
+  active: boolean;
+}
+
+export interface CriterionRepository {
+  list(group?: CriterionDefinition['group']): Promise<CriterionRecord[]>;
+  create(input: Omit<CriterionRecord, '_id' | 'criterionId' | 'active'>): Promise<CriterionRecord>;
+  update(id: Id, patch: Partial<Omit<CriterionRecord, '_id' | 'key' | 'active'>>): Promise<CriterionRecord | null>;
+  deactivate(id: Id): Promise<CriterionRecord | null>;
 }
 
 export interface PayrollLockGateway {

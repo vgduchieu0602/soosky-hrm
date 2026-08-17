@@ -195,8 +195,8 @@ describe('Evaluation reopen blocked once payroll approved (PERF-1, HTTP)', () =>
     const { employeeId } = await seedEmployee('EVAL');
     const periodId = await createLockedPeriod();
 
-    const perf = await PerformanceCriterion.create({ key: 'quality', label: 'quality', type: 'performance', status: 'active' });
-    const goal = await PerformanceCriterion.create({ key: 'goal_x', label: 'goal_x', type: 'goal', status: 'active' });
+    const perf = await PerformanceCriterion.create({ key: 'quality', label: 'quality', type: 'performance', weight: 100, status: 'active' });
+    const goal = await PerformanceCriterion.create({ key: 'goal_x', label: 'goal_x', type: 'goal', weight: 100, status: 'active' });
 
     // Evaluate + finalize over HTTP.
     const evalRes = await api.post('/api/v1/performance/evaluations').set(hr()).send({

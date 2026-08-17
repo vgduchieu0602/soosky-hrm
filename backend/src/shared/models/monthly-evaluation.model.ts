@@ -18,6 +18,14 @@ export interface ICriterionScore {
   score: number;
 }
 
+/** Applied criterion set, captured once so later admin edits cannot rewrite history. */
+export interface ICriterionDefinitionSnapshot {
+  criterionId: Types.ObjectId;
+  name: string;
+  group: 'performance' | 'goal';
+  weight: number;
+}
+
 export interface IMonthlyEvaluation {
   employeeId: Types.ObjectId;
   payrollPeriodId: Types.ObjectId;
@@ -30,6 +38,8 @@ export interface IMonthlyEvaluation {
 
   /** Điểm cuối HR chốt (mặc định = managerScores). Dùng để tính performanceRatio. */
   criteriaScores: ICriterionScore[];
+  /** Definitions used to score this evaluation. Absent only on legacy rows. */
+  criteriaDefinitionSnapshot?: ICriterionDefinitionSnapshot[];
   /** Weighted average of criteriaScores (final), 0–100. Feeds payroll. */
   performanceRatio: number;
   /** % of monthly goal achieved, 0–100. */
@@ -67,6 +77,16 @@ const criterionScoreSchema = new Schema<ICriterionScore>(
   { _id: false },
 );
 
+const criterionDefinitionSnapshotSchema = new Schema<ICriterionDefinitionSnapshot>(
+  {
+    criterionId: { type: Schema.Types.ObjectId, ref: 'performanceCriteria', required: true },
+    name: { type: String, required: true },
+    group: { type: String, enum: ['performance', 'goal'], required: true },
+    weight: { type: Number, required: true, min: 0, max: 100 },
+  },
+  { _id: false },
+);
+
 const monthlyEvaluationSchema = new Schema<IMonthlyEvaluation>(
   {
     employeeId: { type: Schema.Types.ObjectId, ref: 'employees', required: true, index: true },
@@ -83,6 +103,7 @@ const monthlyEvaluationSchema = new Schema<IMonthlyEvaluation>(
     managerSubmittedAt: { type: Date, default: null },
 
     criteriaScores: { type: [criterionScoreSchema], default: [] },
+    criteriaDefinitionSnapshot: { type: [criterionDefinitionSnapshotSchema], default: undefined },
     performanceRatio: { type: Number, default: 0, min: 0, max: 100 },
     goalResult: { type: Number, default: 0, min: 0, max: 100 },
     goalRatio: { type: Number, default: 0, min: 0, max: 100 },

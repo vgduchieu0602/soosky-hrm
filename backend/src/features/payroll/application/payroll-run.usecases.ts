@@ -411,10 +411,26 @@ export class RunPayrollUseCases {
         },
         evaluation: {
           status: evaluation?.status ?? null,
-          criteria: (evaluation?.criteriaScores ?? []).map((c) => ({
-            criterionId: c.criterionId as mongoose.Types.ObjectId,
-            score: c.score,
-          })),
+          // Evaluation owns the definition snapshot. Never consult current
+          // PerformanceCriterion rows while explaining historical payroll.
+          criteria: (() => {
+            const definitions = new Map(
+              (evaluation?.criteriaDefinitionSnapshot ?? []).map((definition) => [
+                String(definition.criterionId),
+                definition,
+              ]),
+            );
+            return (evaluation?.criteriaScores ?? []).map((score) => {
+              const definition = definitions.get(String(score.criterionId));
+              return {
+                criterionId: score.criterionId as mongoose.Types.ObjectId,
+                ...(definition
+                  ? { name: definition.name, group: definition.group, weight: definition.weight }
+                  : {}),
+                score: score.score,
+              };
+            });
+          })(),
         },
         policy: {
           effectiveFrom: policy.effectiveFrom ?? null,

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { evaluationUseCases } from '@features/performance/container';
+import { criterionUseCases, evaluationUseCases } from '@features/performance/container';
 
 function userId(req: Request): string {
   if (!req.user) throw new Error('IAM_002');
@@ -69,6 +69,38 @@ export const evaluationController = {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="danh-gia.xlsx"');
       res.send(buf);
+    } catch (e) {
+      next(e);
+    }
+  },
+};
+
+export const criterionController = {
+  async list(req: Request, res: Response, next: NextFunction) {
+    try {
+      const group = (req.query as { group?: 'performance' | 'goal' }).group;
+      res.json({ data: await criterionUseCases.list(group) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.status(201).json({ data: await criterionUseCases.create(req.body) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await criterionUseCases.update(idOf(req), req.body) });
+    } catch (e) {
+      next(e);
+    }
+  },
+  async deactivate(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ data: await criterionUseCases.deactivate(idOf(req)) });
     } catch (e) {
       next(e);
     }

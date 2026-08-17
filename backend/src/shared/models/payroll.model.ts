@@ -50,6 +50,10 @@ export interface ISnapshotWeights {
 /** Điểm một tiêu chí đánh giá, chép lại tại thời điểm tính. */
 export interface IPayrollSnapshotCriterion {
   criterionId: Types.ObjectId;
+  /** Criterion metadata comes from the MonthlyEvaluation snapshot, not live config. */
+  name?: string;
+  group?: 'performance' | 'goal';
+  weight?: number;
   score: number;
 }
 
@@ -264,6 +268,9 @@ const payrollContractSegmentSchema = new Schema<IPayrollContractSegment>(
 const snapshotCriterionSchema = new Schema<IPayrollSnapshotCriterion>(
   {
     criterionId: { type: Schema.Types.ObjectId, ref: 'performanceCriteria', required: true },
+    name: { type: String },
+    group: { type: String, enum: ['performance', 'goal'] },
+    weight: { type: Number, min: 0, max: 100 },
     score: { type: Number, required: true },
   },
   { _id: false },

@@ -11,6 +11,13 @@ import type {
 
 const toScores = (rows: ScoreInput[]) =>
   rows.map((s) => ({ criterionId: new mongoose.Types.ObjectId(s.criterionId), score: s.score }));
+const toDefinitions = (rows: NonNullable<EvaluationUpsertFields['criteriaDefinitionSnapshot']>) =>
+  rows.map((criterion) => ({
+    criterionId: new mongoose.Types.ObjectId(criterion.criterionId),
+    name: criterion.name,
+    group: criterion.group,
+    weight: criterion.weight,
+  }));
 
 export class MongooseEvaluationRepository implements EvaluationRepository {
   list(payrollPeriodId?: string): Promise<EvaluationRecord[]> {
@@ -41,6 +48,9 @@ export class MongooseEvaluationRepository implements EvaluationRepository {
     const set: Record<string, unknown> = {
       criteriaScores: toScores(fields.criteriaScores),
       managerScores: toScores(fields.criteriaScores),
+      ...(fields.criteriaDefinitionSnapshot
+        ? { criteriaDefinitionSnapshot: toDefinitions(fields.criteriaDefinitionSnapshot) }
+        : {}),
       performanceRatio: fields.performanceRatio,
       goalResult: fields.goalResult,
       goalRatio: fields.goalRatio,

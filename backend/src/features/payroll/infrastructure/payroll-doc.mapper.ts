@@ -62,7 +62,13 @@ export interface PayrollSnapshotSource {
   };
   evaluation: {
     status?: string | null;
-    criteria: { criterionId: mongoose.Types.ObjectId; score: number }[];
+    criteria: {
+      criterionId: mongoose.Types.ObjectId;
+      name?: string;
+      group?: 'performance' | 'goal';
+      weight?: number;
+      score: number;
+    }[];
   };
   policy: {
     effectiveFrom?: Date | null;

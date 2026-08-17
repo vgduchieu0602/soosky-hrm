@@ -106,8 +106,10 @@ async function seedCriteria(): Promise<mongoose.Types.ObjectId[]> {
   ];
   const ids: mongoose.Types.ObjectId[] = [];
   for (let i = 0; i < defs.length; i += 1) {
+    const type = defs[i].type as 'performance' | 'goal';
+    const groupCount = defs.filter((definition) => definition.type === type).length;
     const doc = await PerformanceCriterion.create({
-      key: defs[i].key, label: defs[i].key, type: defs[i].type as 'performance' | 'goal', order: i + 1, status: 'active',
+      key: defs[i].key, label: defs[i].key, type, weight: 100 / groupCount, order: i + 1, status: 'active',
     });
     ids.push(doc._id as mongoose.Types.ObjectId);
   }

@@ -16,6 +16,8 @@ export interface IPerformanceCriterion {
   description?: string;
   /** performance → 60% component · goal → 20% component. */
   type: CriterionType;
+  /** Relative contribution within its own type group; must total 100 to finalize. */
+  weight: number;
   order: number;
   status: CriterionStatus;
   created_at?: Date;
@@ -30,6 +32,7 @@ const performanceCriterionSchema = new Schema<IPerformanceCriterion>(
     label: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     type: { type: String, enum: CRITERION_TYPE, default: 'performance', index: true },
+    weight: { type: Number, default: 0, min: 0, max: 100 },
     order: { type: Number, default: 0 },
     status: { type: String, enum: CRITERION_STATUS, default: 'active', index: true },
   },

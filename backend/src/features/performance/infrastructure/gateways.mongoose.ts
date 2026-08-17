@@ -22,14 +22,17 @@ export class MongooseEmployeeGateway implements EmployeeGateway {
 }
 
 export class MongooseCriterionGateway implements CriterionGateway {
-  async activeTypeSets(): Promise<{ performance: Set<string>; goal: Set<string> }> {
-    const criteria = await PerformanceCriterion.find({ status: 'active' }).select('type').lean();
-    const performance = new Set<string>();
-    const goal = new Set<string>();
-    for (const c of criteria) {
-      (c.type === 'goal' ? goal : performance).add(String(c._id));
-    }
-    return { performance, goal };
+  async activeDefinitions() {
+    const criteria = await PerformanceCriterion.find({ status: 'active' })
+      .select('label type weight order')
+      .sort({ type: 1, order: 1, _id: 1 })
+      .lean();
+    return criteria.map((criterion) => ({
+      criterionId: String(criterion._id),
+      name: criterion.label,
+      group: criterion.type,
+      weight: criterion.weight ?? 0,
+    }));
   }
 }
 

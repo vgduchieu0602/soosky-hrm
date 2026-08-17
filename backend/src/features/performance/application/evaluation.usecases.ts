@@ -9,7 +9,7 @@ import { logger } from '@core/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import { ForbiddenError } from '@shared/errors/forbidden.error';
-import { simpleAverage, unscoredIn } from '@features/performance/domain/evaluation-ratio';
+import { computeEvaluationRatio, unscoredIn } from '@features/performance/domain/evaluation-ratio';
 import type {
   EvaluationRepository,
   EmployeeGateway,
@@ -19,11 +19,35 @@ import type {
   EventsPort,
   Clock,
   EvaluationRecord,
+  CriterionDefinition,
 } from '@features/performance/domain/ports';
 import type { DirectEvaluateDto } from '@features/performance/dto/evaluation.dto';
 
 const log = logger.child({ feature: 'performance', module: 'evaluation' });
 const conflict = (message: string, code = 'EVAL_409') => new HttpError(409, message, code);
+
+function snapshotFromRecord(record: EvaluationRecord): CriterionDefinition[] | null {
+  const raw = record.criteriaDefinitionSnapshot;
+  if (!Array.isArray(raw)) return null;
+  const definitions = raw.flatMap((value): CriterionDefinition[] => {
+    if (!value || typeof value !== 'object') return [];
+    const item = value as Record<string, unknown>;
+    if (
+      (item.group !== 'performance' && item.group !== 'goal') ||
+      typeof item.name !== 'string' ||
+      typeof item.weight !== 'number' ||
+      item.criterionId == null
+    ) return [];
+    return [{ criterionId: String(item.criterionId), name: item.name, group: item.group, weight: item.weight }];
+  });
+  return definitions.length === raw.length ? definitions : null;
+}
+
+function weightsAreValid(definitions: CriterionDefinition[], group: CriterionDefinition['group']): boolean {
+  const groupDefinitions = definitions.filter((definition) => definition.group === group);
+  const total = groupDefinitions.reduce((sum, definition) => sum + definition.weight, 0);
+  return groupDefinitions.length === 0 || Math.abs(total - 100) < 0.000001;
+}
 
 export class EvaluationUseCases {
   constructor(
@@ -92,13 +116,22 @@ export class EvaluationUseCases {
     }
 
     // Ratio = SIMPLE AVERAGE of each group's sub-indicators (no weights).
-    const types = await this.criteria.activeTypeSets();
+    const definitions =
+      (existing ? snapshotFromRecord(existing) : null) ??
+      (await this.criteria.activeDefinitions());
+    const types = {
+      performance: new Set(definitions.filter((definition) => definition.group === 'performance').map((definition) => definition.criterionId)),
+      goal: new Set(definitions.filter((definition) => definition.group === 'goal').map((definition) => definition.criterionId)),
+    };
 
     // Guard against silent under-pay: finalizing with a whole group left
     // unscored would average to 0 and zero out that salary band (perf 60% /
     // goal 20%). Require every active criterion in each group to be scored.
     if (finalize) {
       const scored = new Set(input.criteriaScores.map((s) => String(s.criterionId)));
+      if (!weightsAreValid(definitions, 'performance') || !weightsAreValid(definitions, 'goal')) {
+        throw conflict('Invalid criterion weight configuration', 'EVAL_INVALID_CRITERIA_WEIGHTS');
+      }
       if (types.performance.size > 0 && unscoredIn(types.performance, scored).length > 0) {
         throw conflict('Chưa chấm đủ chỉ số nhóm Hiệu suất', 'EVAL_INCOMPLETE_PERFORMANCE');
       }
@@ -107,11 +140,18 @@ export class EvaluationUseCases {
       }
     }
 
-    const performanceRatio = simpleAverage(input.criteriaScores, types.performance);
-    const goalRatio = simpleAverage(input.criteriaScores, types.goal);
+    const performanceRatio = computeEvaluationRatio(
+      input.criteriaScores,
+      new Map(definitions.filter((definition) => definition.group === 'performance').map((definition) => [definition.criterionId, definition.weight])),
+    );
+    const goalRatio = computeEvaluationRatio(
+      input.criteriaScores,
+      new Map(definitions.filter((definition) => definition.group === 'goal').map((definition) => [definition.criterionId, definition.weight])),
+    );
 
     const doc = await this.repo.upsert(input.employeeId, input.payrollPeriodId, {
       criteriaScores: input.criteriaScores,
+      criteriaDefinitionSnapshot: definitions.map((definition) => ({ ...definition })),
       performanceRatio,
       goalResult: goalRatio,
       goalRatio,

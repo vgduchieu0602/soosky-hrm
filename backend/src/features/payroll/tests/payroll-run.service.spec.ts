@@ -32,7 +32,10 @@ const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => {
         effectiveStart: new Date('2026-08-01T00:00:00.000Z'),
         effectiveEnd: new Date('2026-08-31T00:00:00.000Z'),
       },
-      evaluation: { status: 'approved', criteria: [{ criterionId: oid(), score: 92 }] },
+      evaluation: {
+        status: 'approved',
+        criteria: [{ criterionId: oid(), name: 'Quality', group: 'performance', weight: 30, score: 92 }],
+      },
       policy: {
         effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
         probationPayRate: 85,
@@ -242,6 +245,11 @@ describe('buildPayrollDoc', () => {
     expect(snapshot.policy.weights.attendance).toBe(20);
     expect(num(snapshot.policy.socialInsuranceSalary)).toBe(30_000_000);
     expect(snapshot.evaluation.criteria[0]!.score).toBe(92);
+    expect(snapshot.evaluation.criteria[0]).toMatchObject({
+      name: 'Quality',
+      group: 'performance',
+      weight: 30,
+    });
     expect(snapshot.insurance.rates).toMatchObject({ employee: { social: 8, health: 1.5 } });
   });
 });
