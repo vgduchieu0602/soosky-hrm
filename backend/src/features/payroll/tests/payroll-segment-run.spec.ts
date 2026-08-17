@@ -169,7 +169,8 @@ async function run(opts: Options) {
     proRatedBaseSalary: mongoose.Types.Decimal128;
     baseSalary: mongoose.Types.Decimal128;
     insurance: mongoose.Types.Decimal128;
-    contractSegments?: {
+    calculationSnapshot?: {
+      contracts: {
       employmentStatus: string;
       baseSalary: mongoose.Types.Decimal128;
       payRate: number;
@@ -178,7 +179,8 @@ async function run(opts: Options) {
       performanceComponent: mongoose.Types.Decimal128;
       goalComponent: mongoose.Types.Decimal128;
       segmentSalary: mongoose.Types.Decimal128;
-    }[];
+      }[];
+    };
   };
 }
 
@@ -189,7 +191,7 @@ describe('một hợp đồng phủ cả kỳ (không đổi hành vi)', () => {
       workDaysByRange: { '2026-08-01..2026-08-31': 21 },
     });
 
-    expect(doc.contractSegments).toHaveLength(1);
+    expect(doc.calculationSnapshot!.contracts).toHaveLength(1);
     expect(num(doc.attendanceComponent)).toBe(6_000_000);
     expect(num(doc.performanceComponent)).toBe(18_000_000);
     expect(num(doc.goalComponent)).toBe(6_000_000);
@@ -220,24 +222,24 @@ describe('thử việc → chính thức trong cùng kỳ', () => {
   it('tạo hai đoạn với mức lương và tỷ lệ hưởng riêng', async () => {
     const doc = await run({ contracts, workDaysByRange });
 
-    expect(doc.contractSegments).toHaveLength(2);
-    expect(doc.contractSegments![0]).toMatchObject({ employmentStatus: 'probation', payRate: 0.85, standardWorkDays: 7 });
-    expect(doc.contractSegments![1]).toMatchObject({ employmentStatus: 'official', payRate: 1, standardWorkDays: 15 });
-    expect(num(doc.contractSegments![0]!.baseSalary)).toBe(10_000_000);
-    expect(num(doc.contractSegments![1]!.baseSalary)).toBe(15_000_000);
+    expect(doc.calculationSnapshot!.contracts).toHaveLength(2);
+    expect(doc.calculationSnapshot!.contracts[0]).toMatchObject({ employmentStatus: 'probation', payRate: 0.85, standardWorkDays: 7 });
+    expect(doc.calculationSnapshot!.contracts[1]).toMatchObject({ employmentStatus: 'official', payRate: 1, standardWorkDays: 15 });
+    expect(num(doc.calculationSnapshot!.contracts[0]!.baseSalary)).toBe(10_000_000);
+    expect(num(doc.calculationSnapshot!.contracts[1]!.baseSalary)).toBe(15_000_000);
   });
 
   it('đoạn thử việc chỉ ăn theo chấm công (100% trọng số chấm công)', async () => {
     const doc = await run({ contracts, workDaysByRange });
 
     // 10.000.000 × 85% = 8.500.000, làm đủ ngày công của đoạn → nguyên vẹn.
-    expect(num(doc.contractSegments![0]!.segmentSalary)).toBe(8_500_000);
+    expect(num(doc.calculationSnapshot!.contracts[0]!.segmentSalary)).toBe(8_500_000);
   });
 
   it('đoạn chính thức áp đủ 20/60/20 trên mức lương MỚI', async () => {
     const doc = await run({ contracts, workDaysByRange });
 
-    expect(num(doc.contractSegments![1]!.segmentSalary)).toBe(15_000_000);
+    expect(num(doc.calculationSnapshot!.contracts[1]!.segmentSalary)).toBe(15_000_000);
   });
 
   it('KHÔNG lấy mức lương cuối kỳ nhân cho cả tháng', async () => {
@@ -260,9 +262,9 @@ describe('thử việc → chính thức trong cùng kỳ', () => {
     });
 
     // Đoạn thử việc nguyên vẹn.
-    expect(num(doc.contractSegments![0]!.segmentSalary)).toBe(8_500_000);
+    expect(num(doc.calculationSnapshot!.contracts[0]!.segmentSalary)).toBe(8_500_000);
     // Đoạn chính thức: chỉ phần chấm công (20%) bị cắt theo 12/15.
-    expect(num(doc.contractSegments![1]!.attendanceComponent)).toBe(2_400_000);
+    expect(num(doc.calculationSnapshot!.contracts[1]!.attendanceComponent)).toBe(2_400_000);
   });
 
   it('còn ít nhất một đoạn chính thức thì vẫn thu bảo hiểm theo kỳ', async () => {
@@ -293,7 +295,7 @@ describe('đổi mức lương giữa kỳ (cùng chính thức)', () => {
       workDaysByRange: { '2026-08-01..2026-08-10': 7, '2026-08-11..2026-08-31': 15 },
     });
 
-    expect(doc.contractSegments!.map((s) => num(s.baseSalary))).toEqual([10_000_000, 15_000_000]);
+    expect(doc.calculationSnapshot!.contracts.map((s) => num(s.baseSalary))).toEqual([10_000_000, 15_000_000]);
     expect(num(doc.proRatedBaseSalary)).toBe(25_000_000);
     // Trường hiển thị lấy mức của đoạn cuối kỳ.
     expect(num(doc.baseSalary)).toBe(15_000_000);
@@ -379,7 +381,7 @@ describe('dữ liệu hợp đồng hỏng thì DỪNG', () => {
       },
     });
 
-    expect(doc.contractSegments).toHaveLength(2);
+    expect(doc.calculationSnapshot!.contracts).toHaveLength(2);
   });
 
   it('không có hợp đồng nào chồng kỳ → 404 như trước', async () => {
@@ -439,8 +441,8 @@ describe('phạm vi thuộc bảng lương theo khoảng làm việc', () => {
       workDaysByRange: { '2026-08-15..2026-08-31': 11 },
     });
 
-    expect(doc.contractSegments).toHaveLength(1);
-    expect(doc.contractSegments![0]!.standardWorkDays).toBe(11);
+    expect(doc.calculationSnapshot!.contracts).toHaveLength(1);
+    expect(doc.calculationSnapshot!.contracts[0]!.standardWorkDays).toBe(11);
   });
 
   it('nghỉ giữa kỳ: chỉ tính đến ngày nghỉ, KHÔNG báo thiếu hợp đồng phần đuôi', async () => {
@@ -450,8 +452,8 @@ describe('phạm vi thuộc bảng lương theo khoảng làm việc', () => {
       workDaysByRange: { '2026-08-01..2026-08-20': 14 },
     });
 
-    expect(doc.contractSegments).toHaveLength(1);
-    expect(doc.contractSegments![0]!.standardWorkDays).toBe(14);
+    expect(doc.calculationSnapshot!.contracts).toHaveLength(1);
+    expect(doc.calculationSnapshot!.contracts[0]!.standardWorkDays).toBe(14);
   });
 
   it('hợp đồng vẫn mở nhưng đã nghỉ giữa kỳ thì đoạn bị cắt tới ngày nghỉ', async () => {
@@ -461,7 +463,7 @@ describe('phạm vi thuộc bảng lương theo khoảng làm việc', () => {
       workDaysByRange: { '2026-08-01..2026-08-20': 14 },
     });
 
-    expect(doc.contractSegments![0]!.standardWorkDays).toBe(14);
+    expect(doc.calculationSnapshot!.contracts[0]!.standardWorkDays).toBe(14);
   });
 
   it('khoảng trống THẬT bên trong khoảng làm việc vẫn bị chặn', async () => {
@@ -534,7 +536,7 @@ describe('phạm vi thuộc bảng lương theo khoảng làm việc', () => {
       workDaysByRange: { '2026-08-01..2026-08-31': 21 },
     });
 
-    expect(doc.contractSegments).toHaveLength(1);
-    expect(doc.contractSegments![0]!.standardWorkDays).toBe(21);
+    expect(doc.calculationSnapshot!.contracts).toHaveLength(1);
+    expect(doc.calculationSnapshot!.contracts[0]!.standardWorkDays).toBe(21);
   });
 });

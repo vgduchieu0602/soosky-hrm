@@ -6,18 +6,23 @@
  */
 import mongoose from 'mongoose';
 
-import { type IPayroll } from '@shared/models/payroll.model';
+import { type IPayroll, type IPayrollCalculationSnapshot } from '@shared/models/payroll.model';
 import {
   computeAttendanceRatio,
   computeEffectiveBaseSalary,
   computePayroll,
+  DEFAULT_COMPONENT_WEIGHTS,
   type EffectiveBaseResult,
   type SalaryComponentWeights,
   type TaxBracket,
   type InsuranceRates,
 } from '@shared/utils/salary.util';
 
+/** Hình dạng ảnh chụp hiện tại. Tăng khi cấu trúc đổi. */
+export const PAYROLL_SNAPSHOT_VERSION = 1;
+
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(Math.round(n)));
+const copyDate = (value: Date) => new Date(value.getTime());
 
 /**
  * Một đoạn lương đã giải xong mọi đầu vào số học.
@@ -42,6 +47,34 @@ export interface PayrollSegmentInput {
   weights: SalaryComponentWeights;
 }
 
+/**
+ * Những sự thật nguồn CHỈ ảnh chụp mới cần — phần còn lại của ảnh chụp lấy thẳng
+ * từ các trường đã có trong `PayrollRunContext`, không truyền hai lần.
+ */
+export interface PayrollSnapshotSource {
+  period: { name: string; startDate: Date; endDate: Date; payDate: Date };
+  employment: {
+    hireDate: Date;
+    terminationDate?: Date | null;
+    /** Phạm vi thuộc bảng lương sau khi kẹp theo ngày vào làm / nghỉ việc. */
+    effectiveStart: Date;
+    effectiveEnd: Date;
+  };
+  evaluation: {
+    status?: string | null;
+    criteria: { criterionId: mongoose.Types.ObjectId; score: number }[];
+  };
+  policy: {
+    effectiveFrom?: Date | null;
+    probationPayRate: number;
+    socialInsuranceSalary: number;
+    unionFeeRate: number;
+    unionFeeEnabled: boolean;
+  };
+  /** Cả kỳ không có đoạn chính thức nào → miễn bảo hiểm bắt buộc. */
+  insuranceExempt: boolean;
+}
+
 export interface PayrollRunContext {
   payrollPeriodId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId;
@@ -63,6 +96,9 @@ export interface PayrollRunContext {
    * cả kỳ, kết quả trùng khít cách tính cũ.
    */
   segments: PayrollSegmentInput[];
+
+  /** Đầu vào nguồn để dựng ảnh chụp bất biến của kỳ. */
+  snapshot: PayrollSnapshotSource;
 
   /**
    * Lương hợp đồng dùng để HIỂN THỊ và làm nền bảo hiểm dự phòng — theo quy ước
@@ -147,6 +183,26 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
 
   const segments = computeSegments(ctx.segments);
 
+  // Từng đoạn ở dạng lưu trữ — đủ để dựng lại con số của đoạn mà không tra hợp
+  // đồng hay chính sách hiện tại.
+  const contractSegments = ctx.segments.map((segment, i) => ({
+    contractId: segment.contractId,
+    from: copyDate(segment.from),
+    to: copyDate(segment.to),
+    employmentStatus: segment.employmentStatus,
+    baseSalary: dec(segment.baseSalary),
+    payRate: segment.payRate,
+    standardWorkDays: segment.standardWorkDays,
+    actualWorkDays: segment.actualWorkDays,
+    weights: { ...segment.weights },
+    performanceRatio: segment.performanceRatio,
+    goalRatio: segment.goalRatio,
+    attendanceComponent: dec(segments.perSegment[i]!.attendanceComponent),
+    performanceComponent: dec(segments.perSegment[i]!.performanceComponent),
+    goalComponent: dec(segments.perSegment[i]!.goalComponent),
+    segmentSalary: dec(segments.perSegment[i]!.proRatedBaseSalary),
+  }));
+
   const r = computePayroll({
     baseSalary: ctx.baseSalary,
     attendanceRatio,
@@ -176,6 +232,109 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
     nonResidentTaxRate: ctx.nonResidentTaxRate,
     insuranceRates: ctx.insuranceRates,
   });
+
+  const calculatedAt = new Date();
+  const src = ctx.snapshot;
+
+  /**
+   * Ảnh chụp: ID để truy vết + GIÁ TRỊ ĐÃ DÙNG để làm sự thật lịch sử.
+   *
+   * Phần `totals` lặp lại các con số đã có ở cấp bản ghi. Cố ý: ảnh chụp phải tự
+   * giải thích được khi đọc riêng, và cả hai cùng dựng từ một biến `r` trong một
+   * lần gọi nên không thể lệch nhau.
+   */
+  const calculationSnapshot: IPayrollCalculationSnapshot = {
+    version: PAYROLL_SNAPSHOT_VERSION,
+
+    period: {
+      name: src.period.name,
+      startDate: copyDate(src.period.startDate),
+      endDate: copyDate(src.period.endDate),
+      payDate: copyDate(src.period.payDate),
+    },
+    employment: {
+      hireDate: copyDate(src.employment.hireDate),
+      terminationDate: src.employment.terminationDate ? copyDate(src.employment.terminationDate) : null,
+      effectiveStart: copyDate(src.employment.effectiveStart),
+      effectiveEnd: copyDate(src.employment.effectiveEnd),
+    },
+
+    contracts: contractSegments,
+
+    attendance: {
+      standardWorkDays: ctx.standardWorkDays,
+      actualWorkDays: ctx.actualWorkDays,
+      workedDays: ctx.workDays,
+      unpaidLeaveDays: ctx.unpaidLeaveDays,
+      leaveDays: ctx.leaveDays,
+      attendanceRatio,
+    },
+
+    evaluation: {
+      evaluationId: ctx.monthlyEvaluationId ?? null,
+      status: src.evaluation.status ?? null,
+      performanceRatio: ctx.performanceRatio,
+      goalRatio: ctx.goalRatio,
+      // Do not retain references to the resolved evaluation document. The
+      // payroll row is the historical source of truth from this point onward.
+      criteria: src.evaluation.criteria.map((criterion) => ({ ...criterion })),
+    },
+
+    policy: {
+      policyId: ctx.policyConfigId ?? null,
+      effectiveFrom: src.policy.effectiveFrom ? copyDate(src.policy.effectiveFrom) : null,
+      weights: { ...(ctx.weights ?? DEFAULT_COMPONENT_WEIGHTS) },
+      probationPayRate: src.policy.probationPayRate,
+      socialInsuranceSalary: dec(src.policy.socialInsuranceSalary),
+      unionFeeRate: src.policy.unionFeeRate,
+      unionFeeEnabled: src.policy.unionFeeEnabled,
+      personalDeduction: dec(ctx.personalDeduction),
+      dependentDeduction: dec(ctx.dependentDeduction),
+      taxEnabled: ctx.taxEnabled ?? false,
+    },
+
+    insurance: {
+      exempt: src.insuranceExempt,
+      base: dec(r.insuranceBase),
+      unemploymentBase: dec(r.unemploymentInsuranceBase),
+      fixedAmount: dec(ctx.fixedInsuranceAmount ?? 0),
+      socialHealthCeiling: dec(ctx.socialHealthCeiling),
+      unemploymentCeiling: dec(ctx.unemploymentCeiling),
+      rates: ctx.insuranceRates
+        ? {
+            ...ctx.insuranceRates,
+            employee: { ...ctx.insuranceRates.employee },
+            employer: { ...ctx.insuranceRates.employer },
+          }
+        : null,
+      employeeDeduction: dec(r.insurance),
+      employerContribution: dec(
+        r.employerSocialInsurance +
+          r.employerHealthInsurance +
+          r.employerUnemploymentInsurance +
+          r.employerOccupationalInsurance,
+      ),
+    },
+
+    totals: {
+      baseSalary: dec(r.baseSalary),
+      attendanceAmount: dec(r.attendanceComponent),
+      performanceAmount: dec(r.performanceComponent),
+      goalAmount: dec(r.goalComponent),
+      proRatedBaseSalary: dec(r.proRatedBaseSalary),
+      allowances: dec(r.totalAllowances),
+      bonuses: dec(r.totalBonuses),
+      grossSalary: dec(r.grossSalary),
+      insuranceDeduction: dec(r.insurance),
+      tax: dec(r.tax),
+      unionFee: dec(r.unionFee),
+      otherDeductions: dec(r.otherDeductions),
+      totalDeductions: dec(r.totalDeductions),
+      netSalary: dec(r.netSalary),
+    },
+
+    calculatedAt,
+  };
 
   return {
     payrollPeriodId: ctx.payrollPeriodId,
@@ -231,24 +390,9 @@ export function buildPayrollDoc(ctx: PayrollRunContext): IPayroll {
 
     leaveDays: ctx.leaveDays,
 
-    // Additive: cho phép kiểm chứng "kỳ này gồm mấy đoạn, mỗi đoạn ra bao nhiêu".
-    // Ảnh chụp đầy đủ (chính sách, tiêu chí đánh giá) thuộc giai đoạn sau.
-    contractSegments: ctx.segments.map((segment, i) => ({
-      contractId: segment.contractId,
-      from: segment.from,
-      to: segment.to,
-      employmentStatus: segment.employmentStatus,
-      baseSalary: dec(segment.baseSalary),
-      payRate: segment.payRate,
-      standardWorkDays: segment.standardWorkDays,
-      actualWorkDays: segment.actualWorkDays,
-      attendanceComponent: dec(segments.perSegment[i]!.attendanceComponent),
-      performanceComponent: dec(segments.perSegment[i]!.performanceComponent),
-      goalComponent: dec(segments.perSegment[i]!.goalComponent),
-      segmentSalary: dec(segments.perSegment[i]!.proRatedBaseSalary),
-    })),
+    calculationSnapshot,
 
     status: 'draft',
-    computedAt: new Date(),
+    computedAt: calculatedAt,
   };
 }

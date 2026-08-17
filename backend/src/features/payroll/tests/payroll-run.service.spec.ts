@@ -19,6 +19,29 @@ const baseCtx = (over: Partial<PayrollRunContext> = {}): PayrollRunContext => {
     leaveDays: 0,
     performanceRatio: 100,
     goalRatio: 100,
+    snapshot: {
+      period: {
+        name: '2026-08',
+        startDate: new Date('2026-08-01T00:00:00.000Z'),
+        endDate: new Date('2026-08-31T00:00:00.000Z'),
+        payDate: new Date('2026-09-05T00:00:00.000Z'),
+      },
+      employment: {
+        hireDate: new Date('2020-01-01T00:00:00.000Z'),
+        terminationDate: null,
+        effectiveStart: new Date('2026-08-01T00:00:00.000Z'),
+        effectiveEnd: new Date('2026-08-31T00:00:00.000Z'),
+      },
+      evaluation: { status: 'approved', criteria: [{ criterionId: oid(), score: 92 }] },
+      policy: {
+        effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+        probationPayRate: 85,
+        socialInsuranceSalary: 30_000_000,
+        unionFeeRate: 0,
+        unionFeeEnabled: false,
+      },
+      insuranceExempt: false,
+    },
     baseSalary: 30_000_000,
     totalTaxableAllowances: 2_000_000,
     totalNonTaxableAllowances: 730_000,
@@ -158,5 +181,67 @@ describe('buildPayrollDoc', () => {
     expect(doc.policyConfigId).toBe(ctx.policyConfigId);
     expect(doc.standardWorkDays).toBe(22);
     expect(doc.computedAt).toBeInstanceOf(Date);
+  });
+
+  it('records a self-explanatory immutable calculation snapshot', () => {
+    const ctx = baseCtx({
+      fixedInsuranceAmount: 570_000,
+      weights: { attendance: 20, performance: 60, goal: 20 },
+    });
+    const doc = buildPayrollDoc(ctx);
+    const snapshot = doc.calculationSnapshot!;
+
+    expect(snapshot.version).toBe(1);
+    expect(snapshot.period).toEqual(ctx.snapshot.period);
+    expect(snapshot.employment).toEqual(ctx.snapshot.employment);
+    expect(snapshot.policy).toMatchObject({
+      policyId: ctx.policyConfigId,
+      weights: { attendance: 20, performance: 60, goal: 20 },
+      socialInsuranceSalary: expect.objectContaining({ toString: expect.any(Function) }),
+    });
+    expect(num(snapshot.policy.socialInsuranceSalary)).toBe(30_000_000);
+    expect(snapshot.evaluation).toMatchObject({
+      evaluationId: ctx.monthlyEvaluationId,
+      performanceRatio: 100,
+      goalRatio: 100,
+      criteria: ctx.snapshot.evaluation.criteria,
+    });
+    expect(snapshot.insurance).toMatchObject({ employeeDeduction: expect.anything() });
+    expect(num(snapshot.insurance.fixedAmount)).toBe(570_000);
+    expect(num(snapshot.insurance.employeeDeduction)).toBe(num(doc.insurance));
+    expect(num(snapshot.totals.netSalary)).toBe(num(doc.netSalary));
+  });
+
+  it('keeps source values captured at calculation even when the input objects are later changed', () => {
+    const rates = {
+      employee: { social: 8, health: 1.5, unemployment: 1 },
+      employer: { social: 17, health: 3, unemployment: 1, occupational: 0.5 },
+    };
+    const ctx = baseCtx({
+      weights: { attendance: 20, performance: 60, goal: 20 },
+      insuranceRates: rates as never,
+    });
+    const doc = buildPayrollDoc(ctx);
+
+    ctx.segments[0]!.baseSalary = 20_000_000;
+    ctx.segments[0]!.weights.attendance = 30;
+    ctx.segments[0]!.from.setUTCDate(2);
+    ctx.weights!.attendance = 30;
+    ctx.snapshot.period.startDate.setUTCDate(2);
+    ctx.snapshot.employment.effectiveStart.setUTCDate(2);
+    ctx.snapshot.policy.socialInsuranceSalary = 20_000_000;
+    ctx.snapshot.evaluation.criteria[0]!.score = 10;
+    rates.employee.social = 9;
+
+    const snapshot = doc.calculationSnapshot!;
+    expect(num(snapshot.contracts[0]!.baseSalary)).toBe(30_000_000);
+    expect(snapshot.contracts[0]!.weights.attendance).toBe(20);
+    expect(snapshot.contracts[0]!.from.toISOString()).toBe('2026-08-01T00:00:00.000Z');
+    expect(snapshot.period.startDate.toISOString()).toBe('2026-08-01T00:00:00.000Z');
+    expect(snapshot.employment.effectiveStart.toISOString()).toBe('2026-08-01T00:00:00.000Z');
+    expect(snapshot.policy.weights.attendance).toBe(20);
+    expect(num(snapshot.policy.socialInsuranceSalary)).toBe(30_000_000);
+    expect(snapshot.evaluation.criteria[0]!.score).toBe(92);
+    expect(snapshot.insurance.rates).toMatchObject({ employee: { social: 8, health: 1.5 } });
   });
 });

@@ -393,6 +393,38 @@ export class RunPayrollUseCases {
       weights: policyWeights,
 
       segments,
+      // Ảnh chụp: chép lại đúng những đầu vào QUYẾT ĐỊNH con số của kỳ này. Sau
+      // khi công ty đổi trọng số / mức đóng BHXH / hợp đồng / đánh giá, phiếu
+      // lương cũ vẫn giải thích được bằng chính dữ liệu đã dùng lúc tính.
+      snapshot: {
+        period: {
+          name: period.name,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          payDate: period.payDate,
+        },
+        employment: {
+          hireDate: employee.hireDate,
+          terminationDate: employee.terminationDate ?? null,
+          effectiveStart: scope.startDate,
+          effectiveEnd: scope.endDate,
+        },
+        evaluation: {
+          status: evaluation?.status ?? null,
+          criteria: (evaluation?.criteriaScores ?? []).map((c) => ({
+            criterionId: c.criterionId as mongoose.Types.ObjectId,
+            score: c.score,
+          })),
+        },
+        policy: {
+          effectiveFrom: policy.effectiveFrom ?? null,
+          probationPayRate: policy.probationPayRate ?? PROBATION_PAY_RATE * 100,
+          socialInsuranceSalary: fixedInsuranceSalary,
+          unionFeeRate: policy.unionFeeRate ?? 0,
+          unionFeeEnabled: policy.unionFeeEnabled ?? false,
+        },
+        insuranceExempt: isInsuranceExempt,
+      },
       baseSalary,
       totalTaxableAllowances: allowances.taxable,
       totalNonTaxableAllowances: allowances.nonTaxable,

@@ -13,7 +13,10 @@ type Dec = mongoose.Types.Decimal128;
  *
  * Kỳ lương có thể trải trên nhiều hợp đồng (thử việc → chính thức, đổi mức lương
  * giữa tháng). Mảng này cho biết kỳ được chia thế nào và mỗi đoạn ra bao nhiêu —
- * đủ để đối chiếu con số cuối cùng. Bản ghi cũ KHÔNG có trường này (optional).
+ * đủ để đối chiếu con số cuối cùng.
+ *
+ * Đủ dữ liệu để DỰNG LẠI đoạn mà không tra hợp đồng/chính sách hiện tại:
+ *   thành phần = baseSalary × payRate × trọng số/100 × tỷ lệ/100
  */
 export interface IPayrollContractSegment {
   contractId: Types.ObjectId;
@@ -26,11 +29,122 @@ export interface IPayrollContractSegment {
   payRate: number;
   standardWorkDays: number;
   actualWorkDays: number;
+  /** Trọng số áp cho ĐOẠN này (thử việc/thực tập dồn 100% vào chấm công). */
+  weights: ISnapshotWeights;
+  /** Tỷ lệ hiệu suất/mục tiêu áp cho đoạn, 0–100 (0 với thử việc/thực tập). */
+  performanceRatio: number;
+  goalRatio: number;
   attendanceComponent: Dec;
   performanceComponent: Dec;
   goalComponent: Dec;
   /** Tổng ba thành phần của riêng đoạn này. */
   segmentSalary: Dec;
+}
+
+export interface ISnapshotWeights {
+  attendance: number;
+  performance: number;
+  goal: number;
+}
+
+/** Điểm một tiêu chí đánh giá, chép lại tại thời điểm tính. */
+export interface IPayrollSnapshotCriterion {
+  criterionId: Types.ObjectId;
+  score: number;
+}
+
+/**
+ * ẢNH CHỤP TÍNH LƯƠNG — mọi đầu vào QUYẾT ĐỊNH con số của kỳ, chép lại đúng lúc
+ * tính.
+ *
+ * Lý do tồn tại: chính sách lương, hợp đồng, đánh giá và cấu hình bảo hiểm đều
+ * thay đổi theo thời gian. Không có ảnh chụp thì phiếu lương tháng 08 phải tra
+ * cấu hình HÔM NAY để giải thích, và sẽ giải thích SAI ngay khi công ty đổi
+ * trọng số hay mức đóng BHXH.
+ *
+ * Lưu ID để truy vết + GIÁ TRỊ ĐÃ DÙNG để làm sự thật lịch sử. KHÔNG chép nguyên
+ * document nguồn — chỉ những trường thực sự tham gia phép tính.
+ */
+export interface IPayrollCalculationSnapshot {
+  /** Phiên bản hình dạng ảnh chụp. Tăng khi đổi cấu trúc. */
+  version: number;
+
+  period: { name: string; startDate: Date; endDate: Date; payDate: Date };
+
+  /** Khoảng người này thực sự thuộc bảng lương của kỳ (P0.1.1). */
+  employment: {
+    hireDate: Date;
+    terminationDate?: Date | null;
+    effectiveStart: Date;
+    effectiveEnd: Date;
+  };
+
+  /** Các đoạn hợp đồng của kỳ — GIỮ ĐỦ, không chỉ hợp đồng cuối kỳ. */
+  contracts: IPayrollContractSegment[];
+
+  attendance: {
+    standardWorkDays: number;
+    actualWorkDays: number;
+    workedDays: number;
+    unpaidLeaveDays: number;
+    leaveDays: number;
+    attendanceRatio: number;
+  };
+
+  evaluation: {
+    evaluationId?: Types.ObjectId | null;
+    status?: string | null;
+    performanceRatio: number;
+    goalRatio: number;
+    criteria: IPayrollSnapshotCriterion[];
+  };
+
+  policy: {
+    policyId?: Types.ObjectId | null;
+    effectiveFrom?: Date | null;
+    weights: ISnapshotWeights;
+    probationPayRate: number;
+    socialInsuranceSalary: Dec;
+    unionFeeRate: number;
+    unionFeeEnabled: boolean;
+    personalDeduction: Dec;
+    dependentDeduction: Dec;
+    taxEnabled: boolean;
+  };
+
+  insurance: {
+    /** Thực tập/thử việc cả kỳ → không đóng bảo hiểm bắt buộc. */
+    exempt: boolean;
+    base: Dec;
+    unemploymentBase: Dec;
+    /** Mức BHXH cố định HR nhập trên hồ sơ thuế (0 = tính theo %). */
+    fixedAmount: Dec;
+    socialHealthCeiling: Dec;
+    unemploymentCeiling: Dec;
+    /** Bảng tỷ lệ % đã dùng khi không có mức cố định. */
+    rates?: Record<string, unknown> | null;
+    employeeDeduction: Dec;
+    employerContribution: Dec;
+  };
+
+  totals: {
+    baseSalary: Dec;
+    attendanceAmount: Dec;
+    performanceAmount: Dec;
+    goalAmount: Dec;
+    proRatedBaseSalary: Dec;
+    allowances: Dec;
+    bonuses: Dec;
+    grossSalary: Dec;
+    insuranceDeduction: Dec;
+    tax: Dec;
+    unionFee: Dec;
+    otherDeductions: Dec;
+    totalDeductions: Dec;
+    netSalary: Dec;
+  };
+
+  calculatedAt: Date;
 }
 
 export interface IPayroll {
@@ -100,8 +214,11 @@ export interface IPayroll {
   netSalary: Dec;
 
   leaveDays: number;
-  /** Các đoạn hợp đồng của kỳ. Không có ở bản ghi tính trước khi tách đoạn. */
-  contractSegments?: IPayrollContractSegment[];
+  /**
+   * Ảnh chụp đầu vào tại thời điểm tính. Bản ghi tính trước P0.2 KHÔNG có trường
+   * này (optional) — API cũ vẫn chạy, chỉ mất khả năng tự giải thích.
+   */
+  calculationSnapshot?: IPayrollCalculationSnapshot;
   status: PayrollStatus;
   approvedBy?: Types.ObjectId | null;
   paidAt?: Date | null;
@@ -114,6 +231,15 @@ export type PayrollDoc = HydratedDocument<IPayroll>;
 
 const dec = { type: Schema.Types.Decimal128, default: () => mongoose.Types.Decimal128.fromString('0') };
 
+const snapshotWeightsSchema = new Schema<ISnapshotWeights>(
+  {
+    attendance: { type: Number, required: true },
+    performance: { type: Number, required: true },
+    goal: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
 const payrollContractSegmentSchema = new Schema<IPayrollContractSegment>(
   {
     contractId: { type: Schema.Types.ObjectId, ref: 'employeeContracts', required: true },
@@ -124,10 +250,112 @@ const payrollContractSegmentSchema = new Schema<IPayrollContractSegment>(
     payRate: { type: Number, default: 1 },
     standardWorkDays: { type: Number, default: 0 },
     actualWorkDays: { type: Number, default: 0 },
+    weights: { type: snapshotWeightsSchema, required: true },
+    performanceRatio: { type: Number, default: 0 },
+    goalRatio: { type: Number, default: 0 },
     attendanceComponent: dec,
     performanceComponent: dec,
     goalComponent: dec,
     segmentSalary: dec,
+  },
+  { _id: false },
+);
+
+const snapshotCriterionSchema = new Schema<IPayrollSnapshotCriterion>(
+  {
+    criterionId: { type: Schema.Types.ObjectId, ref: 'performanceCriteria', required: true },
+    score: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+const calculationSnapshotSchema = new Schema<IPayrollCalculationSnapshot>(
+  {
+    version: { type: Number, required: true, default: 1 },
+
+    period: {
+      _id: false,
+      name: { type: String, default: '' },
+      startDate: { type: Date, required: true },
+      endDate: { type: Date, required: true },
+      payDate: { type: Date, required: true },
+    },
+
+    employment: {
+      _id: false,
+      hireDate: { type: Date, required: true },
+      terminationDate: { type: Date, default: null },
+      effectiveStart: { type: Date, required: true },
+      effectiveEnd: { type: Date, required: true },
+    },
+
+    contracts: { type: [payrollContractSegmentSchema], default: [] },
+
+    attendance: {
+      _id: false,
+      standardWorkDays: { type: Number, default: 0 },
+      actualWorkDays: { type: Number, default: 0 },
+      workedDays: { type: Number, default: 0 },
+      unpaidLeaveDays: { type: Number, default: 0 },
+      leaveDays: { type: Number, default: 0 },
+      attendanceRatio: { type: Number, default: 0 },
+    },
+
+    evaluation: {
+      _id: false,
+      evaluationId: { type: Schema.Types.ObjectId, ref: 'monthlyEvaluations', default: null },
+      status: { type: String, default: null },
+      performanceRatio: { type: Number, default: 0 },
+      goalRatio: { type: Number, default: 0 },
+      criteria: { type: [snapshotCriterionSchema], default: [] },
+    },
+
+    policy: {
+      _id: false,
+      policyId: { type: Schema.Types.ObjectId, ref: 'salaryPolicyConfigs', default: null },
+      effectiveFrom: { type: Date, default: null },
+      weights: { type: snapshotWeightsSchema, required: true },
+      probationPayRate: { type: Number, default: 0 },
+      socialInsuranceSalary: dec,
+      unionFeeRate: { type: Number, default: 0 },
+      unionFeeEnabled: { type: Boolean, default: false },
+      personalDeduction: dec,
+      dependentDeduction: dec,
+      taxEnabled: { type: Boolean, default: false },
+    },
+
+    insurance: {
+      _id: false,
+      exempt: { type: Boolean, default: false },
+      base: dec,
+      unemploymentBase: dec,
+      fixedAmount: dec,
+      socialHealthCeiling: dec,
+      unemploymentCeiling: dec,
+      rates: { type: Schema.Types.Mixed, default: null },
+      employeeDeduction: dec,
+      employerContribution: dec,
+    },
+
+    totals: {
+      _id: false,
+      baseSalary: dec,
+      attendanceAmount: dec,
+      performanceAmount: dec,
+      goalAmount: dec,
+      proRatedBaseSalary: dec,
+      allowances: dec,
+      bonuses: dec,
+      grossSalary: dec,
+      insuranceDeduction: dec,
+      tax: dec,
+      unionFee: dec,
+      otherDeductions: dec,
+      totalDeductions: dec,
+      netSalary: dec,
+    },
+
+    calculatedAt: { type: Date, required: true },
   },
   { _id: false },
 );
@@ -195,7 +423,7 @@ const payrollSchema = new Schema<IPayroll>(
     netSalary: dec,
 
     leaveDays: { type: Number, default: 0 },
-    contractSegments: { type: [payrollContractSegmentSchema], default: undefined },
+    calculationSnapshot: { type: calculationSnapshotSchema, default: undefined },
     status: { type: String, enum: PAYROLL_STATUS, default: 'draft', index: true },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'users', default: null },
     paidAt: { type: Date, default: null },
