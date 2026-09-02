@@ -188,7 +188,7 @@ export class MongooseWorkCalendarGateway implements WorkCalendarGateway {
  * Implements the period feature's `PayrollReadinessPort`. The period needs to
  * know whether a period still has draft / any computed-payroll rows before it
  * closes or deletes — this is the single inbound dependency the period has on
- * payroll. Importing `{ PeriodReader, PeriodLifecycle }` from `@features/period`
+ * payroll. Importing `{ PeriodReader, PeriodLifecycle }` from `@modules/hrm/core/period`
  * here is type-only, so there is no runtime circular dependency.
  */
 export class MongoosePayrollReadiness implements PayrollReadinessPort {

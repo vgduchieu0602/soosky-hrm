@@ -1,5 +1,5 @@
 import mongoose, { Types } from 'mongoose';
-import { auditService } from '@features/iam';
+import { auditService } from '@modules/iam';
 import type {
   AuditPort,
   Clock,

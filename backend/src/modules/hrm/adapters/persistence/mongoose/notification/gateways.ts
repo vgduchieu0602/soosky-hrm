@@ -1,8 +1,8 @@
 import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
 import { Payroll } from '@modules/hrm/adapters/persistence/mongoose/models/payroll.model';
 import { MonthlyEvaluation } from '@modules/hrm/adapters/persistence/mongoose/models/monthly-evaluation.model';
-import { Role } from '@shared/models/role.model';
-import { UserRole } from '@shared/models/user-role.model';
+import { Role } from '@modules/iam/adapters/persistence/models/role.model';
+import { UserRole } from '@modules/iam/adapters/persistence/models/user-role.model';
 import type {
   EmployeeGateway,
   EvaluationGateway,

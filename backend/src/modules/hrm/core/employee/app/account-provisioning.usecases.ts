@@ -1,7 +1,7 @@
 import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
-import { hashPassword } from '@modules/auth/adapters/security/hash.util';
-import { generateRandomPassword } from '@modules/auth/adapters/security/password.util';
+import { hashPassword } from '@shared/crypto/hash.util';
+import { generateRandomPassword } from '@modules/hrm/core/employee/domain/password.util';
 
 import { deriveUsername } from '@modules/hrm/core/employee/domain/employee-rules';
 import type { GrantLoginDto } from '@modules/hrm/core/employee/dto/grant-login.dto';

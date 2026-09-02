@@ -6,7 +6,7 @@ import { Attendance } from '@modules/hrm/adapters/persistence/mongoose/models/at
 import { LeaveRequest } from '@modules/hrm/adapters/persistence/mongoose/models/leave-request.model';
 import { Payroll } from '@modules/hrm/adapters/persistence/mongoose/models/payroll.model';
 import { MonthlyEvaluation } from '@modules/hrm/adapters/persistence/mongoose/models/monthly-evaluation.model';
-import { AuditLog } from '@shared/models/audit-log.model';
+import { AuditLog } from '@modules/iam/adapters/persistence/models/audit-log.model';
 import type { PeriodReader } from '@modules/hrm/core/period/domain/ports';
 import type {
   DashboardRepository,

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '@shared/middlewares/authenticate';
+import { authenticate } from '@shared/http/authenticate';
 import { notificationController } from '@modules/hrm/adapters/http/notification/controllers';
 
 const router = Router();

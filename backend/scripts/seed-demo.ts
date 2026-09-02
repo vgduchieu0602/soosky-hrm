@@ -32,7 +32,7 @@ import { Attendance } from '@modules/hrm/adapters/persistence/mongoose/models/at
 import { MonthlyEvaluation } from '@modules/hrm/adapters/persistence/mongoose/models/monthly-evaluation.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { Payroll } from '@modules/hrm/adapters/persistence/mongoose/models/payroll.model';
-import { User } from '@shared/models/user.model';
+import { User } from '@modules/iam/adapters/persistence/models/user.model';
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(Math.round(n)));
 const YEAR = Number(process.env.SEED_YEAR ?? 2026);

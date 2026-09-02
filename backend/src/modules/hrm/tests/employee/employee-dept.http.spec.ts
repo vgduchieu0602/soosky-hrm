@@ -12,8 +12,8 @@ import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/empl
 import { EmployeeProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-profile.model';
 import { Department } from '@modules/hrm/adapters/persistence/mongoose/models/department.model';
 import { Position } from '@modules/hrm/adapters/persistence/mongoose/models/position.model';
-import { User } from '@shared/models/user.model';
-import { Session } from '@shared/models/session.model';
+import { User } from '@modules/iam/adapters/persistence/models/user.model';
+import { Session } from '@modules/auth/adapters/persistence/models/session.model';
 
 vi.setConfig({ testTimeout: 60_000 });
 

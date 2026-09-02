@@ -1,5 +1,5 @@
 import { eventBus } from '@infra/events/event-bus';
-import { auditService } from '@features/iam';
+import { auditService } from '@modules/iam';
 import type { AuditPort, EventsPort } from '@modules/hrm/core/period/domain/ports';
 
 declare module '@infra/events/event-bus' {

@@ -7,8 +7,7 @@
       "@/*": ["../src/*"],
       "@infra/*": ["../src/infra/*"],
       "@modules/*": ["../src/modules/*"],
-      "@shared/*": ["../src/shared/*"],
-      "@features/*": ["../src/features/*"]
+      "@shared/*": ["../src/shared/*"]
     }
   },
   "include": ["./**/*.ts", "../src/**/*.ts"]

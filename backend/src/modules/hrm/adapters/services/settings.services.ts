@@ -1,4 +1,4 @@
-import { auditService } from '@features/iam';
+import { auditService } from '@modules/iam';
 import type { AuditPort } from '@modules/hrm/core/settings/domain/ports';
 
 export class AuditServiceAdapter implements AuditPort {

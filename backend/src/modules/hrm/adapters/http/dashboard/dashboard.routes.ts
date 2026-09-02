@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { authenticate } from '@shared/middlewares/authenticate';
-import { requireRoles } from '@shared/middlewares/require-role';
+import { authenticate } from '@shared/http/authenticate';
+import { requireRoles } from '@shared/http/require-role';
 import { dashboardController } from '@modules/hrm/adapters/http/dashboard/controllers';
 
 const router = Router();

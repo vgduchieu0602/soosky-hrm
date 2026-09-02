@@ -10,8 +10,8 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
 import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
 import { EmployeeProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-profile.model';
-import { User } from '@shared/models/user.model';
-import { Role } from '@shared/models/role.model';
+import { User } from '@modules/iam/adapters/persistence/models/user.model';
+import { Role } from '@modules/iam/adapters/persistence/models/role.model';
 import { accountProvisioningService, employeeAccountService } from '@modules/hrm/adapters/container/employee';
 
 vi.setConfig({ testTimeout: 60_000 });

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { eventBus } from '@infra/events/event-bus';
-import { auditService } from '@features/iam';
+import { auditService } from '@modules/iam';
 import type { Clock, AuditPort, EventsPort, UnitOfWork, Tx } from '@modules/hrm/core/employee/domain/ports';
 
 // Domain events emitted by the employee account/provisioning use-cases.

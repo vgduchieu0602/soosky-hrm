@@ -4,7 +4,7 @@ import { logger } from '@infra/logger/logger';
 import { mailService } from '@infra/mail/mail.service';
 import { renderAccountSetupEmail } from '@infra/mail/templates';
 import { EmployeeProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-profile.model';
-import { passwordSetupService, buildSetPasswordUrl } from '@features/iam';
+import { passwordSetupService, buildSetPasswordUrl } from '@modules/auth';
 
 const log = logger.child({ feature: 'employee', module: 'account-email' });
 

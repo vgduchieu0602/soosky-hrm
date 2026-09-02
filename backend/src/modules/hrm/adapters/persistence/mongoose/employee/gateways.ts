@@ -8,11 +8,11 @@ import { EmployeeDocumentModel } from '@modules/hrm/adapters/persistence/mongoos
 import { EmployeeContractModel } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contract.model';
 import { EmployeeAsset } from '@modules/hrm/adapters/persistence/mongoose/models/employee-asset.model';
 import { EmployeeHistory } from '@modules/hrm/adapters/persistence/mongoose/models/employee-history.model';
-import { User } from '@shared/models/user.model';
-import { Role } from '@shared/models/role.model';
-import { UserRole } from '@shared/models/user-role.model';
-import { Session } from '@shared/models/session.model';
-import { AuditLog } from '@shared/models/audit-log.model';
+import { User } from '@modules/iam/adapters/persistence/models/user.model';
+import { Role } from '@modules/iam/adapters/persistence/models/role.model';
+import { UserRole } from '@modules/iam/adapters/persistence/models/user-role.model';
+import { Session } from '@modules/auth/adapters/persistence/models/session.model';
+import { AuditLog } from '@modules/iam/adapters/persistence/models/audit-log.model';
 import { Department } from '@modules/hrm/adapters/persistence/mongoose/models/department.model';
 import { Position } from '@modules/hrm/adapters/persistence/mongoose/models/position.model';
 import { CompanyConfig } from '@modules/hrm/adapters/persistence/mongoose/models/company-config.model';
@@ -26,7 +26,7 @@ import { Bonus } from '@modules/hrm/adapters/persistence/mongoose/models/bonus.m
 import { Deduction } from '@modules/hrm/adapters/persistence/mongoose/models/deduction.model';
 import { EmployeeTaxProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-tax-profile.model';
 
-import { sessionRepository } from '@features/iam/repositories/session.repository';
+import { sessionRepository } from '@modules/auth';
 import { notificationService } from '@modules/hrm/adapters/container/notification';
 
 import type { ReminderRow } from '@modules/hrm/core/employee/domain/employee-rules';

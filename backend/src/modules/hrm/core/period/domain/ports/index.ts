@@ -159,7 +159,7 @@ export interface PeriodLifecycle {
 
 // ---- audit + events (shared shape, reused across features) ----
 
-/** Mirrors `@features/payroll/domain/ports#AuditPort` so the audit record shape stays consistent. */
+/** Mirrors `@modules/hrm/core/payroll/domain/ports#AuditPort` so the audit record shape stays consistent. */
 export interface AuditPort {
   record(entry: {
     userId: string;

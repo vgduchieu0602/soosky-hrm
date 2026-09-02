@@ -15,7 +15,7 @@ import { EmployeeProfile } from '@modules/hrm/adapters/persistence/mongoose/mode
 import { EmployeeHistory } from '@modules/hrm/adapters/persistence/mongoose/models/employee-history.model';
 import { EmployeeContractModel } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contract.model';
 import { EmployeeBankAccount } from '@modules/hrm/adapters/persistence/mongoose/models/employee-bank-account.model';
-import { AuditLog } from '@shared/models/audit-log.model';
+import { AuditLog } from '@modules/iam/adapters/persistence/models/audit-log.model';
 import { IMPORT_COLUMNS, EXPORT_COLUMNS } from '@modules/hrm/core/employee/domain/employee-csv-schema';
 
 vi.setConfig({ testTimeout: 90_000 });

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { auditService } from '@features/iam';
+import { auditService } from '@modules/iam';
 import {
   employeeService,
   accountProvisioningService,

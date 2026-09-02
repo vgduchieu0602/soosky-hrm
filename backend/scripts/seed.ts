@@ -1,12 +1,12 @@
 /* eslint-disable no-console */
 import mongoose, { Types } from 'mongoose';
 import { connectDB, disconnectDB } from '@infra/db/mongoose';
-import { hashPassword } from '@modules/auth/adapters/security/hash.util';
-import { Permission } from '@shared/models/permission.model';
-import { Role } from '@shared/models/role.model';
-import { RolePermission } from '@shared/models/role-permission.model';
-import { User } from '@shared/models/user.model';
-import { UserRole } from '@shared/models/user-role.model';
+import { hashPassword } from '@shared/crypto/hash.util';
+import { Permission } from '@modules/iam/adapters/persistence/models/permission.model';
+import { Role } from '@modules/iam/adapters/persistence/models/role.model';
+import { RolePermission } from '@modules/iam/adapters/persistence/models/role-permission.model';
+import { User } from '@modules/iam/adapters/persistence/models/user.model';
+import { UserRole } from '@modules/iam/adapters/persistence/models/user-role.model';
 import { SalaryPolicyConfig } from '@modules/hrm/adapters/persistence/mongoose/models/salary-policy-config.model';
 import { PerformanceCriterion } from '@modules/hrm/adapters/persistence/mongoose/models/performance-criterion.model';
 import { CompanyConfig } from '@modules/hrm/adapters/persistence/mongoose/models/company-config.model';

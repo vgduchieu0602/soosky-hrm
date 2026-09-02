@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate } from '@shared/middlewares/authenticate';
-import { requireRoles } from '@shared/middlewares/require-role';
-import { validate } from '@shared/middlewares/validate';
+import { authenticate } from '@shared/http/authenticate';
+import { requireRoles } from '@shared/http/require-role';
+import { validate } from '@shared/http/validate';
 import { createPeriodController } from '@modules/hrm/adapters/http/period/period.controller';
 import { createPeriodDto, updatePeriodDto } from '@modules/hrm/core/period/dto/period.dto';
 import type { PeriodUseCases } from '@modules/hrm/core/period/app/period.usecases';

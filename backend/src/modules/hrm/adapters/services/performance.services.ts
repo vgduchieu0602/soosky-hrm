@@ -1,5 +1,5 @@
 import { eventBus } from '@infra/events/event-bus';
-import { auditService } from '@features/iam';
+import { auditService } from '@modules/iam';
 import type { Clock, AuditPort, EventsPort } from '@modules/hrm/core/performance/domain/ports';
 
 // Domain events emitted by the performance/evaluation use-cases.

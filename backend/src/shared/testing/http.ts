@@ -9,8 +9,8 @@ import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import supertest from 'supertest';
 import { createExpressServer } from '@infra/server/createExpressServer';
-import { Role } from '@shared/models/role.model';
-import { tokenService } from '@features/iam';
+import { Role } from '@modules/iam/adapters/persistence/models/role.model';
+import { tokenService } from '@modules/auth';
 
 export const api = supertest(createExpressServer());
 

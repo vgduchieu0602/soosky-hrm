@@ -10,7 +10,6 @@ export default defineConfig({
       "@infra": path.resolve(__dirname, "src/infra"),
       "@modules": path.resolve(__dirname, "src/modules"),
       "@shared": path.resolve(__dirname, "src/shared"),
-      "@features": path.resolve(__dirname, "src/features"),
     },
   },
   test: {

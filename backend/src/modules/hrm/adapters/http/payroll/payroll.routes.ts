@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate } from '@shared/middlewares/authenticate';
-import { requireRoles } from '@shared/middlewares/require-role';
-import { validate } from '@shared/middlewares/validate';
+import { authenticate } from '@shared/http/authenticate';
+import { requireRoles } from '@shared/http/require-role';
+import { validate } from '@shared/http/validate';
 import { compensationController, payrollController, payrollRunController } from '@modules/hrm/adapters/http/payroll/controllers';
 import { runPeriodDto, approvePayrollDto } from '@modules/hrm/core/payroll/dto/payroll-period.dto';
 import {

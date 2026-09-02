@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { authenticate } from '@shared/middlewares/authenticate';
-import { validate } from '@shared/middlewares/validate';
+import { authenticate } from '@shared/http/authenticate';
+import { validate } from '@shared/http/validate';
 import { storageController } from '@modules/hrm/adapters/http/storage/controllers';
 import { presignUploadDto } from '@modules/hrm/core/storage/dto/storage.dto';
 

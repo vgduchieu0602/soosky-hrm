@@ -5,8 +5,9 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { logger } from '@infra/logger/logger';
 import { env } from '@infra/config';
-import { errorHandler } from '@shared/middlewares/error-handler';
-import { iamRouter } from '@features/iam';
+import { errorHandler } from '@shared/http/error-handler';
+import { authRouter } from '@modules/auth';
+import { iamRouter } from '@modules/iam';
 import {
   employeeRouter,
   organizationRouter,
@@ -54,6 +55,7 @@ export function createExpressServer() {
   //Reigster Route
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
+  app.use('/api/v1', authRouter);
   app.use('/api/v1', iamRouter);
   app.use('/api/v1', organizationRouter);
   app.use('/api/v1', employeeRouter);
