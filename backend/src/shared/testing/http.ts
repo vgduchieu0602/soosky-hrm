@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 /**
  * Shared harness for HTTP integration tests: real Express app (full middleware
  * chain: authenticate → guards → validate → controller) over a real
@@ -8,11 +7,11 @@
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import supertest from 'supertest';
-import { createApp } from '../../app';
-import { Role } from '@shared/models/role.model';
-import { tokenService } from '@features/iam';
+import { createExpressServer } from '@infra/server/createExpressServer';
+import { Role } from '@modules/iam/adapters/persistence/models/role.model';
+import { tokenService } from '@modules/auth';
 
-export const api = supertest(createApp());
+export const api = supertest(createExpressServer());
 
 const oid = () => new mongoose.Types.ObjectId();
 

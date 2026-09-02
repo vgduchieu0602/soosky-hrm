@@ -89,4 +89,4 @@ COPY --chown=node:node package.json ./
 EXPOSE 3000
 
 # Lệnh khởi động: chạy file đã biên dịch. Tương đương "pnpm start".
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/server.js"]

@@ -7,14 +7,18 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
-      "@config": path.resolve(__dirname, "src/config"),
-      "@core": path.resolve(__dirname, "src/core"),
+      "@infra": path.resolve(__dirname, "src/infra"),
+      "@modules": path.resolve(__dirname, "src/modules"),
       "@shared": path.resolve(__dirname, "src/shared"),
-      "@features": path.resolve(__dirname, "src/features"),
     },
   },
   test: {
     globals: true,
+    // Every HTTP spec boots its own mongodb-memory-server replica set, which
+    // takes well over the 10s default when several start at once — and the box
+    // cannot start more than a couple at a time without them timing out.
+    hookTimeout: 60_000,
+    maxWorkers: 2,
     environment: "node",
     include: ["src/**/*.spec.ts", "src/**/*.test.ts", "tests/**/*.test.ts"],
   },
