@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import mongoose from 'mongoose';
 
 import { buildPayrollDoc, type PayrollRunContext } from '@features/payroll/application/payroll-run.usecases';

@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { enumerateDays, isWeekend, mmddKey } from '@features/attendance/domain/attendance-calc';
 import { countWorkingDays, buildHolidayChecker } from '@features/attendance/domain/leave-policy';
 

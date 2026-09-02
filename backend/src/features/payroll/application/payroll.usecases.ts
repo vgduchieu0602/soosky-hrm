@@ -14,7 +14,6 @@ import {
 } from '@shared/utils/salary.util';
 import type {
   PayrollRepository,
-  PayrollPeriodRepository,
   SalaryPolicyGateway,
   EmployeeGateway,
   ContractGateway,
@@ -24,7 +23,9 @@ import type {
   EmployeeProfileGateway,
   ListPayrollFilter,
   Id,
+  Clock,
 } from '@features/payroll/domain/ports';
+import type { PeriodReader, PeriodLifecycle } from '@features/period/domain/ports';
 import type { GrossUpDto } from '@features/payroll/dto/gross-up.dto';
 
 type Decimalish = { toString(): string } | number | null | undefined;
@@ -33,7 +34,8 @@ const toNum = (d: Decimalish): number => (d == null ? 0 : Number(d.toString()));
 export class PayrollUseCases {
   constructor(
     private readonly payrolls: PayrollRepository,
-    private readonly periods: PayrollPeriodRepository,
+    private readonly periodReader: PeriodReader,
+  private readonly periodLifecycle: PeriodLifecycle,
     private readonly policies: SalaryPolicyGateway,
     private readonly employees: EmployeeGateway,
     private readonly contracts: ContractGateway,
@@ -41,6 +43,7 @@ export class PayrollUseCases {
     private readonly attendance: AttendanceGateway,
     private readonly taxProfiles: TaxProfileRepository,
     private readonly profiles: EmployeeProfileGateway,
+    private readonly clock: Clock,
   ) {}
 
   /**
@@ -85,7 +88,7 @@ export class PayrollUseCases {
    * defaults (no tax profile). Also flags a policy-level config gap.
    */
   async preflight(periodId: Id) {
-    const period = await this.periods.findById(periodId);
+    const period = await this.periodReader.findById(periodId);
     if (!period) throw new NotFoundError('Payroll period');
     const policy = await this.policies.effectiveAt(period.payDate);
 
@@ -222,7 +225,7 @@ export class PayrollUseCases {
 
   /** Export one period's payrolls (all employees) as a styled .xlsx for accounting. */
   async exportPeriodXlsx(payrollPeriodId: Id): Promise<Buffer> {
-    const period = await this.periods.findById(payrollPeriodId);
+    const period = await this.periodReader.findById(payrollPeriodId);
     const rows = await this.payrolls.exportRows(payrollPeriodId);
 
     const STATUS_LABEL: Record<string, string> = { draft: 'Nháp', approved: 'Đã duyệt', paid: 'Đã chi' };
@@ -297,7 +300,7 @@ export class PayrollUseCases {
     // Attach the period label so the portal can show "Tháng …" without a
     // separate (role-gated) periods call.
     const periodIds = [...new Set(visible.map((p) => String(p.payrollPeriodId)))];
-    const periods = await this.periods.namesByIds(periodIds);
+    const periods = await this.periodReader.namesByIds(periodIds);
     const nameById = new Map(periods.map((p) => [String(p._id), p.name]));
     return visible.map((p) => ({ ...p, periodName: nameById.get(String(p.payrollPeriodId)) ?? '' }));
   }

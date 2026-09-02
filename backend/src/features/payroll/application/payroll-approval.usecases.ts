@@ -12,13 +12,14 @@ import { logger } from '@core/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import type {
-  PayrollPeriodRepository,
   PayrollRepository,
   AuditPort,
   EventsPort,
   UnitOfWork,
   Id,
+  Clock,
 } from '@features/payroll/domain/ports';
+import type { PeriodReader, PeriodLifecycle } from '@features/period/domain/ports';
 
 const log = logger.child({ feature: 'payroll', module: 'approval' });
 
@@ -31,15 +32,17 @@ export interface ApprovalResult {
 
 export class PayrollApprovalUseCases {
   constructor(
-    private readonly periods: PayrollPeriodRepository,
+    private readonly periodReader: PeriodReader,
+  private readonly periodLifecycle: PeriodLifecycle,
     private readonly payrolls: PayrollRepository,
     private readonly audit: AuditPort,
     private readonly events: EventsPort,
     private readonly uow: UnitOfWork,
+    private readonly clock: Clock,
   ) {}
 
   private async loadPeriod(periodId: Id) {
-    const period = await this.periods.findById(periodId);
+    const period = await this.periodReader.findById(periodId);
     if (!period) throw new NotFoundError('Payroll period');
     return period;
   }
@@ -59,7 +62,7 @@ export class PayrollApprovalUseCases {
       await this.payrolls.approveMany(periodId, employeeId, approverUserId, tx);
       // Whole-period approval moves the period into 'processing'.
       if (!employeeId && period.status === 'open') {
-        await this.periods.markProcessing(periodId, tx);
+        await this.periodLifecycle.markProcessing(periodId, tx);
       }
     });
 
@@ -117,7 +120,7 @@ export class PayrollApprovalUseCases {
     const now = new Date();
     await this.uow.withTransaction(async (tx) => {
       await this.payrolls.markPaidMany(periodId, now, tx);
-      await this.periods.markPaid(periodId, tx);
+      await this.periodLifecycle.markPaid(periodId, tx);
     });
 
     await this.audit.record({

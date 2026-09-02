@@ -19,6 +19,7 @@ import {
   MongoosePolicyGateway,
   MongoosePayrollLockGateway,
 } from '@features/attendance/infrastructure/gateways.mongoose';
+import { periodGateway } from '@features/period/container';
 import {
   SystemClock,
   AuditServiceAdapter,
@@ -41,7 +42,7 @@ const symbolRepo = new MongooseSymbolRepository();
 const employeeGw = new MongooseEmployeeGateway();
 const shiftWindowGw = new MongooseShiftWindowGateway();
 const policyGw = new MongoosePolicyGateway();
-const lockGw = new MongoosePayrollLockGateway();
+const lockGw = new MongoosePayrollLockGateway(periodGateway);
 
 const clock = new SystemClock();
 const audit = new AuditServiceAdapter();

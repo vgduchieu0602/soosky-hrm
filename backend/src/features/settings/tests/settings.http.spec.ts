@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * TIER 4 — HTTP integration: Settings (company config, salary policy, criteria).
  * This area had ZERO automated coverage. Focuses on guards (adminOnly vs
@@ -8,7 +8,7 @@
  */
 import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@shared/testing/http';
 
-jest.setTimeout(60_000);
+vi.setConfig({ testTimeout: 60_000 });
 
 beforeAll(startDb);
 afterAll(stopDb);

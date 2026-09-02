@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 
 import { createSalaryPolicyDto, updateSalaryPolicyDto } from '@features/settings/dto/settings.dto';
 

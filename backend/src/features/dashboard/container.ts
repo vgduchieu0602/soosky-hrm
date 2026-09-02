@@ -5,8 +5,9 @@
 import { MongooseDashboardRepository } from '@features/dashboard/infrastructure/dashboard.repository.mongoose';
 import { SystemClock } from '@features/dashboard/infrastructure/services';
 import { DashboardUseCases } from '@features/dashboard/application/dashboard.usecases';
+import { periodGateway } from '@features/period/container';
 
-const dashboardRepo = new MongooseDashboardRepository();
+const dashboardRepo = new MongooseDashboardRepository(periodGateway);
 const clock = new SystemClock();
 
 export const dashboardUseCases = new DashboardUseCases(dashboardRepo, clock);

@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 /**
  * Nhập nhân viên từ CSV — bước xem trước và bước ghi thật, chạy trên cổng giả.
  *

@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { computeStandardWorkDays, dateKey } from '@shared/utils/workdays.util';
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);

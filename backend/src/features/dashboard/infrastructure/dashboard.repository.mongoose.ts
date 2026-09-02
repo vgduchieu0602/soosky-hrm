@@ -4,10 +4,10 @@ import { EmployeeProfile } from '@shared/models/employee-profile.model';
 import { Department } from '@shared/models/department.model';
 import { Attendance } from '@shared/models/attendance.model';
 import { LeaveRequest } from '@shared/models/leave-request.model';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { Payroll } from '@shared/models/payroll.model';
 import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { AuditLog } from '@shared/models/audit-log.model';
+import type { PeriodReader } from '@features/period/domain/ports';
 import type {
   DashboardRepository,
   EmployeeCounts,
@@ -25,6 +25,7 @@ import type {
 } from '@features/dashboard/domain/ports';
 
 export class MongooseDashboardRepository implements DashboardRepository {
+  constructor(private readonly periodReader: PeriodReader) {}
   async employeeCounts(monthStart: Date): Promise<EmployeeCounts> {
     const [total, active, newHires] = await Promise.all([
       Employee.countDocuments({ status: { $ne: 'terminated' } }),
@@ -164,7 +165,7 @@ export class MongooseDashboardRepository implements DashboardRepository {
   }
 
   async latestPayrollPeriod(): Promise<PayrollPeriodInfo | null> {
-    const period = await PayrollPeriod.findOne().sort({ startDate: -1 }).lean();
+    const period = await this.periodReader.findLatest();
     if (!period) return null;
     return {
       _id: String(period._id),

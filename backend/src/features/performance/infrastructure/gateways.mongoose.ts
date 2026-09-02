@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Employee } from '@shared/models/employee.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
 import { Payroll } from '@shared/models/payroll.model';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
+import type { PerformanceLockPort } from '@features/period/domain/ports';
 import type {
   EmployeeGateway,
   CriterionGateway,
@@ -38,6 +38,7 @@ export class MongooseCriterionGateway implements CriterionGateway {
 }
 
 export class MongoosePayrollLockGateway implements PayrollLockGateway {
+  constructor(private readonly performanceLock: PerformanceLockPort) {}
   async findLockedPayroll(payrollPeriodId: Id, employeeId: Id): Promise<{ status: string } | null> {
     const p = await Payroll.findOne({
       payrollPeriodId: new mongoose.Types.ObjectId(payrollPeriodId),
@@ -50,7 +51,6 @@ export class MongoosePayrollLockGateway implements PayrollLockGateway {
   }
 
   async isPerformancePeriodLocked(payrollPeriodId: Id): Promise<boolean> {
-    const period = await PayrollPeriod.findById(payrollPeriodId).select('performanceLockedAt').lean();
-    return !!period?.performanceLockedAt;
+    return this.performanceLock.isPerformancePeriodLocked(payrollPeriodId);
   }
 }

@@ -1,25 +1,6 @@
 import { z } from 'zod';
 
-export const createPeriodDto = z
-  .object({
-    name: z.string().regex(/^\d{4}-\d{2}$/, 'name phải dạng YYYY-MM'),
-    startDate: z.coerce.date(),
-    endDate: z.coerce.date(),
-    payDate: z.coerce.date(),
-    standardWorkDays: z.coerce.number().int().min(1).max(31).optional(),
-  })
-  .strict();
-export type CreatePeriodDto = z.infer<typeof createPeriodDto>;
-
-export const updatePeriodDto = z
-  .object({
-    startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional(),
-    payDate: z.coerce.date().optional(),
-    standardWorkDays: z.coerce.number().int().min(1).max(31).optional(),
-  })
-  .strict();
-export type UpdatePeriodDto = z.infer<typeof updatePeriodDto>;
+// ---- Payroll workflow DTOs (periods themselves live in the `period` feature) ----
 
 export const approvePayrollDto = z
   .object({

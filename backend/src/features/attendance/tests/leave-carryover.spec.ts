@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * Annual-leave policy: official employees get 12 days/year (lazy grant); unused
  * days carry over and stay usable for up to 3 years (pooled = current + 2 prior).
@@ -11,7 +11,7 @@ import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { LeaveBalance } from '@shared/models/leave-balance.model';
 import { leaveEntitlement } from '@features/attendance/container';
 
-jest.setTimeout(60_000);
+vi.setConfig({ testTimeout: 60_000 });
 
 const oid = () => new mongoose.Types.ObjectId();
 const utc = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -21,7 +21,8 @@ beforeAll(async () => {
   repl = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(repl.getUri());
 });
-afterAll(async () => { await mongoose.disconnect(); await repl.stop(); });
+// MongoMemoryReplSet shutdown can exceed Vitest's default 10s hook timeout on Windows.
+afterAll(async () => { await mongoose.disconnect(); await repl.stop(); }, 60_000);
 afterEach(async () => {
   const { collections } = mongoose.connection;
   await Promise.all(Object.values(collections).map((c) => c.deleteMany({})));

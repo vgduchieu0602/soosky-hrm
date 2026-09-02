@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * Reproduces the reported bug: create employee → grant login (send invite) →
  * the Account tab (getAccount) must report hasAccount:true.
@@ -14,7 +14,7 @@ import { User } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
 import { accountProvisioningService, employeeAccountService } from '@features/employee/container';
 
-jest.setTimeout(60_000);
+vi.setConfig({ testTimeout: 60_000 });
 
 const oid = () => new mongoose.Types.ObjectId();
 

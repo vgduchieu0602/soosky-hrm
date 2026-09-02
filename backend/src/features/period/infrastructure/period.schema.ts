@@ -1,35 +1,11 @@
 import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
+import type { IPayrollPeriod } from '../domain/ports';
 
 const DB_NAME = 'payrollPeriod';
 const COLLECTION_NAME = 'payrollPeriods';
 
 export const PAYROLL_PERIOD_STATUS = ['open', 'processing', 'closed', 'paid'] as const;
 export type PayrollPeriodStatus = (typeof PAYROLL_PERIOD_STATUS)[number];
-
-export interface IPayrollPeriod {
-  /** Human label, unique — e.g. "2026-05". */
-  name: string;
-  startDate: Date;
-  endDate: Date;
-  payDate: Date;
-  /** Snapshot of CompanyConfig.standardWorkDays at creation time. */
-  standardWorkDays: number;
-  status: PayrollPeriodStatus;
-  /** Set when the period is closed (locks computed payrolls from re-run). */
-  closedAt?: Date | null;
-  closedBy?: Types.ObjectId | null;
-  /** Set when attendance is locked — must precede payroll run; blocks edits. */
-  attendanceLockedAt?: Date | null;
-  attendanceLockedBy?: Types.ObjectId | null;
-  /** Set when evaluation inputs are frozen for payroll calculation. */
-  performanceLockedAt?: Date | null;
-  performanceLockedBy?: Types.ObjectId | null;
-  createdBy?: Types.ObjectId | null;
-  created_at?: Date;
-  updated_at?: Date;
-}
-
-export type PayrollPeriodDoc = HydratedDocument<IPayrollPeriod>;
 
 const payrollPeriodSchema = new Schema<IPayrollPeriod>(
   {

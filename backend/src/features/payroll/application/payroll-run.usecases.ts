@@ -41,8 +41,8 @@ import {
   type PayrollRunContext,
   type PayrollSegmentInput,
 } from '@features/payroll/infrastructure/payroll-doc.mapper';
+import type { PeriodRecord, PeriodReader, PeriodLifecycle } from '@features/period/domain/ports';
 import type {
-  PayrollPeriodRepository,
   PayrollRepository,
   EmployeeGateway,
   ContractGateway,
@@ -57,8 +57,8 @@ import type {
   AttendanceGateway,
   WorkCalendarGateway,
   UnitOfWork,
-  PeriodRecord,
   Id,
+  Clock,
 } from '@features/payroll/domain/ports';
 
 // Re-export the engine's persistence-shaped mapper so callers/tests have one
@@ -112,7 +112,8 @@ export interface PeriodRunResult {
 
 export class RunPayrollUseCases {
   constructor(
-    private readonly periods: PayrollPeriodRepository,
+    private readonly periodReader: PeriodReader,
+  private readonly periodLifecycle: PeriodLifecycle,
     private readonly payrolls: PayrollRepository,
     private readonly employees: EmployeeGateway,
     private readonly contracts: ContractGateway,
@@ -126,6 +127,7 @@ export class RunPayrollUseCases {
     private readonly attendance: AttendanceGateway,
     private readonly workCalendar: WorkCalendarGateway,
     private readonly uow: UnitOfWork,
+    private readonly clock: Clock,
   ) {}
 
   /**
@@ -503,7 +505,7 @@ export class RunPayrollUseCases {
    * upserts the draft row; throws if the existing row is already approved/paid.
    */
   async forEmployee(periodId: string, employeeId: string, opts: RunOptions = {}): Promise<IPayroll> {
-    const period = await this.periods.findById(periodId);
+    const period = await this.periodReader.findById(periodId);
     if (!period) throw new NotFoundError('Payroll period');
     this.assertPeriodOpen(period);
     this.assertSourcesLocked(period);
@@ -531,7 +533,7 @@ export class RunPayrollUseCases {
    * collected so one bad record doesn't abort the whole run.
    */
   async forPeriod(periodId: string, opts: RunOptions = {}): Promise<PeriodRunResult> {
-    const period = await this.periods.findById(periodId);
+    const period = await this.periodReader.findById(periodId);
     if (!period) throw new NotFoundError('Payroll period');
     this.assertPeriodOpen(period);
     this.assertSourcesLocked(period);

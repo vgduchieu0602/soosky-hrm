@@ -3,7 +3,6 @@ import { parsePagination, buildMeta } from '@shared/utils/pagination.util';
 import type { PaginationQuery } from '@shared/types/pagination.type';
 import type { GrossUpDto } from '@features/payroll/dto/gross-up.dto';
 import {
-  payrollPeriodUseCases,
   payrollUseCases,
   allowanceUseCases,
   bonusUseCases,
@@ -24,100 +23,8 @@ function userId(req: Request): string {
 const employeeIdParam = (req: Request) => (req.params as { employeeId: string }).employeeId;
 const idParam = (req: Request) => (req.params as { id: string }).id;
 
-// ============================ Payroll periods ============================
-export const payrollPeriodController = {
-  async list(_req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.list() });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async get(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.get(idParam(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async create(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.status(201).json({ data: await payrollPeriodUseCases.create(req.body, userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async update(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.update(idParam(req), req.body, userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async close(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.close(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async attendanceReadiness(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.attendanceReadiness(idParam(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async reopen(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.reopen(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async remove(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.remove(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async lockAttendance(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.lockAttendance(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async unlockAttendance(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.unlockAttendance(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async performanceReadiness(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.performanceReadiness(idParam(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async lockPerformance(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.lockPerformance(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  async unlockPerformance(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ data: await payrollPeriodUseCases.unlockPerformance(idParam(req), userId(req)) });
-    } catch (e) {
-      next(e);
-    }
-  },
-  // ---- Run triggers ----
+// ============================ Run triggers ============================
+export const payrollRunController = {
   async runPeriod(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params as { id: string };

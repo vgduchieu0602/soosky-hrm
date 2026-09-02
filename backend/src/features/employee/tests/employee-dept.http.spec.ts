@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * TIER 1 — HTTP integration: Employee + Department + Organization, exercised
  * through the full middleware chain (authenticate → role/selfOrHr guards →
@@ -15,7 +15,7 @@ import { Position } from '@shared/models/position.model';
 import { User } from '@shared/models/user.model';
 import { Session } from '@shared/models/session.model';
 
-jest.setTimeout(60_000);
+vi.setConfig({ testTimeout: 60_000 });
 
 beforeAll(startDb);
 afterAll(stopDb);

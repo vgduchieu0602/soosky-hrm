@@ -4,7 +4,6 @@
  * the HTTP layer + the feature's public surface.
  */
 import {
-  MongoosePayrollPeriodRepository,
   MongoosePayrollRepository,
   MongooseAllowanceRepository,
   MongooseBonusRepository,
@@ -20,6 +19,7 @@ import {
   MongooseEmployeeProfileGateway,
   MongooseAttendanceGateway,
   MongooseWorkCalendarGateway,
+  MongoosePayrollReadiness,
 } from '@features/payroll/infrastructure/gateways.mongoose';
 import {
   SystemClock,
@@ -33,13 +33,13 @@ import {
   DeductionUseCases,
   TaxProfileUseCases,
 } from '@features/payroll/application/compensation.usecases';
-import { PayrollPeriodUseCases } from '@features/payroll/application/payroll-period.usecases';
+import { periodUseCases } from '@features/period/container';
+import { MongoosePeriodGateway } from '@features/period/infrastructure/gateways.mongoose';
 import { PayrollUseCases } from '@features/payroll/application/payroll.usecases';
 import { PayrollApprovalUseCases } from '@features/payroll/application/payroll-approval.usecases';
 import { RunPayrollUseCases, type RunOptions } from '@features/payroll/application/payroll-run.usecases';
 
 // --- infrastructure ---
-const periodRepo = new MongoosePayrollPeriodRepository();
 const payrollRepo = new MongoosePayrollRepository();
 const allowanceRepo = new MongooseAllowanceRepository();
 const bonusRepo = new MongooseBonusRepository();
@@ -54,6 +54,7 @@ const evaluationGw = new MongooseEvaluationGateway();
 const profileGw = new MongooseEmployeeProfileGateway();
 const attendanceGw = new MongooseAttendanceGateway();
 const workCalendarGw = new MongooseWorkCalendarGateway();
+const periodGateway = new MongoosePeriodGateway();
 
 const clock = new SystemClock();
 const audit = new AuditServiceAdapter();
@@ -63,16 +64,13 @@ const uow = new MongooseUnitOfWork();
 void clock; // reserved for future time-dependent rules
 
 // --- application ---
-export const payrollPeriodUseCases = new PayrollPeriodUseCases(
-  periodRepo, payrollRepo, employeeGw, evaluationGw, attendanceGw, workCalendarGw, audit, events,
-);
 export const payrollUseCases = new PayrollUseCases(
-  payrollRepo, periodRepo, policyGw, employeeGw, contractGw, evaluationGw, attendanceGw, taxProfileRepo, profileGw,
+  payrollRepo, periodGateway, periodGateway, policyGw, employeeGw, contractGw, evaluationGw, attendanceGw, taxProfileRepo, profileGw, clock,
 );
-export const approvalUseCases = new PayrollApprovalUseCases(periodRepo, payrollRepo, audit, events, uow);
+export const approvalUseCases = new PayrollApprovalUseCases(periodGateway, periodGateway, payrollRepo, audit, events, uow, clock);
 export const runUseCases = new RunPayrollUseCases(
-  periodRepo, payrollRepo, employeeGw, contractGw, shiftGw, policyGw, evaluationGw,
-  taxProfileRepo, allowanceRepo, bonusRepo, deductionRepo, attendanceGw, workCalendarGw, uow,
+  periodGateway, periodGateway, payrollRepo, employeeGw, contractGw, shiftGw, policyGw, evaluationGw,
+  taxProfileRepo, allowanceRepo, bonusRepo, deductionRepo, attendanceGw, workCalendarGw, uow, clock,
 );
 
 export const allowanceUseCases = new AllowanceUseCases(allowanceRepo, audit);

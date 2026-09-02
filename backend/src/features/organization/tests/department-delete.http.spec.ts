@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * HTTP integration for the department changes:
  *   • hard-delete when nothing references the department
@@ -11,7 +11,7 @@ import { Department } from "@shared/models/department.model";
 import { Employee } from "@shared/models/employee.model";
 import { Position } from "@shared/models/position.model";
 
-jest.setTimeout(60_000);
+vi.setConfig({ testTimeout: 60_000 });
 
 beforeAll(startDb);
 afterAll(stopDb);

@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import { AttendanceUseCases } from '../application/attendance.usecases';
 
 describe('attendance period lock guard', () => {

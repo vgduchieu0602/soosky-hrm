@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 /**
  * Chia kỳ lương thành đoạn theo hợp đồng — hàm thuần, không DB.
  *

@@ -5,7 +5,6 @@
  * the hood). Read-models are the plain shapes adapters return (lean docs /
  * `toJSON()` output) so HTTP response shapes are preserved exactly.
  */
-import type { IPayrollPeriod } from '@shared/models/payroll-period.model';
 import type { IPayroll } from '@shared/models/payroll.model';
 import type { ISalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
 import type { IEmployeeContract } from '@shared/models/employee-contract.model';
@@ -25,15 +24,13 @@ import type {
   UpdateDeductionDto,
   UpsertTaxProfileDto,
 } from '@features/payroll/dto/compensation.dto';
-import type { CreatePeriodDto, UpdatePeriodDto } from '@features/payroll/dto/payroll-period.dto';
+import type { PeriodReader, PeriodLifecycle } from '@features/period/domain/ports';
 
 export type Id = string;
 export type Tx = unknown;
 
 // ---- read-models ----
 
-/** A payroll period as returned to callers (mirrors `doc.toJSON()`). */
-export type PeriodRecord = IPayrollPeriod & { _id: unknown; id?: string };
 export type PolicyRecord = ISalaryPolicyConfig & { _id: unknown };
 export type ContractRecord = IEmployeeContract & { _id: unknown };
 export type EvaluationRecord = IMonthlyEvaluation & { _id: unknown };
@@ -62,26 +59,6 @@ export interface ProfileName {
   firstName?: string;
   middleName?: string;
   lastName?: string;
-}
-
-// ---- period repository ----
-
-export interface PayrollPeriodRepository {
-  list(): Promise<PeriodRecord[]>;
-  findById(id: Id): Promise<PeriodRecord | null>;
-  findByName(name: string): Promise<PeriodRecord | null>;
-  namesByIds(ids: Id[]): Promise<{ _id: unknown; name: string }[]>;
-  create(input: CreatePeriodDto & { standardWorkDays: number }): Promise<PeriodRecord>;
-  update(id: Id, patch: UpdatePeriodDto): Promise<PeriodRecord | null>;
-  delete(id: Id): Promise<void>;
-  markClosed(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
-  reopenToOpen(id: Id): Promise<PeriodRecord | null>;
-  lockAttendance(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
-  unlockAttendance(id: Id): Promise<PeriodRecord | null>;
-  lockPerformance(id: Id, byUserId: Id): Promise<PeriodRecord | null>;
-  unlockPerformance(id: Id): Promise<PeriodRecord | null>;
-  markProcessing(id: Id, tx: Tx): Promise<void>;
-  markPaid(id: Id, tx: Tx): Promise<void>;
 }
 
 // ---- computed-payroll repository ----

@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * TIER 1 — HTTP integration cho vòng đời phiên đăng nhập.
  *
@@ -13,7 +13,7 @@ import { UserRole } from '@shared/models/user-role.model';
 import { Session } from '@shared/models/session.model';
 import { hashPassword } from '@shared/utils/hash.util';
 
-jest.setTimeout(90_000);
+vi.setConfig({ testTimeout: 90_000 });
 
 beforeAll(startDb);
 afterAll(stopDb);

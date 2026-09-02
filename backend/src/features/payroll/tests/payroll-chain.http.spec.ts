@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * TIER 2 — HTTP integration: attendance → evaluation → payroll, through the
  * full middleware chain. Focus on the HTTP-level state machine guards and
@@ -18,9 +18,9 @@ import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
 import { Attendance } from '@shared/models/attendance.model';
 import { Shift } from '@shared/models/shift.model';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
+import { PayrollPeriod } from '@features/period/infrastructure/period.schema';
 
-jest.setTimeout(90_000);
+vi.setConfig({ testTimeout: 90_000 });
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(n));
 const oid = () => new mongoose.Types.ObjectId();

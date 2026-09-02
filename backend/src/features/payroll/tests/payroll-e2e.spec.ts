@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * End-to-end chain test: attendance + evaluation + policy + contract → payroll.
  * Runs against an in-memory Mongo replica set (payroll-run uses transactions).
@@ -11,14 +11,14 @@ import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
 import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
 import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
+import { PayrollPeriod } from '@features/period/infrastructure/period.schema';
 import { Attendance } from '@shared/models/attendance.model';
 import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { Payroll } from '@shared/models/payroll.model';
 import { runPayrollForEmployee } from '@features/payroll/container';
 import { evaluationService } from '@features/performance';
 
-jest.setTimeout(60_000);
+vi.setConfig({ testTimeout: 60_000 });
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(n));
 const num = (d: mongoose.Types.Decimal128) => Number(d.toString());

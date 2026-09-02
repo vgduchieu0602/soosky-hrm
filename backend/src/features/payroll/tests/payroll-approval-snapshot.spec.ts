@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 import { PayrollApprovalUseCases } from '@features/payroll/application/payroll-approval.usecases';
 
 describe('PayrollApprovalUseCases snapshot lifecycle', () => {
@@ -7,12 +7,13 @@ describe('PayrollApprovalUseCases snapshot lifecycle', () => {
       status: 'draft',
       calculationSnapshot: { version: 1, policy: { weights: { attendance: 20, performance: 60, goal: 20 } } },
     };
-    const approveMany = jest.fn(async () => {
+    const approveMany = vi.fn(async () => {
       row.status = 'approved';
     });
-    const markProcessing = jest.fn(async () => undefined);
+    const markProcessing = vi.fn(async () => undefined);
 
     const useCases = new PayrollApprovalUseCases(
+      { findById: async () => ({ _id: 'period-1', name: '2026-08', status: 'open' }), findLatest: async () => null, list: async () => [], findByName: async () => null, namesByIds: async () => [] } as never,
       {
         findById: async () => ({ _id: 'period-1', name: '2026-08', status: 'open' }),
         markProcessing,
@@ -21,6 +22,7 @@ describe('PayrollApprovalUseCases snapshot lifecycle', () => {
       { record: async () => undefined } as never,
       { payrollApproved: () => undefined } as never,
       { withTransaction: async (work: (tx: unknown) => Promise<unknown>) => work('transaction') } as never,
+      { now: () => new Date() } as never,
     );
 
     await expect(useCases.approve('period-1', 'hr-1')).resolves.toEqual({ periodId: 'period-1', affected: 1 });

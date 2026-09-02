@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 import { HttpError } from '@shared/errors/http-error';
 import { DepartmentUseCases } from '@features/organization/application/department.usecases';
 import type {
@@ -14,41 +14,41 @@ import type {
 
 // --- Fakes for the ports the department use-cases depend on ----------------
 const repo = {
-  findAll: jest.fn(),
-  findById: jest.fn(),
-  findByCode: jest.fn(),
-  findChildren: jest.fn(),
-  create: jest.fn(),
-  updateById: jest.fn(),
-  deleteById: jest.fn(),
-  countChildren: jest.fn(),
+  findAll: vi.fn(),
+  findById: vi.fn(),
+  findByCode: vi.fn(),
+  findChildren: vi.fn(),
+  create: vi.fn(),
+  updateById: vi.fn(),
+  deleteById: vi.fn(),
+  countChildren: vi.fn(),
 } as unknown as jest.Mocked<DepartmentRepository>;
 
 const employees = {
-  headcountByDepartment: jest.fn(),
-  findHeads: jest.fn(),
-  findEmployeeStatus: jest.fn(),
-  countActiveInDepartment: jest.fn(),
-  countAllInDepartment: jest.fn(),
-  countByStatuses: jest.fn(),
-  countByPosition: jest.fn(),
-  findTransferableIds: jest.fn(),
-  moveEmployees: jest.fn(),
+  headcountByDepartment: vi.fn(),
+  findHeads: vi.fn(),
+  findEmployeeStatus: vi.fn(),
+  countActiveInDepartment: vi.fn(),
+  countAllInDepartment: vi.fn(),
+  countByStatuses: vi.fn(),
+  countByPosition: vi.fn(),
+  findTransferableIds: vi.fn(),
+  moveEmployees: vi.fn(),
 } as unknown as jest.Mocked<EmployeeGateway>;
 
 const employeeHistory = {
-  recordTransfers: jest.fn(),
+  recordTransfers: vi.fn(),
 } as unknown as jest.Mocked<EmployeeHistoryGateway>;
 const positions = {
-  countByDepartment: jest.fn(),
-  moveAll: jest.fn(),
+  countByDepartment: vi.fn(),
+  moveAll: vi.fn(),
 } as unknown as jest.Mocked<PositionGateway>;
 const audit = {
-  record: jest.fn().mockResolvedValue(undefined),
-  list: jest.fn(),
+  record: vi.fn().mockResolvedValue(undefined),
+  list: vi.fn(),
 } as unknown as jest.Mocked<AuditPort>;
 const uow = {
-  withTransaction: jest.fn((work) => work({})),
+  withTransaction: vi.fn((work) => work({})),
 } as unknown as jest.Mocked<UnitOfWork>;
 const clock = { now: () => new Date('2026-07-05T00:00:00Z') } as Clock;
 const ids = { isValid: () => true } as IdValidator;
@@ -67,7 +67,7 @@ const service = new DepartmentUseCases(
 const AUDIT_USER = '507f1f77bcf86cd799439099';
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('departmentService.create — manager validation (UC-06)', () => {

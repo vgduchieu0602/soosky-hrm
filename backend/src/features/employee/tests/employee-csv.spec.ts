@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 /**
  * Lược đồ CSV chuẩn + bộ ghi CSV — thuần, không DB.
  *

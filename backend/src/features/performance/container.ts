@@ -9,6 +9,7 @@ import {
   MongooseCriterionGateway,
   MongoosePayrollLockGateway,
 } from '@features/performance/infrastructure/gateways.mongoose';
+import { periodGateway } from '@features/period/container';
 import {
   SystemClock,
   AuditServiceAdapter,
@@ -22,7 +23,7 @@ const evaluationRepo = new MongooseEvaluationRepository();
 const criterionRepo = new MongooseCriterionRepository();
 const employeeGw = new MongooseEmployeeGateway();
 const criterionGw = new MongooseCriterionGateway();
-const payrollLockGw = new MongoosePayrollLockGateway();
+const payrollLockGw = new MongoosePayrollLockGateway(periodGateway);
 const clock = new SystemClock();
 const audit = new AuditServiceAdapter();
 const events = new EventBusAdapter();

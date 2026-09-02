@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 /**
  * Quy tắc thuần của vòng đời nhân viên — không DB, không HTTP. Đây là nơi khoá
  * những luật dễ bị phá khi sửa use-case sau này: ngày hiệu lực, vòng lặp quản lý,

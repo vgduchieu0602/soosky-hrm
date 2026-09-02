@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * TIER 1 — HTTP integration cho vòng đời nhân viên + nhập/xuất CSV, chạy qua
  * đúng chuỗi middleware thật (authenticate → requireRoles → validate → controller)
@@ -15,7 +15,7 @@ import { Employee } from '@shared/models/employee.model';
 import { EmployeeHistory } from '@shared/models/employee-history.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 
-jest.setTimeout(90_000);
+vi.setConfig({ testTimeout: 90_000 });
 
 beforeAll(startDb);
 afterAll(stopDb);

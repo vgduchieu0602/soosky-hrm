@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { vi } from 'vitest';
 /**
  * TIER 1 — HTTP integration cho nhập/xuất CSV nhân viên, chạy qua đúng chuỗi
  * middleware thật trên MongoDB replica set trong bộ nhớ (giao dịch chạy thật).
@@ -18,7 +18,7 @@ import { EmployeeBankAccount } from '@shared/models/employee-bank-account.model'
 import { AuditLog } from '@shared/models/audit-log.model';
 import { IMPORT_COLUMNS, EXPORT_COLUMNS } from '@features/employee/domain/employee-csv-schema';
 
-jest.setTimeout(90_000);
+vi.setConfig({ testTimeout: 90_000 });
 
 beforeAll(startDb);
 afterAll(stopDb);

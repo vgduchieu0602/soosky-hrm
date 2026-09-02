@@ -3,7 +3,7 @@ import { Employee } from '@shared/models/employee.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
 import { Shift } from '@shared/models/shift.model';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
+import type { AttendanceLockPort } from '@features/period/domain/ports';
 import { DEFAULT_POLICY, type AttendancePolicy } from '@features/attendance/domain/attendance-calc';
 import { annualQuotaFrom } from '@features/attendance/domain/leave-policy';
 import type {
@@ -71,15 +71,8 @@ export class MongoosePolicyGateway implements PolicyGateway {
 }
 
 export class MongoosePayrollLockGateway implements PayrollLockGateway {
+  constructor(private readonly attendanceLock: AttendanceLockPort) {}
   async lockedPeriodName(date: Date): Promise<string | null> {
-    const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-    const locked = await PayrollPeriod.findOne({
-      startDate: { $lte: day },
-      endDate: { $gte: day },
-      attendanceLockedAt: { $ne: null },
-    })
-      .select('name')
-      .lean();
-    return locked?.name ?? null;
+    return this.attendanceLock.lockedPeriodName(date);
   }
 }

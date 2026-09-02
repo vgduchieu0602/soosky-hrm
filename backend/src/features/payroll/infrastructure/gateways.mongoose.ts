@@ -10,6 +10,8 @@ import {
 import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
 import { CompanyConfig } from '@shared/models/company-config.model';
 import { Attendance, type AttendanceStatus } from '@shared/models/attendance.model';
+import type { PayrollReadinessPort } from '@features/period/domain/ports';
+import { MongoosePayrollRepository } from './repositories.mongoose';
 import {
   summarizeAttendance,
   dedupeByDay,
@@ -179,5 +181,22 @@ export class MongooseWorkCalendarGateway implements WorkCalendarGateway {
   async companyStandardWorkDays() {
     const config = await CompanyConfig.findOne({ key: 'global' }).lean();
     return config?.standardWorkDays;
+  }
+}
+
+/**
+ * Implements the period feature's `PayrollReadinessPort`. The period needs to
+ * know whether a period still has draft / any computed-payroll rows before it
+ * closes or deletes — this is the single inbound dependency the period has on
+ * payroll. Importing `{ PeriodReader, PeriodLifecycle }` from `@features/period`
+ * here is type-only, so there is no runtime circular dependency.
+ */
+export class MongoosePayrollReadiness implements PayrollReadinessPort {
+  constructor(private readonly repo: MongoosePayrollRepository) {}
+  countDrafts(periodId: Id, employeeId?: Id) {
+    return this.repo.countDrafts(periodId, employeeId);
+  }
+  countByPeriod(periodId: Id) {
+    return this.repo.countByPeriod(periodId);
   }
 }

@@ -1,18 +1,15 @@
 import mongoose, { Types } from 'mongoose';
-import { PayrollPeriod } from '@shared/models/payroll-period.model';
 import { Payroll, type IPayroll } from '@shared/models/payroll.model';
 import { Allowance } from '@shared/models/allowance.model';
 import { Bonus } from '@shared/models/bonus.model';
 import { Deduction } from '@shared/models/deduction.model';
 import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
 import type {
-  PayrollPeriodRepository,
   PayrollRepository,
   AllowanceRepository,
   BonusRepository,
   DeductionRepository,
   TaxProfileRepository,
-  PeriodRecord,
   AllowanceRecord,
   BonusRecord,
   DeductionRecord,
@@ -22,7 +19,6 @@ import type {
   Id,
   Tx,
 } from '@features/payroll/domain/ports';
-import type { CreatePeriodDto, UpdatePeriodDto } from '@features/payroll/dto/payroll-period.dto';
 import type {
   CreateAllowanceDto,
   UpdateAllowanceDto,
@@ -36,106 +32,6 @@ import type {
 const valid = (id: string) => Types.ObjectId.isValid(id);
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(n));
 const session = (tx: Tx) => tx as mongoose.ClientSession;
-
-// ============================ Payroll period ============================
-export class MongoosePayrollPeriodRepository implements PayrollPeriodRepository {
-  list() {
-    return PayrollPeriod.find().sort({ startDate: -1 }).lean() as unknown as Promise<PeriodRecord[]>;
-  }
-
-  async findById(id: Id) {
-    if (!valid(id)) return null;
-    const doc = await PayrollPeriod.findById(id);
-    return doc ? (doc.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  findByName(name: string) {
-    return PayrollPeriod.findOne({ name: name.trim() }).lean() as unknown as Promise<PeriodRecord | null>;
-  }
-
-  namesByIds(ids: Id[]) {
-    return PayrollPeriod.find({ _id: { $in: ids } })
-      .select('name')
-      .lean() as unknown as Promise<{ _id: unknown; name: string }[]>;
-  }
-
-  async create(input: CreatePeriodDto & { standardWorkDays: number }) {
-    const created = await PayrollPeriod.create({ ...input, createdBy: null });
-    return created.toJSON() as unknown as PeriodRecord;
-  }
-
-  async update(id: Id, patch: UpdatePeriodDto) {
-    if (!valid(id)) return null;
-    const updated = await PayrollPeriod.findByIdAndUpdate(id, patch, { new: true });
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async delete(id: Id) {
-    if (valid(id)) await PayrollPeriod.findByIdAndDelete(id);
-  }
-
-  async markClosed(id: Id, byUserId: Id) {
-    const updated = await PayrollPeriod.findByIdAndUpdate(
-      id,
-      { status: 'closed', closedAt: new Date(), closedBy: new Types.ObjectId(byUserId) },
-      { new: true },
-    );
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async reopenToOpen(id: Id) {
-    const updated = await PayrollPeriod.findByIdAndUpdate(
-      id,
-      { status: 'open', closedAt: null, closedBy: null },
-      { new: true },
-    );
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async lockAttendance(id: Id, byUserId: Id) {
-    const updated = await PayrollPeriod.findByIdAndUpdate(
-      id,
-      { attendanceLockedAt: new Date(), attendanceLockedBy: new Types.ObjectId(byUserId) },
-      { new: true },
-    );
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async unlockAttendance(id: Id) {
-    const updated = await PayrollPeriod.findByIdAndUpdate(
-      id,
-      { attendanceLockedAt: null, attendanceLockedBy: null },
-      { new: true },
-    );
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async lockPerformance(id: Id, byUserId: Id) {
-    const updated = await PayrollPeriod.findByIdAndUpdate(
-      id,
-      { performanceLockedAt: new Date(), performanceLockedBy: new Types.ObjectId(byUserId) },
-      { new: true },
-    );
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async unlockPerformance(id: Id) {
-    const updated = await PayrollPeriod.findByIdAndUpdate(
-      id,
-      { performanceLockedAt: null, performanceLockedBy: null },
-      { new: true },
-    );
-    return updated ? (updated.toJSON() as unknown as PeriodRecord) : null;
-  }
-
-  async markProcessing(id: Id, tx: Tx) {
-    await PayrollPeriod.updateOne({ _id: id }, { $set: { status: 'processing' } }, { session: session(tx) });
-  }
-
-  async markPaid(id: Id, tx: Tx) {
-    await PayrollPeriod.updateOne({ _id: id }, { $set: { status: 'paid' } }, { session: session(tx) });
-  }
-}
 
 // ============================ Computed payrolls ============================
 function buildFilter(f: ListPayrollFilter): Record<string, unknown> {

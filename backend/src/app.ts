@@ -11,7 +11,7 @@ import { employeeRouter } from '@features/employee';
 import { organizationRouter } from '@features/organization';
 import { settingsRouter } from '@features/settings';
 import { attendanceRouter } from '@features/attendance';
-import { payrollRouter } from '@features/payroll';
+import { payrollRouter, periodRouter } from '@features/payroll';
 import { performanceRouter } from '@features/performance';
 import { storageRouter } from '@features/storage';
 import { notificationRouter } from '@features/notification';
@@ -57,6 +57,7 @@ export function createApp() {
   app.use('/api/v1', settingsRouter);
   app.use('/api/v1', attendanceRouter);
   app.use('/api/v1', payrollRouter);
+  app.use('/api/v1', periodRouter);
   app.use('/api/v1', performanceRouter);
   app.use('/api/v1', storageRouter);
   app.use('/api/v1', notificationRouter);

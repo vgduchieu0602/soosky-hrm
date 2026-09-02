@@ -2,17 +2,8 @@ import { Router } from 'express';
 import { authenticate } from '@shared/middlewares/authenticate';
 import { requireRoles } from '@shared/middlewares/require-role';
 import { validate } from '@shared/middlewares/validate';
-import {
-  payrollPeriodController,
-  compensationController,
-  payrollController,
-} from '@features/payroll/interfaces/http/controllers';
-import {
-  createPeriodDto,
-  updatePeriodDto,
-  runPeriodDto,
-  approvePayrollDto,
-} from '@features/payroll/dto/payroll-period.dto';
+import { compensationController, payrollController, payrollRunController } from '@features/payroll/interfaces/http/controllers';
+import { runPeriodDto, approvePayrollDto } from '@features/payroll/dto/payroll-period.dto';
 import {
   createAllowanceDto,
   updateAllowanceDto,
@@ -28,24 +19,9 @@ const router = Router();
 const hrOrAdmin = requireRoles('admin', 'hr_manager');
 const adminOnly = requireRoles('admin');
 
-// ---- Payroll periods ----
-router.get('/payroll/periods', authenticate, hrOrAdmin, payrollPeriodController.list);
-router.get('/payroll/periods/:id', authenticate, hrOrAdmin, payrollPeriodController.get);
-router.post('/payroll/periods', authenticate, hrOrAdmin, validate(createPeriodDto, 'body'), payrollPeriodController.create);
-router.patch('/payroll/periods/:id', authenticate, hrOrAdmin, validate(updatePeriodDto, 'body'), payrollPeriodController.update);
-router.post('/payroll/periods/:id/close', authenticate, hrOrAdmin, payrollPeriodController.close);
-router.post('/payroll/periods/:id/reopen', authenticate, adminOnly, payrollPeriodController.reopen);
-router.delete('/payroll/periods/:id', authenticate, hrOrAdmin, payrollPeriodController.remove);
-router.get('/payroll/periods/:id/attendance-readiness', authenticate, hrOrAdmin, payrollPeriodController.attendanceReadiness);
-router.post('/payroll/periods/:id/lock-attendance', authenticate, hrOrAdmin, payrollPeriodController.lockAttendance);
-router.post('/payroll/periods/:id/unlock-attendance', authenticate, hrOrAdmin, payrollPeriodController.unlockAttendance);
-router.get('/payroll/periods/:id/performance-readiness', authenticate, hrOrAdmin, payrollPeriodController.performanceReadiness);
-router.post('/payroll/periods/:id/lock-performance', authenticate, hrOrAdmin, payrollPeriodController.lockPerformance);
-router.post('/payroll/periods/:id/unlock-performance', authenticate, hrOrAdmin, payrollPeriodController.unlockPerformance);
-
-// ---- Payroll run triggers ----
-router.post('/payroll/periods/:id/run', authenticate, hrOrAdmin, validate(runPeriodDto, 'body'), payrollPeriodController.runPeriod);
-router.post('/payroll/periods/:id/run/:employeeId', authenticate, hrOrAdmin, payrollPeriodController.runEmployee);
+// ---- Payroll run triggers (periods themselves are owned by the `period` feature) ----
+router.post('/payroll/periods/:id/run', authenticate, hrOrAdmin, validate(runPeriodDto, 'body'), payrollRunController.runPeriod);
+router.post('/payroll/periods/:id/run/:employeeId', authenticate, hrOrAdmin, payrollRunController.runEmployee);
 
 // ---- Computed payrolls ----
 router.get('/payroll/payrolls/me', authenticate, payrollController.mine);
