@@ -7,15 +7,18 @@ import { logger } from '@infra/logger/logger';
 import { env } from '@infra/config';
 import { errorHandler } from '@shared/middlewares/error-handler';
 import { iamRouter } from '@features/iam';
-import { employeeRouter } from '@features/employee';
-import { organizationRouter } from '@features/organization';
-import { settingsRouter } from '@features/settings';
-import { attendanceRouter } from '@features/attendance';
-import { payrollRouter, periodRouter } from '@features/payroll';
-import { performanceRouter } from '@features/performance';
-import { storageRouter } from '@features/storage';
-import { notificationRouter } from '@features/notification';
-import { dashboardRouter } from '@features/dashboard';
+import {
+  employeeRouter,
+  organizationRouter,
+  settingsRouter,
+  attendanceRouter,
+  payrollRouter,
+  periodRouter,
+  performanceRouter,
+  storageRouter,
+  notificationRouter,
+  dashboardRouter,
+} from '@modules/hrm';
 
 /**
  * Origin được phép gọi API kèm cookie.

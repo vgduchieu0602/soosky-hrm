@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
-import { Employee } from '@shared/models/employee.model';
+import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
 import { HttpError } from '@shared/errors/http-error';
 
 const HR_ROLES = ['admin', 'hr_manager'];

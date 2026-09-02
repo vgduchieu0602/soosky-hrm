@@ -7,9 +7,9 @@ import { Role } from '@shared/models/role.model';
 import { RolePermission } from '@shared/models/role-permission.model';
 import { User } from '@shared/models/user.model';
 import { UserRole } from '@shared/models/user-role.model';
-import { SalaryPolicyConfig } from '@shared/models/salary-policy-config.model';
-import { PerformanceCriterion } from '@shared/models/performance-criterion.model';
-import { CompanyConfig } from '@shared/models/company-config.model';
+import { SalaryPolicyConfig } from '@modules/hrm/adapters/persistence/mongoose/models/salary-policy-config.model';
+import { PerformanceCriterion } from '@modules/hrm/adapters/persistence/mongoose/models/performance-criterion.model';
+import { CompanyConfig } from '@modules/hrm/adapters/persistence/mongoose/models/company-config.model';
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(n));
 

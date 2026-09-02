@@ -20,18 +20,18 @@
  */
 import mongoose from 'mongoose';
 import { connectDB, disconnectDB } from '@infra/db/mongoose';
-import { Department } from '@shared/models/department.model';
-import { Position } from '@shared/models/position.model';
-import { Shift } from '@shared/models/shift.model';
-import { Employee } from '@shared/models/employee.model';
-import { EmployeeProfile } from '@shared/models/employee-profile.model';
-import { EmployeeContractModel } from '@shared/models/employee-contract.model';
-import { LeaveBalance } from '@shared/models/leave-balance.model';
-import { LeaveRequest } from '@shared/models/leave-request.model';
-import { Attendance } from '@shared/models/attendance.model';
-import { MonthlyEvaluation } from '@shared/models/monthly-evaluation.model';
+import { Department } from '@modules/hrm/adapters/persistence/mongoose/models/department.model';
+import { Position } from '@modules/hrm/adapters/persistence/mongoose/models/position.model';
+import { Shift } from '@modules/hrm/adapters/persistence/mongoose/models/shift.model';
+import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
+import { EmployeeProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-profile.model';
+import { EmployeeContractModel } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contract.model';
+import { LeaveBalance } from '@modules/hrm/adapters/persistence/mongoose/models/leave-balance.model';
+import { LeaveRequest } from '@modules/hrm/adapters/persistence/mongoose/models/leave-request.model';
+import { Attendance } from '@modules/hrm/adapters/persistence/mongoose/models/attendance.model';
+import { MonthlyEvaluation } from '@modules/hrm/adapters/persistence/mongoose/models/monthly-evaluation.model';
 import { PayrollPeriod } from '@shared/models/payroll-period.model';
-import { Payroll } from '@shared/models/payroll.model';
+import { Payroll } from '@modules/hrm/adapters/persistence/mongoose/models/payroll.model';
 import { User } from '@shared/models/user.model';
 
 const dec = (n: number) => mongoose.Types.Decimal128.fromString(String(Math.round(n)));

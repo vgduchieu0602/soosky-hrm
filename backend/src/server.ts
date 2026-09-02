@@ -2,9 +2,11 @@ import { createExpressServer } from '@infra/server/createExpressServer';
 import { connectDB, disconnectDB } from '@infra/db/mongoose';
 import { env } from '@infra/config';
 import { logger } from '@infra/logger/logger';
-import { registerAccountEmailListeners } from '@features/employee/listeners/account-email.listener';
-import { registerNotificationListeners } from '@features/notification';
-import { registerReminderJobs } from '@features/employee/jobs/reminder.job';
+import {
+  registerAccountEmailListeners,
+  registerNotificationListeners,
+  registerReminderJobs,
+} from '@modules/hrm';
 import { mailService } from '@infra/mail/mail.service';
 
 async function bootstrap() {
