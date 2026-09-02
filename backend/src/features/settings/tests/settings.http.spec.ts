@@ -6,7 +6,7 @@ import { vi } from 'vitest';
  *   • salary-policy component weights must sum to 100 (PAY-4)
  *   • a criterion's `type` cannot be changed on update (PERF-4, strict DTO)
  */
-import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@shared/testing/http';
+import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@/test-support/http';
 
 vi.setConfig({ testTimeout: 60_000 });
 

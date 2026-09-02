@@ -1,11 +1,11 @@
 import mongoose, { Schema, Types, type HydratedDocument } from 'mongoose';
+import {
+  SETUP_TOKEN_PURPOSE,
+  type SetupTokenPurpose,
+} from '@features/iam/domain/setup-token-purpose';
 
 const DB_NAME = 'passwordSetupToken';
 const COLLECTION_NAME = 'passwordSetupTokens';
-
-/** 'setup' = brand-new account first password; 'reset' = forgotten/admin reset. */
-export const SETUP_TOKEN_PURPOSE = ['setup', 'reset'] as const;
-export type SetupTokenPurpose = (typeof SETUP_TOKEN_PURPOSE)[number];
 
 export interface IPasswordSetupToken {
   userId: Types.ObjectId;

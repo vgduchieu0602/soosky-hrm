@@ -1,6 +1,8 @@
-/// <reference types="jest" />
 /**
- * Shared harness for HTTP integration tests: real Express app (full middleware
+ * Test-support harness for HTTP integration tests — NOT production code, and
+ * nothing under `src/` outside a `tests/` folder may import it.
+ *
+ * It boots the real Express app (full middleware
  * chain: authenticate → guards → validate → controller) over a real
  * mongodb-memory-server replica set (transactions work). Tests issue real
  * requests via supertest and assert on responses + persisted state.
@@ -8,9 +10,9 @@
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import supertest from 'supertest';
-import { createApp } from '../../app';
+import { createApp } from '@/app';
 import { Role } from '@shared/models/role.model';
-import { tokenService } from '@features/iam';
+import { tokenService } from '@features/iam/infrastructure/token.service';
 
 export const api = supertest(createApp());
 

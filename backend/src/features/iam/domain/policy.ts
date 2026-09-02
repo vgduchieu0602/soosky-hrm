@@ -1,7 +1,7 @@
 /**
  * IAM domain rules — pure, framework-free. No Express, no Mongoose, no crypto.
  */
-import type { SetupTokenPurpose } from '@shared/models/password-setup-token.model';
+import type { SetupTokenPurpose } from '@features/iam/domain/setup-token-purpose';
 
 /** After this many consecutive failed logins an active account is locked. */
 export const MAX_FAILED_ATTEMPTS = 5;

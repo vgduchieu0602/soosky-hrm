@@ -8,7 +8,7 @@ import { vi } from 'vitest';
  * `effectiveDate` + lý do; dữ liệu cũ không bị ghi đè; và nghỉ việc không xoá
  * nhân viên.
  */
-import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@shared/testing/http';
+import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@/test-support/http';
 import { Department } from '@shared/models/department.model';
 import { Position } from '@shared/models/position.model';
 import { Employee } from '@shared/models/employee.model';

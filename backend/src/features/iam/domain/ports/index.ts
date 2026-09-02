@@ -1,4 +1,4 @@
-import type { SetupTokenPurpose } from '@shared/models/password-setup-token.model';
+import type { SetupTokenPurpose } from '@features/iam/domain/setup-token-purpose';
 import type { AccessTokenPayload, RefreshTokenPayload } from '@features/iam/types/jwt-payload.type';
 
 /**

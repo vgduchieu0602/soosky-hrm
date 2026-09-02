@@ -6,7 +6,7 @@ import { vi } from 'vitest';
  * đổi mật khẩu trả access token MỚI (không còn cờ bắt đổi) nên người dùng không
  * kẹt vòng 403; và đăng xuất thu hồi phiên thật sự.
  */
-import { api, startDb, stopDb, clearDb, seedRoles, bearer } from '@shared/testing/http';
+import { api, startDb, stopDb, clearDb, seedRoles, bearer } from '@/test-support/http';
 import { User } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
 import { UserRole } from '@shared/models/user-role.model';

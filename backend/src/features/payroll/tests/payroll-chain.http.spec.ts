@@ -10,7 +10,7 @@ import { vi } from 'vitest';
  *   • evaluation reopen blocked once payroll is approved (PERF-1)
  */
 import mongoose from 'mongoose';
-import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@shared/testing/http';
+import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@/test-support/http';
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';

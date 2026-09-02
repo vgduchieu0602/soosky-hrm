@@ -7,7 +7,7 @@ import { vi } from 'vitest';
  * checksum; nhập vẫn sinh lịch sử/audit như thao tác tay; và bản xuất tôn trọng
  * bộ lọc lẫn phạm vi quyền.
  */
-import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@shared/testing/http';
+import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@/test-support/http';
 import { Department } from '@shared/models/department.model';
 import { Position } from '@shared/models/position.model';
 import { Employee } from '@shared/models/employee.model';

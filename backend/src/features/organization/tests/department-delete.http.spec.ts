@@ -6,7 +6,7 @@ import { vi } from 'vitest';
  *   • create no longer accepts the removed fields (costCenter/location/email)
  */
 import mongoose from "mongoose";
-import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from "@shared/testing/http";
+import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from "@/test-support/http";
 import { Department } from "@shared/models/department.model";
 import { Employee } from "@shared/models/employee.model";
 import { Position } from "@shared/models/position.model";

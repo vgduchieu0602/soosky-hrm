@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
-import { PasswordSetupToken, type SetupTokenPurpose } from '@shared/models/password-setup-token.model';
+import { PasswordSetupToken } from '@shared/models/password-setup-token.model';
+import type { SetupTokenPurpose } from '@features/iam/domain/setup-token-purpose';
 import type { PasswordSetupTokenRepository, Id } from '@features/iam/domain/ports';
 
 export class MongoosePasswordSetupTokenRepository implements PasswordSetupTokenRepository {

@@ -8,7 +8,7 @@ import { EmployeeDocumentModel } from '@shared/models/employee-document.model';
 import { EmployeeContractModel } from '@shared/models/employee-contract.model';
 import { EmployeeAsset } from '@shared/models/employee-asset.model';
 import { EmployeeHistory } from '@shared/models/employee-history.model';
-import { User } from '@shared/models/user.model';
+import { User, type IUser } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
 import { UserRole } from '@shared/models/user-role.model';
 import { Session } from '@shared/models/session.model';
@@ -161,7 +161,7 @@ export class MongooseAccountGateway implements AccountGateway {
           mustChangePassword: data.mustChangePassword,
           failedLoginAttempts: data.failedLoginAttempts,
         },
-      ] as any[],
+      ] as IUser[],
       { session: sess(tx) },
     );
     return { id: String(user!._id) };

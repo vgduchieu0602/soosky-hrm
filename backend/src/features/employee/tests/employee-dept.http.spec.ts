@@ -7,7 +7,7 @@ import { vi } from 'vitest';
  * revocation) — none of which had automated coverage before.
  */
 import mongoose from 'mongoose';
-import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@shared/testing/http';
+import { api, bearer, tokenFor, startDb, stopDb, clearDb, seedRoles } from '@/test-support/http';
 import { Employee } from '@shared/models/employee.model';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
 import { Department } from '@shared/models/department.model';

@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi, type Mocked } from 'vitest';
 import { HttpError } from '@shared/errors/http-error';
 import { DepartmentUseCases } from '@features/organization/application/department.usecases';
 import type {
@@ -22,7 +22,7 @@ const repo = {
   updateById: vi.fn(),
   deleteById: vi.fn(),
   countChildren: vi.fn(),
-} as unknown as jest.Mocked<DepartmentRepository>;
+} as unknown as Mocked<DepartmentRepository>;
 
 const employees = {
   headcountByDepartment: vi.fn(),
@@ -34,22 +34,22 @@ const employees = {
   countByPosition: vi.fn(),
   findTransferableIds: vi.fn(),
   moveEmployees: vi.fn(),
-} as unknown as jest.Mocked<EmployeeGateway>;
+} as unknown as Mocked<EmployeeGateway>;
 
 const employeeHistory = {
   recordTransfers: vi.fn(),
-} as unknown as jest.Mocked<EmployeeHistoryGateway>;
+} as unknown as Mocked<EmployeeHistoryGateway>;
 const positions = {
   countByDepartment: vi.fn(),
   moveAll: vi.fn(),
-} as unknown as jest.Mocked<PositionGateway>;
+} as unknown as Mocked<PositionGateway>;
 const audit = {
   record: vi.fn().mockResolvedValue(undefined),
   list: vi.fn(),
-} as unknown as jest.Mocked<AuditPort>;
+} as unknown as Mocked<AuditPort>;
 const uow = {
   withTransaction: vi.fn((work) => work({})),
-} as unknown as jest.Mocked<UnitOfWork>;
+} as unknown as Mocked<UnitOfWork>;
 const clock = { now: () => new Date('2026-07-05T00:00:00Z') } as Clock;
 const ids = { isValid: () => true } as IdValidator;
 

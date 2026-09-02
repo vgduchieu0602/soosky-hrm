@@ -31,6 +31,30 @@ import type { GrossUpDto } from '@features/payroll/dto/gross-up.dto';
 type Decimalish = { toString(): string } | number | null | undefined;
 const toNum = (d: Decimalish): number => (d == null ? 0 : Number(d.toString()));
 
+/**
+ * One row of `PayrollRepository.exportRows` as the spreadsheet needs it. The
+ * port returns plain documents, so the shape is spelled out here — only the
+ * fields this export actually reads.
+ */
+interface PayrollExportRow {
+  emp?: { employeeCode?: string };
+  profile?: { firstName?: string; middleName?: string; lastName?: string };
+  dept?: { name?: string };
+  actualWorkDays?: number;
+  standardWorkDays?: number;
+  baseSalary?: Decimalish;
+  proRatedBaseSalary?: Decimalish;
+  totalAllowances?: Decimalish;
+  totalBonuses?: Decimalish;
+  grossSalary?: Decimalish;
+  insurance?: Decimalish;
+  tax?: Decimalish;
+  unionFee?: Decimalish;
+  otherDeductions?: Decimalish;
+  netSalary?: Decimalish;
+  status?: string;
+}
+
 export class PayrollUseCases {
   constructor(
     private readonly payrolls: PayrollRepository,
@@ -251,7 +275,7 @@ export class PayrollUseCases {
       { header: 'Thực nhận (Net)', key: 'net', width: 16, style: { numFmt: money } },
       { header: 'Trạng thái', key: 'status', width: 12 },
     ];
-    for (const r of rows as Record<string, any>[]) {
+    for (const r of rows as PayrollExportRow[]) {
       const fullName = [r.profile?.lastName, r.profile?.middleName, r.profile?.firstName].filter(Boolean).join(' ');
       ws.addRow({
         code: r.emp?.employeeCode ?? '',
@@ -262,7 +286,7 @@ export class PayrollUseCases {
         allow: toNum(r.totalAllowances), bonus: toNum(r.totalBonuses),
         gross: toNum(r.grossSalary), insurance: toNum(r.insurance), tax: toNum(r.tax),
         union: toNum(r.unionFee), other: toNum(r.otherDeductions), net: toNum(r.netSalary),
-        status: STATUS_LABEL[r.status] ?? r.status,
+        status: STATUS_LABEL[r.status ?? ''] ?? r.status,
       });
     }
     const header = ws.getRow(1);
