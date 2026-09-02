@@ -1,7 +1,7 @@
 /**
  * Auth domain rules — pure, framework-free. No Express, no Mongoose, no crypto.
  */
-import type { SetupTokenPurpose } from '@modules/auth/adapters/persistence/models/password-setup-token.model';
+import type { SetupTokenPurpose } from '@modules/auth/core/domain/setup-token-purpose';
 
 /**
  * TTL (ms) for a single-use password token. Onboarding setup links live longer

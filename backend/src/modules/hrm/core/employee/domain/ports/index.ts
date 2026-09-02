@@ -7,6 +7,18 @@
  */
 export type Id = string;
 export type Tx = unknown;
+/**
+ * A persisted document as it crosses the port boundary — the plain object a
+ * Mongoose `.lean()` / `.toJSON()` returns, handed straight to the HTTP layer.
+ *
+ * Kept as `any` deliberately. `Record<string, unknown>` compiles to 57 errors
+ * across repositories, use-cases and controllers: every field read would need
+ * its own cast, which is exactly the churn this rule is meant to prevent.
+ * Typing it properly means giving each of the ~15 employee sub-resources a real
+ * record interface — worth doing, but that is a redesign of this boundary, not
+ * a lint fix.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above; narrowing this type is a boundary redesign
 export type Doc = Record<string, any>;
 
 // ---- employee list filter ----
@@ -187,7 +199,13 @@ export interface UserRec {
 export interface UpdateUserAccountPatch {
   username?: string;
   email?: string;
-  password?: string;
+  /**
+   * Replace the stored credential with one nobody knows, so the account cannot
+   * be logged into until the employee sets a password through the emailed
+   * link. HRM asks for the effect; IAM owns what a credential is and how it is
+   * hashed.
+   */
+  resetCredential?: boolean;
   mustChangePassword?: boolean;
   failedLoginAttempts?: number;
   status?: string;
@@ -201,11 +219,14 @@ export interface AccountGateway {
   getUserByEmployeeId(employeeId: Id): Promise<UserRec | null>;
   findUserConflict(username: string, email: string, exceptUserId?: Id): Promise<{ username: string } | null>;
   roleNameOf(userId: Id): Promise<string>;
+  /**
+   * Provision the login account for an employee. No credential is passed in:
+   * IAM seeds the new account with an unusable one (see `resetCredential`).
+   */
   createUser(
     data: {
       username: string;
       email: string;
-      password: string;
       employeeId: string;
       status: string;
       mustChangePassword: boolean;

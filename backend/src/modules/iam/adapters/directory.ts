@@ -14,6 +14,7 @@ import { Role } from '@modules/iam/adapters/persistence/models/role.model';
 import { UserRole } from '@modules/iam/adapters/persistence/models/user-role.model';
 import { AuditLog } from '@modules/iam/adapters/persistence/models/audit-log.model';
 import type { Id, Tx } from '@modules/iam/core/app/ports';
+import { credentialUseCases } from '@modules/iam/adapters/container';
 
 const sess = (tx?: Tx) => (tx ? (tx as ClientSession) : undefined);
 
@@ -29,7 +30,12 @@ export interface DirectoryUserRecord {
 export interface DirectoryUserPatch {
   username?: string;
   email?: string;
-  password?: string;
+  /**
+   * Replace the stored credential with one nobody knows, so the account cannot
+   * be logged into until the user sets a password through the emailed link.
+   * The caller asks for the effect; IAM owns what a credential is.
+   */
+  resetCredential?: boolean;
   status?: string;
   mustChangePassword?: boolean;
   failedLoginAttempts?: number;
@@ -109,11 +115,14 @@ export const iamDirectory = {
     return [...new Set(links.map((l) => String(l.userId)))];
   },
 
+  /**
+   * Provision an account. No credential is passed in: the row is seeded with an
+   * unusable one, and the user sets a real password via the emailed link.
+   */
   async createUser(
     data: {
       username: string;
       email: string;
-      password: string;
       employeeId: string;
       status: string;
       mustChangePassword: boolean;
@@ -126,7 +135,7 @@ export const iamDirectory = {
         {
           username: data.username,
           email: data.email,
-          password: data.password,
+          password: await credentialUseCases.unusable(),
           employeeId: new Types.ObjectId(data.employeeId),
           status: data.status,
           mustChangePassword: data.mustChangePassword,
@@ -152,7 +161,7 @@ export const iamDirectory = {
     if (!user) return;
     if (patch.username !== undefined) user.username = patch.username;
     if (patch.email !== undefined) user.email = patch.email;
-    if (patch.password !== undefined) user.password = patch.password;
+    if (patch.resetCredential) user.password = await credentialUseCases.unusable();
     if (patch.mustChangePassword !== undefined) user.mustChangePassword = patch.mustChangePassword;
     if (patch.failedLoginAttempts !== undefined) user.failedLoginAttempts = patch.failedLoginAttempts;
     if (patch.status !== undefined) user.status = patch.status as never;

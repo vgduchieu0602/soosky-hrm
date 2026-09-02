@@ -26,6 +26,24 @@ import type { DirectEvaluateDto } from '@modules/hrm/core/performance/dto/evalua
 const log = logger.child({ feature: 'performance', module: 'evaluation' });
 const conflict = (message: string, code = 'EVAL_409') => new HttpError(409, message, code);
 
+/**
+ * One row of `EvaluationRepository.exportRows` as the spreadsheet needs it. The
+ * port returns plain documents, so the shape is spelled out here — only the
+ * fields this export actually reads.
+ */
+interface EvaluationExportRow {
+  emp?: { employeeCode?: string };
+  profile?: { firstName?: string; middleName?: string; lastName?: string };
+  dept?: { name?: string };
+  period?: { name?: string };
+  performanceRatio?: number;
+  goalRatio?: number;
+  status?: string;
+  strengths?: string;
+  improvements?: string;
+  developmentPlan?: string;
+}
+
 function snapshotFromRecord(record: EvaluationRecord): CriterionDefinition[] | null {
   const raw = record.criteriaDefinitionSnapshot;
   if (!Array.isArray(raw)) return null;
@@ -264,7 +282,7 @@ export class EvaluationUseCases {
       { header: 'Cần cải thiện', key: 'improvements', width: 34 },
       { header: 'Kế hoạch phát triển', key: 'developmentPlan', width: 34 },
     ];
-    for (const r of rows as Record<string, any>[]) {
+    for (const r of rows as EvaluationExportRow[]) {
       const fullName = [r.profile?.lastName, r.profile?.middleName, r.profile?.firstName]
         .filter(Boolean)
         .join(' ');
@@ -275,7 +293,7 @@ export class EvaluationUseCases {
         period: r.period?.name ?? '',
         perf: Math.round(r.performanceRatio ?? 0),
         goal: Math.round(r.goalRatio ?? 0),
-        status: STATUS_LABEL[r.status] ?? r.status,
+        status: STATUS_LABEL[r.status ?? ''] ?? r.status,
         strengths: r.strengths ?? '',
         improvements: r.improvements ?? '',
         developmentPlan: r.developmentPlan ?? '',

@@ -7,7 +7,7 @@
  * satisfied by IAM's repositories, wired in by the composition root. Sessions,
  * tokens and password-setup links are owned by Auth itself.
  */
-import type { SetupTokenPurpose } from '@modules/auth/adapters/persistence/models/password-setup-token.model';
+import type { SetupTokenPurpose } from '@modules/auth/core/domain/setup-token-purpose';
 import type { AccessTokenPayload, RefreshTokenPayload } from '@shared/types/jwt-payload.type';
 
 export type {
