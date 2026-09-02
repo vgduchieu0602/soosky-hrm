@@ -1,7 +1,5 @@
 import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
-import { hashPassword } from '@shared/crypto/hash.util';
-import { generateRandomPassword } from '@modules/hrm/core/employee/domain/password.util';
 
 import { deriveUsername } from '@modules/hrm/core/employee/domain/employee-rules';
 import type { GrantLoginDto } from '@modules/hrm/core/employee/dto/grant-login.dto';
@@ -73,14 +71,11 @@ export class AccountProvisioningUseCases {
       );
     }
 
-    const placeholderPassword = await hashPassword(generateRandomPassword(24));
-
     const result = await this.uow.withTransaction(async (tx) => {
       const user = await this.accounts.createUser(
         {
           username,
           email,
-          password: placeholderPassword,
           employeeId: String(employee._id),
           status: 'active',
           mustChangePassword: false,
@@ -142,7 +137,7 @@ export class AccountProvisioningUseCases {
     await this.accounts.updateUserAccount(user.id, {
       username: nextUsername,
       email,
-      password: await hashPassword(generateRandomPassword(24)),
+      resetCredential: true,
       mustChangePassword: false,
       failedLoginAttempts: 0,
       activateIfLocked: true,

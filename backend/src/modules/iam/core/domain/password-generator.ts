@@ -12,9 +12,13 @@ function pick(set: string): string {
 }
 
 /**
- * Generate a random password (default 10 chars) guaranteed to contain at least
- * one upper, lower, digit and special character. Used for HR-provisioned
- * accounts and password resets (sent to the employee by email).
+ * Generate a random secret (default 10 chars) guaranteed to contain at least
+ * one upper, lower, digit and special character.
+ *
+ * Used to seed a provisioned account with a credential nobody knows: the
+ * `users.password` column is required, but the employee never receives this
+ * value — they set their own password through the single-use link that
+ * `PasswordSetupUseCases` issues. It is never emailed, returned or logged.
  */
 export function generateRandomPassword(length = 10): string {
   const len = Math.max(8, length);

@@ -109,7 +109,6 @@ export class MongooseAccountGateway implements AccountGateway {
     data: {
       username: string;
       email: string;
-      password: string;
       employeeId: string;
       status: string;
       mustChangePassword: boolean;

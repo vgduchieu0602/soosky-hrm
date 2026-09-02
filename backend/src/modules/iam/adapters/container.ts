@@ -14,6 +14,7 @@ import { UserUseCases } from '@modules/iam/core/app/use-cases/user.usecases';
 import { RoleUseCases } from '@modules/iam/core/app/use-cases/role.usecases';
 import { PermissionUseCases } from '@modules/iam/core/app/use-cases/permission.usecases';
 import { AuditUseCases } from '@modules/iam/core/app/use-cases/audit.usecases';
+import { CredentialUseCases } from '@modules/iam/core/app/use-cases/credential.usecases';
 
 // --- adapters ---
 const userRepo = new MongooseUserRepository();
@@ -24,6 +25,7 @@ const auditLogRepo = new MongooseAuditLogRepository();
 const passwordHasher = new BcryptPasswordHasher();
 
 // --- use-cases ---
+export const credentialUseCases = new CredentialUseCases(passwordHasher);
 export const auditUseCases = new AuditUseCases(auditLogRepo);
 export const userUseCases = new UserUseCases(userRepo, passwordHasher, auditUseCases);
 export const roleUseCases = new RoleUseCases(roleRepo, auditUseCases);
