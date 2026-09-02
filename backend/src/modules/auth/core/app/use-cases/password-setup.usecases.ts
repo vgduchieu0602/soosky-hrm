@@ -1,7 +1,7 @@
 import { env } from '@infra/config';
 import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
-import type { SetupTokenPurpose } from '@modules/auth/adapters/persistence/models/password-setup-token.model';
+import type { SetupTokenPurpose } from '@modules/auth/core/domain/setup-token-purpose';
 import { SETUP_TOKEN_TTL_MS, buildSetPasswordUrl as buildUrl } from '@modules/auth/core/domain/policy';
 import type {
   PasswordSetupTokenRepository,
