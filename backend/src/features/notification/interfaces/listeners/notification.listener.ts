@@ -1,4 +1,4 @@
-import { eventBus } from '@core/events/event-bus';
+import { eventBus } from '@infra/events/event-bus';
 import {
   notificationService,
   notificationEventUseCases,

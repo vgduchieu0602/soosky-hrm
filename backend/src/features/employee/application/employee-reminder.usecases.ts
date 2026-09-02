@@ -1,4 +1,4 @@
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import {
   classifyReminders,
   REMINDER_THRESHOLDS,

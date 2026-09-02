@@ -1,5 +1,5 @@
 import { Holiday } from '@shared/models/holiday.model';
-import { computeStandardWorkDays, dateKey } from '@shared/utils/workdays.util';
+import { computeStandardWorkDays, dateKey } from '@modules/hrm/core/payroll/domain/workdays.util';
 
 /** Date-keys of public holidays within [start, end], honouring recurring (MM-DD) ones. */
 export async function holidayKeysInRange(start: Date, end: Date): Promise<Set<string>> {

@@ -1,7 +1,7 @@
 import mongoose, { Types } from 'mongoose';
 import { PayrollPeriod } from './period.schema';
 import type { PeriodRepository, PeriodRecord, Id, Tx } from '../domain/ports';
-import type { CreatePeriodDto, UpdatePeriodDto } from '@shared/dto/period.dto';
+import type { CreatePeriodDto, UpdatePeriodDto } from '@modules/hrm/core/period/dto/period.dto';
 
 const valid = (id: string) => Types.ObjectId.isValid(id);
 const session = (tx: Tx) => tx as mongoose.ClientSession;

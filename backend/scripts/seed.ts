@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import mongoose, { Types } from 'mongoose';
-import { connectDB, disconnectDB } from '@core/database/mongoose';
-import { hashPassword } from '@shared/utils/hash.util';
+import { connectDB, disconnectDB } from '@infra/db/mongoose';
+import { hashPassword } from '@modules/auth/adapters/security/hash.util';
 import { Permission } from '@shared/models/permission.model';
 import { Role } from '@shared/models/role.model';
 import { RolePermission } from '@shared/models/role-permission.model';

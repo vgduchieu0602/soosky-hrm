@@ -12,7 +12,7 @@
  * internals; concrete gateways are injected by the composition root.
  */
 
-import type { CreatePeriodDto, UpdatePeriodDto } from '@shared/dto/period.dto';
+import type { CreatePeriodDto, UpdatePeriodDto } from '@modules/hrm/core/period/dto/period.dto';
 
 /** Shape of a stored payroll period (defined here so ports stay model-free). */
 export interface IPayrollPeriod {

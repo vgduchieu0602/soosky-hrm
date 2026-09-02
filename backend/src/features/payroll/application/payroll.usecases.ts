@@ -11,7 +11,7 @@ import {
   type TaxBracket,
   type InsuranceRates,
   type GrossUpResult,
-} from '@shared/utils/salary.util';
+} from '@modules/hrm/core/payroll/domain/salary.util';
 import type {
   PayrollRepository,
   SalaryPolicyGateway,

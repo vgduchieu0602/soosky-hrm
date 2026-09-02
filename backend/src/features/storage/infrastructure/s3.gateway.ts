@@ -5,8 +5,8 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { env } from '@config/env';
-import { logger } from '@core/logger/logger';
+import { env } from '@infra/config';
+import { logger } from '@infra/logger/logger';
 import type { StorageGateway, PresignedUrl } from '@features/storage/domain/ports';
 
 const log = logger.child({ module: 'storage' });

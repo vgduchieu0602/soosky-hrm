@@ -1,13 +1,13 @@
 import jwt from 'jsonwebtoken';
 import ms, { type StringValue } from 'ms';
-import { env } from '@config/env';
+import { env } from '@infra/config';
 import {
   accessTokenOptions,
   refreshTokenOptions,
   jwtSecrets,
   JWT_ISSUER,
   JWT_AUDIENCE,
-} from '@config/jwt.config';
+} from '@modules/auth/config';
 import type {
   AccessTokenPayload,
   RefreshTokenPayload,

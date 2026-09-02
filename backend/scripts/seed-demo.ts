@@ -19,7 +19,7 @@
  * Tunables via env: SEED_EMP_COUNT (default 50), SEED_YEAR (default 2026).
  */
 import mongoose from 'mongoose';
-import { connectDB, disconnectDB } from '@core/database/mongoose';
+import { connectDB, disconnectDB } from '@infra/db/mongoose';
 import { Department } from '@shared/models/department.model';
 import { Position } from '@shared/models/position.model';
 import { Shift } from '@shared/models/shift.model';

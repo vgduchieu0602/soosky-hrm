@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { env } from '@config/env';
+import { env } from '@infra/config';
 
 /**
  * Single entry point for password / token hashing.

@@ -1,9 +1,9 @@
-import { eventBus } from '@core/events/event-bus';
+import { eventBus } from '@infra/events/event-bus';
 import { auditService } from '@features/iam';
 import type { Clock, AuditPort, EventsPort } from '@features/performance/domain/ports';
 
 // Domain events emitted by the performance/evaluation use-cases.
-declare module '@core/events/event-bus' {
+declare module '@infra/events/event-bus' {
   interface AppEventMap {
     'evaluation.finalized': { employeeId: string; payrollPeriodId: string };
     'evaluation.reopened': { employeeId: string };

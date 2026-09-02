@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
-import { eventBus } from '@core/events/event-bus';
+import { eventBus } from '@infra/events/event-bus';
 import { auditService } from '@features/iam';
 import type { Clock, AuditPort, EventsPort, UnitOfWork, Tx } from '@features/attendance/domain/ports';
 
 // Domain events emitted by the attendance/leave use-cases.
-declare module '@core/events/event-bus' {
+declare module '@infra/events/event-bus' {
   interface AppEventMap {
     'leave.submitted': { leaveRequestId: string; employeeId: string };
     'leave.decided': { leaveRequestId: string; employeeId: string; approved: boolean; reason?: string };

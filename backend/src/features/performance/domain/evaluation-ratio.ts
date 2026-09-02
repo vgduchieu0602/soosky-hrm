@@ -4,7 +4,7 @@
  * `performanceRatio` = weighted avg of `type=performance` criteria scores;
  * `goalRatio`        = weighted avg of `type=goal` criteria scores.
  */
-import { computePerformanceRatio } from '@shared/utils/salary.util';
+import { computePerformanceRatio } from '@modules/hrm/core/payroll/domain/salary.util';
 
 export interface ScoreInput {
   criterionId: string;

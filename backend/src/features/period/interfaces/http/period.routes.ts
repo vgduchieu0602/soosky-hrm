@@ -3,7 +3,7 @@ import { authenticate } from '@shared/middlewares/authenticate';
 import { requireRoles } from '@shared/middlewares/require-role';
 import { validate } from '@shared/middlewares/validate';
 import { createPeriodController } from './period.controller';
-import { createPeriodDto, updatePeriodDto } from '@shared/dto/period.dto';
+import { createPeriodDto, updatePeriodDto } from '@modules/hrm/core/period/dto/period.dto';
 import type { PeriodUseCases } from '../../application/period.usecases';
 
 export function createPeriodRouter(useCases: PeriodUseCases): Router {

@@ -1,5 +1,5 @@
-import { env } from '@config/env';
-import { logger } from '@core/logger/logger';
+import { env } from '@infra/config';
+import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import type { SetupTokenPurpose } from '@shared/models/password-setup-token.model';
 import { SETUP_TOKEN_TTL_MS, buildSetPasswordUrl as buildUrl } from '@features/iam/domain/policy';

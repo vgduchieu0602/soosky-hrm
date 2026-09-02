@@ -1,7 +1,7 @@
 import { Router, json } from 'express';
 import { authenticate } from '@shared/middlewares/authenticate';
 import { requireRoles } from '@shared/middlewares/require-role';
-import { selfOrHr } from '@shared/middlewares/self-or-hr';
+import { selfOrHr } from '@modules/hrm/adapters/http/middlewares/self-or-hr';
 import { validate } from '@shared/middlewares/validate';
 
 import {

@@ -11,7 +11,7 @@ import { User } from '@shared/models/user.model';
 import { Role } from '@shared/models/role.model';
 import { UserRole } from '@shared/models/user-role.model';
 import { Session } from '@shared/models/session.model';
-import { hashPassword } from '@shared/utils/hash.util';
+import { hashPassword } from '@modules/auth/adapters/security/hash.util';
 
 vi.setConfig({ testTimeout: 90_000 });
 

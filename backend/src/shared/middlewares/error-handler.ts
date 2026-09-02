@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { HttpError } from '@shared/errors/http-error';
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 
 export function errorHandler(
   err: Error,

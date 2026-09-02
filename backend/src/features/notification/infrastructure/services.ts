@@ -1,4 +1,4 @@
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import type { LoggerPort } from '@features/notification/domain/ports';
 
 export class PinoLogger implements LoggerPort {

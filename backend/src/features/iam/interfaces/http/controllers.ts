@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction, CookieOptions } from 'express';
-import { env } from '@config/env';
+import { env } from '@infra/config';
 import { HttpError } from '@shared/errors/http-error';
 import {
   authUseCases,

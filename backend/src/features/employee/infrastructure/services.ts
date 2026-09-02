@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
-import { eventBus } from '@core/events/event-bus';
+import { eventBus } from '@infra/events/event-bus';
 import { auditService } from '@features/iam';
 import type { Clock, AuditPort, EventsPort, UnitOfWork, Tx } from '@features/employee/domain/ports';
 
 // Domain events emitted by the employee account/provisioning use-cases.
-declare module '@core/events/event-bus' {
+declare module '@infra/events/event-bus' {
   interface AppEventMap {
     'employee.granted-login': { userId: string; employeeId: string; username: string; sendTo?: string };
     'employee.account.password-reset': { userId: string; employeeId: string; username: string; sendTo?: string };

@@ -1,8 +1,8 @@
 import { Types } from 'mongoose';
-import { eventBus } from '@core/events/event-bus';
-import { logger } from '@core/logger/logger';
-import { mailService } from '@core/mail/mail.service';
-import { renderAccountSetupEmail } from '@core/mail/templates';
+import { eventBus } from '@infra/events/event-bus';
+import { logger } from '@infra/logger/logger';
+import { mailService } from '@infra/mail/mail.service';
+import { renderAccountSetupEmail } from '@infra/mail/templates';
 import { EmployeeProfile } from '@shared/models/employee-profile.model';
 import { passwordSetupService, buildSetPasswordUrl } from '@features/iam';
 

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { createEmployeeDto } from '@features/employee/dto/create-employee.dto';
 import type { ImportMode } from '@features/employee/dto/import-employees.dto';

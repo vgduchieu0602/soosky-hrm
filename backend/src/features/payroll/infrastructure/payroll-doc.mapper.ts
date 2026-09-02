@@ -2,7 +2,7 @@
  * Persistence mapper for the payroll run engine: turns fully-resolved numeric
  * inputs into a Mongoose-shaped Payroll document (money as Decimal128). Kept in
  * infrastructure because it constructs Decimal128/ObjectId persistence values;
- * the pure numeric engine it delegates to lives in `@shared/utils/salary.util`.
+ * the pure numeric engine it delegates to lives in `@modules/hrm/core/payroll/domain/salary.util`.
  */
 import mongoose from 'mongoose';
 
@@ -16,7 +16,7 @@ import {
   type SalaryComponentWeights,
   type TaxBracket,
   type InsuranceRates,
-} from '@shared/utils/salary.util';
+} from '@modules/hrm/core/payroll/domain/salary.util';
 
 /** Hình dạng ảnh chụp hiện tại. Tăng khi cấu trúc đổi. */
 export const PAYROLL_SNAPSHOT_VERSION = 2;

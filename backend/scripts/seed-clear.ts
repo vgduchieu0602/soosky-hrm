@@ -10,7 +10,7 @@
  * Refuses to run when NODE_ENV=production unless --force is also passed.
  */
 import mongoose from 'mongoose';
-import { connectDB, disconnectDB } from '@core/database/mongoose';
+import { connectDB, disconnectDB } from '@infra/db/mongoose';
 
 async function main() {
   const args = process.argv.slice(2);

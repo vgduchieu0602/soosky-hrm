@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import { TIMEZONE } from '@features/attendance/domain/attendance-calc';
 import { employeeReminderService } from '@features/employee/container';
 

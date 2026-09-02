@@ -1,4 +1,4 @@
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { parsePagination, buildMeta, parseSort } from '@shared/utils/pagination.util';
 

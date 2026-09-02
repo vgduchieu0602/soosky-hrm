@@ -1,4 +1,4 @@
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import type { AuditLogRepository } from '@features/iam/domain/ports';
 import type { AuditAction } from '@features/iam/infrastructure/audit-log.repository.mongoose';
 

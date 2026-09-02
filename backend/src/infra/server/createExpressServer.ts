@@ -3,8 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
-import { logger } from '@core/logger/logger';
-import { env } from '@config/env';
+import { logger } from '@infra/logger/logger';
+import { env } from '@infra/config';
 import { errorHandler } from '@shared/middlewares/error-handler';
 import { iamRouter } from '@features/iam';
 import { employeeRouter } from '@features/employee';
@@ -37,7 +37,7 @@ function corsOrigin(): string[] | boolean {
   return true;
 }
 
-export function createApp() {
+export function createExpressServer() {
   //Khởi tạo Express app
   const app = express();
 

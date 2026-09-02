@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Types } from 'mongoose';
-import { eventBus } from '@core/events/event-bus';
-import { comparePassword, hashPassword, hashRefreshToken } from '@shared/utils/hash.util';
+import { eventBus } from '@infra/events/event-bus';
+import { comparePassword, hashPassword, hashRefreshToken } from '@modules/auth/adapters/security/hash.util';
 import type {
   Clock,
   PasswordHasher,

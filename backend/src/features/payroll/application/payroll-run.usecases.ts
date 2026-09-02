@@ -26,9 +26,9 @@ import mongoose from 'mongoose';
 
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import { type IPayroll } from '@shared/models/payroll.model';
-import { DEFAULT_COMPONENT_WEIGHTS, type SalaryComponentWeights } from '@shared/utils/salary.util';
+import { DEFAULT_COMPONENT_WEIGHTS, type SalaryComponentWeights } from '@modules/hrm/core/payroll/domain/salary.util';
 import {
   buildContractSegments,
   describeGap,

@@ -1,4 +1,4 @@
-import { computeStandardWorkDays, dateKey } from '@shared/utils/workdays.util';
+import { computeStandardWorkDays, dateKey } from '@modules/hrm/core/payroll/domain/workdays.util';
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 

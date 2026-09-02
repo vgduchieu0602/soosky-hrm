@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { HttpError } from '@shared/errors/http-error';
-import { jwtSecrets, JWT_ISSUER, JWT_AUDIENCE } from '@config/jwt.config';
+import { jwtSecrets, JWT_ISSUER, JWT_AUDIENCE } from '@modules/auth/config';
 import type { AccessTokenPayload } from '@features/iam/types/jwt-payload.type';
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {

@@ -1,6 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
-import { env } from '@config/env';
-import { logger } from '@core/logger/logger';
+import { env } from '@infra/config';
+import { logger } from '@infra/logger/logger';
 
 const log = logger.child({ module: 'mail' });
 

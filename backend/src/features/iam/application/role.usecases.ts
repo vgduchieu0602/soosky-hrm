@@ -1,5 +1,5 @@
 import { HttpError } from '@shared/errors/http-error';
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import type { RoleRepository, AuditPort } from '@features/iam/domain/ports';
 
 const log = logger.child({ feature: 'iam', module: 'role' });

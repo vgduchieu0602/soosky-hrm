@@ -1,4 +1,4 @@
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import type {
@@ -12,7 +12,7 @@ import type {
   EventsPort,
   Id,
 } from '../domain/ports';
-import type { CreatePeriodDto, UpdatePeriodDto } from '@shared/dto/period.dto';
+import type { CreatePeriodDto, UpdatePeriodDto } from '@modules/hrm/core/period/dto/period.dto';
 
 const log = logger.child({ feature: 'period', module: 'period' });
 

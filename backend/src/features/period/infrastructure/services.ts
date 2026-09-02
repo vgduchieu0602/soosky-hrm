@@ -1,8 +1,8 @@
-import { eventBus } from '@core/events/event-bus';
+import { eventBus } from '@infra/events/event-bus';
 import { auditService } from '@features/iam';
 import type { AuditPort, EventsPort } from '../domain/ports';
 
-declare module '@core/events/event-bus' {
+declare module '@infra/events/event-bus' {
   interface AppEventMap {
     'period.attendance-locked': { periodId: string; periodName: string };
     'period.performance-locked': { periodId: string; periodName: string };

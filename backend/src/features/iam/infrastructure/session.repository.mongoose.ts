@@ -1,6 +1,6 @@
 import { Types, type ClientSession } from 'mongoose';
 import { Session } from '@shared/models/session.model';
-import { hashRefreshToken } from '@shared/utils/hash.util';
+import { hashRefreshToken } from '@modules/auth/adapters/security/hash.util';
 import type { SessionRepository, Id, Tx } from '@features/iam/domain/ports';
 
 export class MongooseSessionRepository implements SessionRepository {

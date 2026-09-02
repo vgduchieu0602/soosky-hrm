@@ -1,11 +1,11 @@
-import { createApp } from './app';
-import { connectDB, disconnectDB } from '@core/database/mongoose';
-import { env } from '@config/env';
-import { logger } from '@core/logger/logger';
+import { createExpressServer } from '@infra/server/createExpressServer';
+import { connectDB, disconnectDB } from '@infra/db/mongoose';
+import { env } from '@infra/config';
+import { logger } from '@infra/logger/logger';
 import { registerAccountEmailListeners } from '@features/employee/listeners/account-email.listener';
 import { registerNotificationListeners } from '@features/notification';
 import { registerReminderJobs } from '@features/employee/jobs/reminder.job';
-import { mailService } from '@core/mail/mail.service';
+import { mailService } from '@infra/mail/mail.service';
 
 async function bootstrap() {
   //connect database
@@ -20,7 +20,7 @@ async function bootstrap() {
   await mailService.verify();
 
   //Start HTTP Server
-  const app = createApp();
+  const app = createExpressServer();
   
   const server = app.listen(env.PORT, () =>
     logger.info(`API listening on :${env.PORT}`),

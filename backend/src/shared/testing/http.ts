@@ -8,11 +8,11 @@
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import supertest from 'supertest';
-import { createApp } from '../../app';
+import { createExpressServer } from '@infra/server/createExpressServer';
 import { Role } from '@shared/models/role.model';
 import { tokenService } from '@features/iam';
 
-export const api = supertest(createApp());
+export const api = supertest(createExpressServer());
 
 const oid = () => new mongoose.Types.ObjectId();
 

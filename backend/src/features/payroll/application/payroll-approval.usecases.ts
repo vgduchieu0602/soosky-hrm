@@ -8,7 +8,7 @@
  * Each transition is transactional and audited; `payroll.approved` /
  * `payroll.paid` events fan out to notification listeners.
  */
-import { logger } from '@core/logger/logger';
+import { logger } from '@infra/logger/logger';
 import { HttpError } from '@shared/errors/http-error';
 import { NotFoundError } from '@shared/errors/not-found.error';
 import type {

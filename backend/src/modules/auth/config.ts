@@ -1,5 +1,5 @@
 import type { SignOptions } from 'jsonwebtoken';
-import { env } from '@config/env';
+import { env } from '@infra/config';
 
 export const JWT_ISSUER = 'soosky-hrm';
 export const JWT_AUDIENCE = 'soosky-hrm-client';
