@@ -27,6 +27,7 @@ import { Deduction } from '@shared/models/deduction.model';
 import { EmployeeTaxProfile } from '@shared/models/employee-tax-profile.model';
 
 import { sessionRepository } from '@features/iam/repositories/session.repository';
+import { credentialService } from '@features/iam';
 import { notificationService } from '@features/notification';
 
 import type { ReminderRow } from '@features/employee/domain/employee-rules';
@@ -142,7 +143,6 @@ export class MongooseAccountGateway implements AccountGateway {
     data: {
       username: string;
       email: string;
-      password: string;
       employeeId: string;
       status: string;
       mustChangePassword: boolean;
@@ -155,7 +155,9 @@ export class MongooseAccountGateway implements AccountGateway {
         {
           username: data.username,
           email: data.email,
-          password: data.password,
+          // The account starts with a credential nobody knows; the employee
+          // sets a real password through the emailed single-use link.
+          password: await credentialService.unusable(),
           employeeId: new Types.ObjectId(data.employeeId),
           status: data.status,
           mustChangePassword: data.mustChangePassword,
@@ -178,7 +180,7 @@ export class MongooseAccountGateway implements AccountGateway {
     if (!user) return;
     if (patch.username !== undefined) user.username = patch.username;
     if (patch.email !== undefined) user.email = patch.email;
-    if (patch.password !== undefined) user.password = patch.password;
+    if (patch.resetCredential) user.password = await credentialService.unusable();
     if (patch.mustChangePassword !== undefined) user.mustChangePassword = patch.mustChangePassword;
     if (patch.failedLoginAttempts !== undefined) user.failedLoginAttempts = patch.failedLoginAttempts;
     if (patch.status !== undefined) user.status = patch.status as never;

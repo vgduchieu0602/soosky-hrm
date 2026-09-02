@@ -24,6 +24,7 @@ import { UserUseCases } from '@features/iam/application/user.usecases';
 import { RoleUseCases } from '@features/iam/application/role.usecases';
 import { PermissionUseCases } from '@features/iam/application/permission.usecases';
 import { AuditUseCases } from '@features/iam/application/audit.usecases';
+import { CredentialUseCases } from '@features/iam/application/credential.usecases';
 import { PasswordSetupUseCases } from '@features/iam/application/password-setup.usecases';
 
 // --- infrastructure ---
@@ -48,6 +49,7 @@ export const authUseCases = new AuthUseCases(
   userRepo, roleRepo, permissionRepo, sessionRepo, tokenService,
   passwordHasher, refreshHasher, auditUseCases, events, clock,
 );
+export const credentialUseCases = new CredentialUseCases(passwordHasher);
 export const userUseCases = new UserUseCases(userRepo, passwordHasher, auditUseCases);
 export const roleUseCases = new RoleUseCases(roleRepo, auditUseCases);
 export const permissionUseCases = new PermissionUseCases(permissionRepo, auditUseCases);

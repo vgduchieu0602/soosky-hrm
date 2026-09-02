@@ -8,6 +8,7 @@ export {
   roleUseCases as roleService,
   permissionUseCases as permissionService,
   auditUseCases as auditService,
+  credentialUseCases as credentialService,
   passwordSetupUseCases as passwordSetupService,
   tokenService,
 } from '@features/iam/container';

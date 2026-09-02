@@ -199,7 +199,13 @@ export interface UserRec {
 export interface UpdateUserAccountPatch {
   username?: string;
   email?: string;
-  password?: string;
+  /**
+   * Replace the stored credential with one nobody knows, so the account cannot
+   * be logged into until the employee sets a password through the emailed
+   * link. HRM asks for the effect; IAM owns what a credential is and how it is
+   * hashed.
+   */
+  resetCredential?: boolean;
   mustChangePassword?: boolean;
   failedLoginAttempts?: number;
   status?: string;
@@ -213,11 +219,14 @@ export interface AccountGateway {
   getUserByEmployeeId(employeeId: Id): Promise<UserRec | null>;
   findUserConflict(username: string, email: string, exceptUserId?: Id): Promise<{ username: string } | null>;
   roleNameOf(userId: Id): Promise<string>;
+  /**
+   * Provision the login account for an employee. No credential is passed in:
+   * IAM seeds the new account with an unusable one (see `resetCredential`).
+   */
   createUser(
     data: {
       username: string;
       email: string;
-      password: string;
       employeeId: string;
       status: string;
       mustChangePassword: boolean;
