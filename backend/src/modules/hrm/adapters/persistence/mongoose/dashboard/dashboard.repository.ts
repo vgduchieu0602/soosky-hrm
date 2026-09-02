@@ -6,7 +6,7 @@ import { Attendance } from '@modules/hrm/adapters/persistence/mongoose/models/at
 import { LeaveRequest } from '@modules/hrm/adapters/persistence/mongoose/models/leave-request.model';
 import { Payroll } from '@modules/hrm/adapters/persistence/mongoose/models/payroll.model';
 import { MonthlyEvaluation } from '@modules/hrm/adapters/persistence/mongoose/models/monthly-evaluation.model';
-import { AuditLog } from '@modules/iam/adapters/persistence/models/audit-log.model';
+import { iamDirectory } from '@modules/iam';
 import type { PeriodReader } from '@modules/hrm/core/period/domain/ports';
 import type {
   DashboardRepository,
@@ -206,9 +206,8 @@ export class MongooseDashboardRepository implements DashboardRepository {
     return evals.map((e) => ({ employeeId: String(e.employeeId), score: e.score }));
   }
 
-  async recentAuditLogs(limit: number): Promise<AuditRow[]> {
-    const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(limit).lean();
-    return logs.map((l) => ({ action: l.action, resource: l.resource, timestamp: l.timestamp }));
+  recentAuditLogs(limit: number): Promise<AuditRow[]> {
+    return iamDirectory.recentAuditLogs(limit);
   }
 }
 

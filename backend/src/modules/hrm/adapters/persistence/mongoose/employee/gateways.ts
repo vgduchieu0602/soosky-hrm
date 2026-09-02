@@ -8,11 +8,6 @@ import { EmployeeDocumentModel } from '@modules/hrm/adapters/persistence/mongoos
 import { EmployeeContractModel } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contract.model';
 import { EmployeeAsset } from '@modules/hrm/adapters/persistence/mongoose/models/employee-asset.model';
 import { EmployeeHistory } from '@modules/hrm/adapters/persistence/mongoose/models/employee-history.model';
-import { User } from '@modules/iam/adapters/persistence/models/user.model';
-import { Role } from '@modules/iam/adapters/persistence/models/role.model';
-import { UserRole } from '@modules/iam/adapters/persistence/models/user-role.model';
-import { Session } from '@modules/auth/adapters/persistence/models/session.model';
-import { AuditLog } from '@modules/iam/adapters/persistence/models/audit-log.model';
 import { Department } from '@modules/hrm/adapters/persistence/mongoose/models/department.model';
 import { Position } from '@modules/hrm/adapters/persistence/mongoose/models/position.model';
 import { CompanyConfig } from '@modules/hrm/adapters/persistence/mongoose/models/company-config.model';
@@ -27,6 +22,7 @@ import { Deduction } from '@modules/hrm/adapters/persistence/mongoose/models/ded
 import { EmployeeTaxProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-tax-profile.model';
 
 import { sessionRepository } from '@modules/auth';
+import { iamDirectory } from '@modules/iam';
 import { notificationService } from '@modules/hrm/adapters/container/notification';
 
 import type { ReminderRow } from '@modules/hrm/core/employee/domain/employee-rules';
@@ -90,55 +86,26 @@ export class MongooseOrganizationGateway implements OrganizationGateway {
   }
 }
 
-function toUserRec(u: {
-  _id: unknown;
-  username: string;
-  email: string;
-  status: string;
-  lastLoginAt?: Date | null;
-  mustChangePassword: boolean;
-}): UserRec {
-  return {
-    id: String(u._id),
-    username: u.username,
-    email: u.email,
-    status: u.status,
-    lastLoginAt: u.lastLoginAt ?? null,
-    mustChangePassword: u.mustChangePassword,
-  };
-}
-
 export class MongooseAccountGateway implements AccountGateway {
-  async findEmployeeRoleId(): Promise<string | null> {
-    const r = await Role.findOne({ name: 'employee' }).select('_id').lean();
-    return r ? String(r._id) : null;
+  findEmployeeRoleId(): Promise<string | null> {
+    return iamDirectory.findRoleIdByName('employee');
   }
-  async findRoleIdByName(name: string): Promise<string | null> {
-    const r = await Role.findOne({ name }).select('_id').lean();
-    return r ? String(r._id) : null;
+  findRoleIdByName(name: string): Promise<string | null> {
+    return iamDirectory.findRoleIdByName(name);
   }
-  async getUser(userId: Id): Promise<UserRec | null> {
-    if (!Types.ObjectId.isValid(userId)) return null;
-    const u = await User.findById(userId).lean();
-    return u ? toUserRec(u as never) : null;
+  getUser(userId: Id): Promise<UserRec | null> {
+    return iamDirectory.getUser(userId);
   }
-  async getUserByEmployeeId(employeeId: Id): Promise<UserRec | null> {
-    const u = await User.findOne({ employeeId: new Types.ObjectId(employeeId) }).lean();
-    return u ? toUserRec(u as never) : null;
+  getUserByEmployeeId(employeeId: Id): Promise<UserRec | null> {
+    return iamDirectory.getUserByEmployeeId(employeeId);
   }
-  async findUserConflict(username: string, email: string, exceptUserId?: Id): Promise<{ username: string } | null> {
-    const filter: Record<string, unknown> = { $or: [{ username }, { email }] };
-    if (exceptUserId) filter._id = { $ne: new Types.ObjectId(exceptUserId) };
-    const dup = await User.findOne(filter).select('username').lean();
-    return dup ? { username: (dup as { username: string }).username } : null;
+  findUserConflict(username: string, email: string, exceptUserId?: Id): Promise<{ username: string } | null> {
+    return iamDirectory.findUserConflict(username, email, exceptUserId);
   }
-  async roleNameOf(userId: Id): Promise<string> {
-    const ur = await UserRole.findOne({ userId }).select('roleId').lean();
-    if (!(ur as { roleId?: unknown })?.roleId) return 'employee';
-    const role = await Role.findById((ur as { roleId: unknown }).roleId).select('name').lean();
-    return (role as { name?: string })?.name ?? 'employee';
+  roleNameOf(userId: Id): Promise<string> {
+    return iamDirectory.roleNameOf(userId);
   }
-  async createUser(
+  createUser(
     data: {
       username: string;
       email: string;
@@ -150,70 +117,31 @@ export class MongooseAccountGateway implements AccountGateway {
     },
     tx: Tx,
   ): Promise<{ id: string }> {
-    const [user] = await User.create(
-      [
-        {
-          username: data.username,
-          email: data.email,
-          password: data.password,
-          employeeId: new Types.ObjectId(data.employeeId),
-          status: data.status,
-          mustChangePassword: data.mustChangePassword,
-          failedLoginAttempts: data.failedLoginAttempts,
-        },
-      ] as any[],
-      { session: sess(tx) },
-    );
-    return { id: String(user!._id) };
+    return iamDirectory.createUser(data, tx);
   }
-  async assignRole(userId: Id, roleId: Id, tx: Tx): Promise<void> {
-    await UserRole.create([{ userId, roleId, assignedAt: new Date() }], { session: sess(tx) });
+  assignRole(userId: Id, roleId: Id, tx: Tx): Promise<void> {
+    return iamDirectory.assignRole(userId, roleId, tx);
   }
-  async replaceRoles(userId: Id, roleId: Id, tx: Tx): Promise<void> {
-    await UserRole.deleteMany({ userId }, { session: sess(tx) });
-    await UserRole.create([{ userId, roleId, assignedAt: new Date() }], { session: sess(tx) });
+  replaceRoles(userId: Id, roleId: Id, tx: Tx): Promise<void> {
+    return iamDirectory.replaceRoles(userId, roleId, tx);
   }
-  async updateUserAccount(userId: Id, patch: UpdateUserAccountPatch, tx?: Tx): Promise<void> {
-    const user = await User.findById(userId).session(sess(tx) ?? null);
-    if (!user) return;
-    if (patch.username !== undefined) user.username = patch.username;
-    if (patch.email !== undefined) user.email = patch.email;
-    if (patch.password !== undefined) user.password = patch.password;
-    if (patch.mustChangePassword !== undefined) user.mustChangePassword = patch.mustChangePassword;
-    if (patch.failedLoginAttempts !== undefined) user.failedLoginAttempts = patch.failedLoginAttempts;
-    if (patch.status !== undefined) user.status = patch.status as never;
-    if (patch.activateIfLocked && user.status === 'locked') user.status = 'active';
-    await user.save({ session: sess(tx) });
+  updateUserAccount(userId: Id, patch: UpdateUserAccountPatch, tx?: Tx): Promise<void> {
+    return iamDirectory.updateUserAccount(userId, patch, tx);
   }
-  async writeUserAudit(
+  writeUserAudit(
     entry: { userId: string; resource: string; action: string; resourceId: string; changes?: Record<string, unknown> },
     tx?: Tx,
   ): Promise<void> {
-    await AuditLog.create(
-      [
-        {
-          userId: new Types.ObjectId(entry.userId),
-          resource: entry.resource,
-          action: entry.action,
-          resourceId: new Types.ObjectId(entry.resourceId),
-          changes: entry.changes,
-          timestamp: new Date(),
-        },
-      ],
-      { session: sess(tx) },
-    );
+    return iamDirectory.writeUserAudit(entry, tx);
   }
-  async revokeUserSessions(userId: Id): Promise<void> {
-    await Session.updateMany(
-      { userId: new Types.ObjectId(userId), revokedAt: { $exists: false } },
-      { $set: { revokedAt: new Date() } },
-    );
+  revokeUserSessions(userId: Id): Promise<void> {
+    return sessionRepository.revokeAllForUser(userId);
   }
-  async revokeAllSessions(userId: Id, tx: Tx): Promise<void> {
-    await sessionRepository.revokeAllForUser(userId, tx);
+  revokeAllSessions(userId: Id, tx: Tx): Promise<void> {
+    return sessionRepository.revokeAllForUser(userId, tx);
   }
-  async disableUser(userId: Id, tx: Tx): Promise<void> {
-    await User.updateOne({ _id: userId }, { $set: { status: 'disabled' } }, { session: sess(tx) });
+  disableUser(userId: Id, tx: Tx): Promise<void> {
+    return iamDirectory.disableUser(userId, tx);
   }
 }
 
@@ -256,8 +184,7 @@ export class MongooseCascadeGateway implements CascadeGateway {
     await Employee.updateMany({ managerId: employeeObjId }, { $unset: { managerId: '' } }, { session });
 
     if (linkedUserId) {
-      await UserRole.deleteMany({ userId: new Types.ObjectId(linkedUserId) }, { session });
-      await User.deleteOne({ _id: new Types.ObjectId(linkedUserId) }, { session });
+      await iamDirectory.deleteUserWithRoles(linkedUserId, tx);
     }
 
     await Employee.deleteOne({ _id: employeeObjId }, { session });

@@ -14,6 +14,11 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // Every HTTP spec boots its own mongodb-memory-server replica set, which
+    // takes well over the 10s default when several start at once — and the box
+    // cannot start more than a couple at a time without them timing out.
+    hookTimeout: 60_000,
+    maxWorkers: 2,
     environment: "node",
     include: ["src/**/*.spec.ts", "src/**/*.test.ts", "tests/**/*.test.ts"],
   },

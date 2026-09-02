@@ -13,7 +13,7 @@
     "seed:clear": "tsx scripts/seed-clear.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint .",
     "format": "prettier --write \"src/**/*.ts\""
   },
   "keywords": [],

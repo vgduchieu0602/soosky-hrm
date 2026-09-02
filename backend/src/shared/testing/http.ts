@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 /**
  * Shared harness for HTTP integration tests: real Express app (full middleware
  * chain: authenticate → guards → validate → controller) over a real

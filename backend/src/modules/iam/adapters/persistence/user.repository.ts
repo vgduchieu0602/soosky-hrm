@@ -1,6 +1,6 @@
 import { Types, type PipelineStage } from 'mongoose';
 import { User } from '@modules/iam/adapters/persistence/models/user.model';
-import { isEmailIdentifier, MAX_FAILED_ATTEMPTS } from '@modules/auth/core/domain/policy';
+import { isEmailIdentifier, MAX_FAILED_ATTEMPTS } from '@modules/iam/core/domain/policy';
 import type { UserRepository, AuthUserRecord, Id } from '@modules/iam/core/app/ports';
 
 function toAuthRecord(u: {

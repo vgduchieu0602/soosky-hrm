@@ -1,8 +1,7 @@
 import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
 import { Payroll } from '@modules/hrm/adapters/persistence/mongoose/models/payroll.model';
 import { MonthlyEvaluation } from '@modules/hrm/adapters/persistence/mongoose/models/monthly-evaluation.model';
-import { Role } from '@modules/iam/adapters/persistence/models/role.model';
-import { UserRole } from '@modules/iam/adapters/persistence/models/user-role.model';
+import { iamDirectory } from '@modules/iam';
 import type {
   EmployeeGateway,
   EvaluationGateway,
@@ -12,13 +11,8 @@ import type {
 } from '@modules/hrm/core/notification/domain/ports';
 
 export class MongooseRoleGateway implements RoleGateway {
-  async userIdsByRoles(roleNames: string[]): Promise<string[]> {
-    const roles = await Role.find({ name: { $in: roleNames } }).select('_id').lean();
-    if (roles.length === 0) return [];
-    const links = await UserRole.find({ roleId: { $in: roles.map((r) => r._id) } })
-      .select('userId')
-      .lean();
-    return [...new Set(links.map((l) => String(l.userId)))];
+  userIdsByRoles(roleNames: string[]): Promise<string[]> {
+    return iamDirectory.userIdsByRoles(roleNames);
   }
 }
 

@@ -23,6 +23,16 @@ export {
   permissionRepo as permissionRepository,
 } from '@modules/iam/adapters/container';
 
+// Identity directory — the operations another module (HRM today) performs
+// against the identity store: provision an account, rename it, assign roles,
+// remove it, and read the audit trail.
+export { iamDirectory } from '@modules/iam/adapters/directory';
+export type {
+  DirectoryUserRecord,
+  DirectoryUserPatch,
+  DirectoryAuditEntry,
+} from '@modules/iam/adapters/directory';
+
 export type { CreateUserInput, UpdateUserInput } from '@modules/iam/core/app/use-cases/user.usecases';
 export type { CreateRoleInput, UpdateRoleInput } from '@modules/iam/core/app/use-cases/role.usecases';
 export type {

@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    // `vitest/globals` replaces the @types/jest ambient globals the specs used
+    // to get; `node` must be listed explicitly once "types" is set.
+    "types": ["node", "vitest/globals"],
     "module": "commonjs",
     "moduleResolution": "node10",
     "ignoreDeprecations": "6.0",
