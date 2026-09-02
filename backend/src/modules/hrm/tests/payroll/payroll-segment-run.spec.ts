@@ -191,12 +191,14 @@ function makeRunMocks(opts: Options, saved: { doc: unknown }[]) {
     workCalendar,
     uow,
     clock,
-  ] as never;
+    // The stubs are partial on purpose; the tuple keeps order and arity checked
+    // against the real constructor.
+  ] as unknown as ConstructorParameters<typeof RunPayrollUseCases>;
 }
 
 function build(opts: Options) {
   const saved: { doc: unknown }[] = [];
-  const useCases = new (RunPayrollUseCases as any)(...(makeRunMocks(opts, saved) as any[]));
+  const useCases = new RunPayrollUseCases(...makeRunMocks(opts, saved));
   return { useCases, saved };
 }
 
@@ -265,12 +267,12 @@ describe('RunPayrollUseCases — chia đoạn hợp đồng', () => {
 describe('khoá tính lại', () => {
   it('bản đã duyệt không được tính lại', async () => {
     const saved: { doc: unknown }[] = [];
-    const mocks = makeRunMocks({ contracts: [] }, saved) as any[];
+    const mocks = makeRunMocks({ contracts: [] }, saved);
     mocks[2] = {
       ...mocks[2],
       findExisting: async () => ({ status: 'approved' }),
     };
-    const useCases = new (RunPayrollUseCases as any)(...mocks);
+    const useCases = new RunPayrollUseCases(...mocks);
     await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
       code: 'PAY_ALREADY_FINALIZED',
     });
@@ -278,12 +280,12 @@ describe('khoá tính lại', () => {
 
   it('bản đã chi không được tính lại', async () => {
     const saved: { doc: unknown }[] = [];
-    const mocks = makeRunMocks({ contracts: [] }, saved) as any[];
+    const mocks = makeRunMocks({ contracts: [] }, saved);
     mocks[2] = {
       ...mocks[2],
       findExisting: async () => ({ status: 'paid' }),
     };
-    const useCases = new (RunPayrollUseCases as any)(...mocks);
+    const useCases = new RunPayrollUseCases(...mocks);
     await expect(useCases.forEmployee(String(PERIOD_ID), String(EMPLOYEE_ID))).rejects.toMatchObject({
       code: 'PAY_ALREADY_FINALIZED',
     });

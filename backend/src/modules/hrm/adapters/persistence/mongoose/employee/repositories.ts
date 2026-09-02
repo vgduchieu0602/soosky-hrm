@@ -1,12 +1,12 @@
 import mongoose, { Types, type ClientSession, type PipelineStage } from 'mongoose';
-import { Employee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
+import { Employee, type IEmployee } from '@modules/hrm/adapters/persistence/mongoose/models/employee.model';
 import { EmployeeProfile } from '@modules/hrm/adapters/persistence/mongoose/models/employee-profile.model';
 import { EmployeeContact } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contact.model';
-import { EmployeeBankAccount } from '@modules/hrm/adapters/persistence/mongoose/models/employee-bank-account.model';
+import { EmployeeBankAccount, type IEmployeeBankAccount } from '@modules/hrm/adapters/persistence/mongoose/models/employee-bank-account.model';
 import { EmployeeDocumentModel } from '@modules/hrm/adapters/persistence/mongoose/models/employee-document.model';
-import { EmployeeContractModel } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contract.model';
+import { EmployeeContractModel, type IEmployeeContract } from '@modules/hrm/adapters/persistence/mongoose/models/employee-contract.model';
 import { EmployeeAsset } from '@modules/hrm/adapters/persistence/mongoose/models/employee-asset.model';
-import { EmployeeHistory } from '@modules/hrm/adapters/persistence/mongoose/models/employee-history.model';
+import { EmployeeHistory, type IEmployeeHistory } from '@modules/hrm/adapters/persistence/mongoose/models/employee-history.model';
 import type {
   EmployeeRepository,
   EmployeeProfileRepository,
@@ -362,7 +362,7 @@ export class MongooseEmployeeRepository implements EmployeeRepository {
           status: 'onboarding',
           userId: null,
         },
-      ] as any[],
+      ] as IEmployee[],
       { session: sess(tx) },
     );
     return employee!.toJSON() as Doc;
@@ -494,7 +494,7 @@ export class MongooseBankAccountRepository implements BankAccountRepository {
   }
   async create(employeeId: Id, input: Record<string, unknown>, tx?: Tx): Promise<Doc> {
     const [doc] = await EmployeeBankAccount.create(
-      [{ ...input, employeeId: new Types.ObjectId(employeeId) }] as any[],
+      [{ ...input, employeeId: new Types.ObjectId(employeeId) }] as IEmployeeBankAccount[],
       { session: sess(tx) },
     );
     return doc!.toJSON() as Doc;
@@ -620,7 +620,7 @@ export class MongooseContractRepository implements ContractRepository {
           employeeId: new Types.ObjectId(employeeId),
           baseSalary: mongoose.Types.Decimal128.fromString(String(input.baseSalary)),
         },
-      ] as any[],
+      ] as IEmployeeContract[],
       { session: sess(tx) },
     );
     return contract!.toJSON() as Doc;
@@ -730,7 +730,7 @@ export class MongooseHistoryRepository implements HistoryRepository {
           note: data.note,
           createdBy: data.createdBy ? new Types.ObjectId(data.createdBy) : null,
         },
-      ] as any[],
+      ] as IEmployeeHistory[],
       { session: sess(tx) },
     );
   }
