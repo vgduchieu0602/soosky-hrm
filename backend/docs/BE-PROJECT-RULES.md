@@ -11,67 +11,101 @@
 - **Runtime:** Node.js (LTS)
 - **Framework:** Express.js
 - **ODM:** Mongoose
-- **Database:** MongoDB 6.x
+- **Database:** MongoDB (replica set required — transactions are used)
 - **Validation:** Zod
-- **Auth:** JWT (access + refresh) with `bcrypt`/`argon2` for password hashing
+- **Auth:** JWT (access + refresh) with `bcryptjs` for password hashing
 - **Logging:** Pino (structured logs)
-- **Testing:** Jest + Supertest
+- **Testing:** Vitest + Supertest (+ `mongodb-memory-server` for integration)
 
 ---
 
-## 1. Feature Structure
+## 1. Module Structure
+
+The backend is a **modular monolith**. Three business modules sit on a shared
+`infra` / `shared` base:
 
 ```
 src/
-├── features/
-│   ├── iam/                        # users, roles, permissions, sessions, auth, audit logs
-│   ├── organization/               # departments, positions
-│   ├── employee/                   # employees + profile/documents/contacts/contracts/...
-│   ├── attendance/                 # shifts, attendances, leave requests, balances, holidays
-│   ├── payroll/                    # periods, salary structures, allowances, payrolls, payslips
-│   └── performance/                # appraisal cycles, goals, KPIs, reviews, feedbacks
-├── shared/
-│   ├── middlewares/                # auth, role-guard, error-handler, audit, validation
-│   ├── errors/                     # HttpError, NotFoundError, ForbiddenError, ...
-│   ├── utils/                      # date, money, pagination helpers
-│   ├── types/                      # cross-feature types (e.g., AuthPayload)
-│   ├── models/
-│   │   └── [entity].model.ts       # Mongoose Schema + Model
-│   └── db/                         # mongoose connection, plugins
-└── config/                         # env loader, constants
+├── server.ts                        # bootstrap: connect DB, register listeners/jobs, listen
+├── infra/                           # application-wide infrastructure
+│   ├── config.ts                    # Zod-validated process.env
+│   ├── jwt.config.ts                # JWT secrets, issuer/audience, TTLs
+│   ├── db/mongoose.ts               # connect/disconnect lifecycle
+│   ├── logger/logger.ts             # Pino root logger
+│   ├── events/event-bus.ts          # typed EventEmitter wrapper
+│   ├── mail/                        # SMTP transport + templates
+│   └── server/createExpressServer.ts # Express app factory (testable)
+├── shared/                          # ONLY what 2+ modules use
+│   ├── http/                        # authenticate, requireRoles, requirePermission, validate, errorHandler
+│   ├── errors/                      # HttpError, NotFoundError, ForbiddenError
+│   ├── crypto/hash.util.ts          # bcrypt + token hashing
+│   ├── types/                       # AuthPayload, JWT payloads, Response<T>, Paginated<T>
+│   ├── utils/pagination.util.ts
+│   └── testing/http.ts              # supertest + mongodb-memory-server harness
+└── modules/
+    ├── auth/                        # authentication
+    ├── iam/                         # authorization
+    └── hrm/                         # human-resource business
 ```
 
-Each feature folder:
+Every module has the same three parts:
 
 ```
-features/[feature-name]/
-├── [feature].routes.ts        # express Router wiring
-├── [feature].controller.ts    # HTTP layer only
-├── [feature].service.ts       # business logic
-├── repositories/
-│   └── [entity].repository.ts # data access (Mongoose queries)
-├── dto/
-│   ├── create-[entity].dto.ts # Zod schema + inferred type
-│   └── update-[entity].dto.ts
-├── types/
-│   └── [feature].types.ts
+modules/[module]/
+├── core/                            # framework-free: no Express, no Mongoose
+│   ├── domain/                      # entities, value types, pure rules
+│   └── app/
+│       ├── ports/                   # the abstractions use-cases depend on
+│       ├── use-cases/               # one class per area, constructor-injected ports
+│       └── dto/                     # Zod schema + inferred type
+├── adapters/                        # everything that touches the outside world
+│   ├── http/                        # routes + controllers
+│   ├── persistence/                 # Mongoose schemas + repositories/gateways
+│   └── container.ts                 # composition root — the ONLY place adapters are constructed
 ├── tests/
-│   ├── [feature].controller.spec.ts
-│   └── [feature].service.spec.ts
-└── CONTEXT.md
+└── index.ts                         # the module's public API — nothing else is importable
 ```
+
+**HRM is one business module, not six.** Employee, Attendance, Payroll,
+Performance, Organization, Settings and Period are **sub-domains inside HRM** —
+folders under `core/`, sharing one `adapters/` tree, one composition root and
+one `index.ts`:
+
+```
+modules/hrm/
+├── core/[sub-domain]/{domain,app,dto}/    # employee, attendance, payroll, performance,
+│                                          # organization, settings, period, dashboard,
+│                                          # notification, storage
+├── adapters/
+│   ├── http/[sub-domain]/                 # controllers + routes
+│   ├── persistence/mongoose/
+│   │   ├── models/                        # one file per HR collection
+│   │   └── [sub-domain]/                  # repositories + gateways
+│   ├── services/[sub-domain].services.ts  # clock, audit, event-bus, unit-of-work adapters
+│   ├── files/ · object-storage/ · jobs/ · listeners/
+│   └── container/[sub-domain].ts
+├── tests/[sub-domain]/
+└── index.ts
+```
+
+A sub-domain MUST NOT be promoted to a top-level module without a real reason —
+they are organisational folders, not deployment or ownership boundaries.
+
+**Path aliases:** `@/*` → `src/*`, `@infra/*`, `@modules/*`, `@shared/*`.
 
 ---
 
 ## 2. Naming Conventions
 
-- **Feature folders:** `kebab-case` — `employee`, `payroll`, `performance`
+- **Module folders:** `kebab-case` — `auth`, `iam`, `hrm`
+- **HRM sub-domain folders:** `kebab-case` — `employee`, `payroll`, `performance`
 - **Files:** `kebab-case` — `create-employee.dto.ts`, `user.model.ts`
-- **Classes:** `PascalCase` — `EmployeeService`, `CreateEmployeeDto`
+- **Classes:** `PascalCase` — `EmployeeUseCases`, `MongooseEmployeeRepository`
 - **Functions / methods:** `camelCase` — `findById`, `grantLogin`
 - **Variables:** `camelCase` — `employeeId`, `payrollPeriod`
 - **Constants:** `UPPER_SNAKE_CASE` — `MAX_LEAVE_DAYS`, `ROLE_ADMIN`
 - **Interfaces / types:** `PascalCase` — `IUserPayload` (interface), `EmployeeStatusType` (union type)
+- **Use-case files:** `[area].usecases.ts` — `payroll-run.usecases.ts`, `department.usecases.ts`
 - **Mongoose models:** `PascalCase` singular — `User`, `Employee`, `Payroll`
 - **MongoDB collections:** `camelCase` plural — `users`, `employeeProfiles`, `payrollPeriods`
 - **MongoDB fields:** `camelCase` — `firstName`, `employeeId`, `lastLoginAt`
@@ -79,23 +113,43 @@ features/[feature-name]/
 
 ---
 
-## 3. Feature Rules
+## 3. Module Rules
 
-- A feature MUST be self-contained — owns its models, repositories, services, controllers, routes.
-- **No direct imports** between features (e.g., `payroll` MUST NOT import from `employee/employee.service.ts`).
-- Cross-feature communication:
-  - **Shared services** in `src/shared/` for genuinely shared logic (auth, audit).
-  - **Event emitter** (`node:events`) for async cross-feature events (e.g., `employee.granted-login` → triggers email send).
-  - **Public service exports** — feature exposes an `index.ts` that re-exports approved service methods only.
+### What each module answers
 
-**Feature boundaries for this project:**
+| Module | Question it answers | Owns |
+| ------ | ------------------- | ---- |
+| `auth` | *Who is this user?* | login, logout, refresh, JWT issue/verify, sessions, single-use password-setup links |
+| `iam`  | *What may this user do?* | users, roles, permissions, user↔role and role↔permission links, audit log |
+| `hrm`  | *The human-resource business* | employee, attendance, payroll, performance, organization, settings, period, dashboard, notification, storage |
 
-- `iam` — users, roles, permissions, JWT issue/refresh, sessions, audit logs
-- `organization` — departments (tree), positions
-- `employee` — core employee record + profile, documents, contacts, bank accounts, contracts, history, assets
-- `attendance` — shifts, check-in/out, leave requests, balances, holidays
-- `payroll` — periods, salary structures, allowances/deductions/bonuses, payroll computation, payslips
-- `performance` — appraisal cycles, goals, KPIs, reviews, multi-source feedback
+`auth` holds **no** authorization logic and **no** HR business logic.
+`iam` holds **no** HR business logic — permission keys are plain RBAC strings
+(`hrm.employee.read`, `hrm.payroll.approve`), so IAM can serve a second product
+unchanged. There is no policy engine, no ABAC, no policy DSL.
+
+### Dependency direction (one-way)
+
+```
+hrm  → iam, auth        auth → iam        iam → nothing
+shared, infra → no business module
+```
+
+- A module is reached **only** through its `index.ts`: `import { auditService } from '@modules/iam'`. Never a deep path.
+- `iam` MUST NOT import `auth` or `hrm` — that is what keeps it reusable.
+- `shared/` and `infra/` MUST NOT import module internals.
+- HRM touches accounts through `iamDirectory` from `@modules/iam`, never IAM's Mongoose models.
+
+These are enforced by `no-restricted-imports` in `eslint.config.mjs`, so a
+violation fails `pnpm lint`. Integration tests are exempt — they assert on
+persisted state across module boundaries.
+
+### Inside a module
+
+- `core/` MUST NOT import Express, Mongoose, or anything from `adapters/`.
+- A use-case depends on **ports** it declares; `adapters/container.ts` is the only place that constructs concrete adapters and injects them.
+- Cross-module async reactions go through the event bus (`infra/events/event-bus.ts`): `employee.granted-login`, `payroll.computed`, `leave.approved`, `employee.changed`.
+- Code **inside** a module imports concrete files, not its own barrel — the barrel would form an import cycle.
 
 ---
 
@@ -152,35 +206,51 @@ export type CreateEmployeeDto = z.infer<typeof createEmployeeDto>;
 logger.info({ feature: 'payroll', action: 'compute', periodId, employeeCount });
 ```
 
-- Use Pino with a child logger per feature: `const log = logger.child({ feature: 'payroll' })`.
-- Log at **service** level, not controllers. Format: `[FeatureName] action - context`.
+- Use Pino with a child logger per area: `const log = logger.child({ feature: 'payroll', module: 'run' })`.
+- Log in **use-cases**, not controllers.
 
 ### Response format
 
 - **Success:** `{ data, message?, meta? }`
-- **Error:** `{ statusCode, code, message }`
+- **Error:** `{ success: false, error: { code, message } }` — shaped by `shared/http/error-handler.ts`; the HTTP status carries the status
 - **Pagination:** `{ data, meta: { page, limit, total, totalPages } }`
 
-### Repository pattern
+### Ports & adapters
+
+A use-case declares what it needs as a **port**; the Mongoose implementation
+lives in `adapters/persistence` and is injected by the composition root.
 
 ```ts
-// employee.repository.ts
-export class EmployeeRepository {
-  findActiveByDepartment(deptId: string) {
-    return Employee.find({ departmentId: deptId, status: 'active' }).lean();
-  }
-  paginate({ page, limit, filter }: PaginateOpts) {
-    return Employee.aggregate([
-      { $match: filter },
-      { $skip: (page - 1) * limit },
-      { $limit: limit },
-    ]);
-  }
+// core/organization/domain/ports/index.ts
+export interface DepartmentRepository {
+  findById(id: Id): Promise<Doc | null>;
+  countChildren(id: Id): Promise<number>;
+  deleteById(id: Id, tx?: Tx): Promise<Doc | null>;
 }
+
+// core/organization/app/department.usecases.ts
+export class DepartmentUseCases {
+  constructor(
+    private readonly departments: DepartmentRepository,
+    private readonly audit: AuditPort,
+    private readonly uow: UnitOfWork,
+  ) {}
+}
+
+// adapters/persistence/mongoose/organization/department.repository.ts
+export class MongooseDepartmentRepository implements DepartmentRepository { /* ... */ }
+
+// adapters/container/organization.ts — the only place that wires them
+export const departmentUseCases = new DepartmentUseCases(
+  new MongooseDepartmentRepository(), audit, uow,
+);
 ```
 
-- Complex queries (aggregations, joins via `$lookup`, populate chains) MUST live in the repository.
-- Services orchestrate repositories; controllers orchestrate services.
+- Complex queries (aggregations, `$lookup`, populate chains) MUST live in the adapter, never in a use-case.
+- Controllers orchestrate use-cases; use-cases orchestrate ports.
+- IDs cross the port boundary as **strings**; the adapter converts to/from `ObjectId`.
+- `Tx` is an opaque transaction handle (a Mongoose `ClientSession` underneath) — core never names the Mongoose type.
+- Create a port for a real external dependency, not for every collaborator.
 
 ---
 
@@ -188,14 +258,16 @@ export class EmployeeRepository {
 
 | ❌ DON'T                                                                | ✅ DO                                                                           |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `import { EmployeeModel } from '../employee/models/...'` from `payroll` | `import { EmployeeService } from '@features/employee'` (via feature `index.ts`) |
-| Business logic in controller                                            | Controller calls service; service holds rules                                   |
-| `Employee.find(...)` in service                                         | Service calls `employeeRepo.find(...)`                                          |
+| Deep import across modules — `@modules/iam/adapters/persistence/models/user.model` | `import { auditService, iamDirectory } from '@modules/iam'` (via the module `index.ts`) |
+| Business logic in a controller                                          | Controller calls a use-case; the use-case holds the rules                       |
+| `Employee.find(...)` in a use-case                                      | The use-case calls a port; the adapter runs the query                           |
 | Storing plain passwords                                                 | `bcrypt.hash(password, 10)` before save                                         |
 | Referencing current `baseSalary` in `Payroll`                           | Snapshot `baseSalary`, `allowances`, etc. at compute time                       |
 | Referencing current `Department` in `EmployeeHistory`                   | Snapshot into `fromValue` / `toValue`                                           |
-| Hardcoded values                                                        | Read from `config` (loaded from env via Zod)                                    |
-| Circular feature dependency                                             | Refactor into shared service or domain event                                    |
+| Hardcoded values                                                        | Read from `@infra/config` (env via Zod)                                         |
+| Express or Mongoose imported inside `core/`                             | Keep it in `adapters/`; core depends on ports only                              |
+| Promoting an HRM sub-domain to a top-level module                       | Keep it a folder under `modules/hrm/core/`                                      |
+| `modules/iam` importing `auth` or `hrm`                                 | Keep IAM dependency-free — invert via a port or a domain event                  |
 | Hard-deleting employees                                                 | Set `status = 'terminated'`, fill `terminationDate`                             |
 | `Number` for money                                                      | `Decimal128` (use `mongoose-decimal128` plugin)                                 |
 | `Number` for phone / account number                                     | `String` (preserve leading zeros)                                               |
@@ -216,21 +288,23 @@ export class EmployeeRepository {
   - Linked to issue/task
   - All tests pass, no TypeScript errors, `lint` clean
   - At least 1 reviewer approves
-  - DATABASE.md / CONVENTIONS.md updated if structure changes
+  - `share-docs/DATABASE.md` and `docs/BE-ARCHITECTURE.md` updated if structure changes
 
 ---
 
 ## 7. Testing
 
-- **Location:** same folder as source — `features/payroll/tests/payroll.service.spec.ts`
-- **Naming:** `[name].spec.ts`
-- **Structure:** `describe → it` with Arrange-Act-Assert
+- **Runner:** Vitest (`pnpm test`). Globals are on; ambient types come from `vitest/globals`.
+- **Location:** inside the owning module — `modules/hrm/tests/payroll/payroll-run.service.spec.ts`, `modules/auth/tests/auth-flow.http.spec.ts`.
+- **Naming:** `[name].spec.ts`; HTTP integration specs use `[name].http.spec.ts`.
+- **Structure:** `describe → it` with Arrange-Act-Assert.
 - **Coverage targets:**
-  - Services: **80%+**
+  - Use-cases: **80%+**
   - Controllers: **70%+**
-  - Repositories: **60%+**
-- **Mocking:** mock Mongoose models with `jest.mock`, or use `mongodb-memory-server` for integration tests.
-- **Transactions:** integration tests must run against a real Mongo instance (memory server) — Mongoose sessions require a replica set.
+  - Adapters: **60%+**
+- **Unit tests:** stub the ports a use-case declares — `vi.fn()` plus `Mocked<Port>` from `vitest`. For a partially-stubbed constructor, type the argument list as `ConstructorParameters<typeof UseCases>` rather than casting to `any`.
+- **Integration tests:** use the shared harness `shared/testing/http.ts` — it boots the real Express app over `mongodb-memory-server` and exposes `api`, `startDb`, `stopDb`, `clearDb`, `seedRoles`, `tokenFor`, `bearer`. It is test-support, not production code: nothing outside a `tests/` folder may import it.
+- **Transactions:** integration tests must run against a real Mongo (memory server) — Mongoose sessions require a replica set.
 
 ---
 
@@ -286,36 +360,44 @@ userId: { type: Schema.Types.ObjectId, ref: 'users' }   // ref = collection name
 ### Transactions (multi-document writes)
 
 ```ts
-// employee.service.ts — granting login is atomic
+// modules/hrm/core/employee/app/account-provisioning.usecases.ts
+// Granting login is atomic — and the account itself belongs to IAM, so the
+// transaction handle is passed across the boundary rather than the models.
 async grantLogin(employeeId: string, hrUserId: string) {
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      const [user] = await User.create([{ /* ... */, mustChangePassword: true }], { session });
-      await Employee.updateOne({ _id: employeeId }, { userId: user._id }, { session });
-      await UserRole.create([{ userId: user._id, roleId: EMPLOYEE_ROLE_ID, assignedAt: new Date() }], { session });
-      await AuditLog.create([{ userId: hrUserId, resource: 'user', action: 'create', resourceId: user._id }], { session });
-    });
-  } finally { session.endSession(); }
+  return this.uow.withTransaction(async (tx) => {
+    const { id: userId } = await this.accounts.createUser({ /* ... */, mustChangePassword: true }, tx);
+    await this.employees.linkUser(employeeId, userId, tx);
+    await this.accounts.assignRole(userId, employeeRoleId, tx);
+    await this.accounts.writeUserAudit({ userId: hrUserId, resource: 'user', action: 'create', resourceId: userId }, tx);
+  });
 }
 ```
 
+The `accounts` port above is backed by `iamDirectory` from `@modules/iam`. HRM
+never imports `User`, `Role`, `UserRole` or `AuditLog` itself.
+
 - Required for: **account provisioning**, **payroll computation**, **leave approval** (updates balance + request status).
-- MongoDB transactions require a **replica set** — set this up in dev (`mongodb-memory-server` with `replSet: 'rs'`).
+- MongoDB transactions require a **replica set** — dev/docker run one, and `mongodb-memory-server` is started as a replica set in tests.
 
 ### Audit middleware
 
-- Every mutating service method ends with an `auditLogs` write — either inline (same transaction) or via a shared `withAudit(...)` wrapper.
+- Every mutating use-case records an audit entry through its `AuditPort` — inline in the same transaction where one is open. The port is backed by `auditService` from `@modules/iam`, which owns the `auditLogs` collection.
 
 ---
 
 ## 9. Authentication & Authorization
 
-- **JWT access token** (15 min) + **refresh token** (7 days, rotated on each use, hashed in `sessions` collection).
-- **Auth middleware:** `authenticate` verifies access token → attaches `req.user: AuthPayload`.
-- **Role guard:** `requireRoles('admin', 'hr_manager')` → checks `req.user.roles`.
-- **Permission guard:** `requirePermission('payroll:approve')` → for granular checks.
-- **Public routes** explicitly opt out with `router.use(skipAuth)`.
+Two modules, two questions. Keep them apart:
+
+- **`modules/auth` — authentication.** JWT **access token** (15 min) + **refresh token** (rotated on each use, hashed in the `sessions` collection), login/logout, forced password change, single-use set-password links. It reads users and roles through the repositories IAM exposes; it stores no permission rules of its own.
+- **`modules/iam` — authorization.** Users, roles, permissions and their links, plus the audit log. Permission keys are plain strings namespaced by module (`hrm.employee.read`, `hrm.payroll.approve`), so another product can reuse IAM as-is.
+
+Request-edge middleware lives in `shared/http/` because all three modules use it:
+
+- `authenticate` verifies the access token → attaches `req.user: AuthPayload`. It reads only `@infra/jwt.config`, so `shared/` never depends on a module.
+- `requireRoles('admin', 'hr_manager')` → checks `req.user.roles`.
+- `requirePermission('payroll:approve')` → granular check against `req.user.permissions`.
+- A route is public simply by not listing `authenticate`.
 
 ```ts
 router.post(
@@ -327,23 +409,30 @@ router.post(
 );
 ```
 
-## s
+Both routers mount on the same `/api/v1` prefix, so splitting Auth from IAM did
+not change a single URL.
+
+---
 
 ## 10. Configuration
 
 ```ts
-// config/env.ts
+// infra/config.ts
 import { z } from 'zod';
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']),
+const schema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3000),
-  MONGO_URI: z.string().url(),
-  JWT_SECRET: z.string().min(32),
-  JWT_REFRESH_SECRET: z.string().min(32),
-  BCRYPT_ROUNDS: z.coerce.number().default(10),
+  MONGO_URI: z.string().min(1),
+  JWT_ACCESS_SECRET: z.string().min(64),
+  JWT_REFRESH_SECRET: z.string().min(64),
+  JWT_ACCESS_TTL: z.string().default('15m'),
+  JWT_REFRESH_TTL: z.string().default('7d'),
+  BCRYPT_ROUND: z.coerce.number().default(10),
+  HTTP_CORS_ORIGINS: z.string().optional(),
 });
-export const env = envSchema.parse(process.env);
+export const env = schema.parse(process.env);
 ```
 
-- **Never** read `process.env.X` directly outside `config/`.
+- **Never** read `process.env.X` directly outside `infra/config.ts`.
+- JWT issuer/audience/TTL options live in `infra/jwt.config.ts`, derived from `env`.
 - All secrets via environment; `.env.example` is committed, `.env` is gitignored.
